@@ -1,0 +1,16 @@
+# Development profile only. Image selection/digest is a blocked provisioning gate.
+# No guest image is selected by this recipe.
+arch: aarch64
+vmType: vz
+cpus: 4
+memory: 4GiB
+disk: 24GiB
+plain: true
+images: []
+mounts: []
+containerd:
+  system: false
+  user: false
+portForwards:
+  - guestPortRange: [1, 65535]
+    ignore: true

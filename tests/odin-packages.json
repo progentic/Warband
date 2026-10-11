@@ -1,0 +1,7 @@
+{
+  "phase": 1,
+  "packages": [
+    {"path": "tests/odin/foundation", "tests": ["fixture_has_exact_portable_bytes", "fixture_round_trip_preserves_injected_values"]},
+    {"path": "tests/odin/negative", "tests": ["unknown_fixture_schema_is_rejected", "empty_identifiers_are_rejected", "truncated_and_oversized_bytes_are_rejected"]}
+  ]
+}

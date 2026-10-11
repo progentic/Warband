@@ -1,0 +1,18 @@
+# Development verification profile; production architecture remains unset.
+arch: x86_64
+vmType: qemu
+cpus: 4
+memory: 6GiB
+disk: 24GiB
+plain: true
+images:
+  - location: .local/review/ubuntu-noble-amd64.img
+    arch: x86_64
+    digest: sha256:6a81c37564db9b1ee84e141922625e1d7c5b389b99bb3c572e0243607d5bb4d2
+mounts: []
+containerd:
+  system: false
+  user: false
+portForwards:
+  - guestPortRange: [1, 65535]
+    ignore: true

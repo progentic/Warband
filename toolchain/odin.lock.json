@@ -1,0 +1,35 @@
+{
+  "upstream": "https://github.com/odin-lang/Odin.git",
+  "commit": "8b35c86efb78e9ab5223673a07e02fc2a6884191",
+  "reviewed_on": "2026-10-10",
+  "source_url": "https://github.com/odin-lang/Odin/commit/8b35c86efb78e9ab5223673a07e02fc2a6884191",
+  "build_mode": "release",
+  "build_script_sha256": "d55a0cc0ac702a8697bbfe048966fa7d4f74377ce5c7f66bd853fce1cf1de206",
+  "llvm_major": 19,
+  "linux": {
+    "llvm_config": "/usr/bin/llvm-config-19",
+    "cxx": "/usr/bin/clang++-19",
+    "packages": [
+      "clang-19",
+      "llvm-19-dev",
+      "lld-19",
+      "libstdc++-14-dev",
+      "make"
+    ],
+    "provenance": "Ubuntu Noble signed repositories; clang-19, llvm-19-dev and lld-19 at the locked Debian revision. Record package URIs/hashes and installed revisions; reject version mismatch.",
+    "llvm_version": "19.1.1",
+    "clang_version": "19.1.1",
+    "ubuntu_release": "24.04",
+    "llvm_package_version": "1:19.1.1-1ubuntu1~24.04.2"
+  },
+  "macos": {
+    "cxx": ".local/toolchains/llvm@19/19.1.7/bin/clang++",
+    "cxx_version": "Homebrew clang version 19.1.7",
+    "formula": "llvm@19",
+    "bottle_url": "https://ghcr.io/v2/homebrew/core/llvm/19/blobs/sha256:cd9291ec597cc0e14dc423523dde71c1f3d65ab9359d92fcaa0d91d9059432d5",
+    "bottle_sha256": "cd9291ec597cc0e14dc423523dde71c1f3d65ab9359d92fcaa0d91d9059432d5",
+    "provenance": "Homebrew formula API, arm64_golden_gate bottle; project-local extraction, no global package installation.",
+    "llvm_version": "19.1.7",
+    "clang_version": "19.1.7"
+  }
+}

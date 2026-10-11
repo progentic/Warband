@@ -1,0 +1,8 @@
+{
+  "development_architecture": "aarch64",
+  "backend": "vz",
+  "image_url": null,
+  "image_sha256": null,
+  "production_architecture": null,
+  "provisioning": "blocked: reviewed guest image URL and digest are not selected"
+}
