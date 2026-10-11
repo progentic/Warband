@@ -26,7 +26,7 @@ The constitutional rows above remain planned. Foundation tests do not establish 
 | WB-P1-003: explicit phase | `project.json`, `scripts/check_docs.py`, `scripts/governance.py`, `scripts/document_io.py` | Governance fixtures; WB-NEG-013/016 | locally verified |
 | WB-P1-004: complete test execution | `tests/odin-packages.json`, `scripts/run_odin_tests.py`, `scripts/test_inventory.py` | Exact source/manifest/report inventory; WB-NEG-014 | 2 packages / 5 tests verified separately on macOS and Linux; 17 Python controls |
 | WB-P1-005: VM preparation | `vm/lima.yaml`, `vm/selection.json` | Explicit development architecture; no mounts/forwarded application ports; image gate | original ARM profile pending; reviewed x64 verification VM provisioned |
-| WB-P1-006: hosted CI | `.github/workflows/docs.yml`, `.github/workflows/phase1.yml` | actionlint, pinned actions, read-only token, credential-free checkout; `docs/verification/phase1-publication-evidence.md` | Linux/macOS/docs passed at d6448e1; artifact digests, manifests and reports inspected; branch enforcement pending |
+| WB-P1-006: hosted CI | `.github/workflows/docs.yml`, `.github/workflows/phase1.yml` | actionlint, pinned actions, read-only token, credential-free checkout; `docs/verification/phase1-publication-evidence.md`; `docs/governance/phase1-protection-proposal.md` | Linux/macOS/docs passed at d6448e1; artifacts inspected; strict required checks applied; blocked negative probe and failure uploads verified |
 | WB-P1-007: deterministic data | `src/domain/`, `src/fixture/` | Golden bytes, supplied IDs/tick, round trip, distinct types, WB-NEG-015 | verified locally on macOS and Linux |
 
 ## Invariant coverage status
@@ -50,6 +50,8 @@ The initial evidence is historical. Local platform pins, manifests, transport li
 
 ## Proposed closure and Phase 2 design
 
-`docs/governance/phase1-closure-plan.md` records the remaining source-control, hosted evidence, dependency recovery, owner/review and branch-enforcement gates. These are planned actions, not newly passing checks.
+`docs/governance/phase1-closure-plan.md` distinguishes the completed publication/hosted/protection gates from remaining dependency recovery, owner/review and procedure-layering work. Completed technical checks do not imply formal acceptance.
 
 `docs/decisions/0005-event-integrity-acceptance-and-recovery.md` maps proposed mechanisms and required future verification to the existing WB-CON, WB-INV and WB-NEG identifiers. The runtime rows above remain planned/deferred. No event store, protected head, capability consumption, observation/evaluation boundary, recovery process or replay implementation is added by this design draft.
+
+`docs/decisions/0006-hosted-linux-runner-compatibility.md` tracks the WB-P1-001/WB-P1-006 build-environment risk and required future compatibility evidence. It selects no replacement profile and leaves exact version/OS rejection unchanged.
