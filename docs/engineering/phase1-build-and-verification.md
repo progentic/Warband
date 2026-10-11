@@ -70,3 +70,7 @@ The governance unit tests mutate real document fixtures. The test-inventory cont
 ## Independent fixture specification
 
 The golden bytes are literal and documented in [the fixture specification](../verification/phase1-fixture-specification.md). A separate Python struct reference cross-checks the static sequence without importing the Odin encoder. Governance fixtures now use tracked documents rather than the ignored bootstrap directory, so the controls work in a fresh checkout.
+
+## Candidate entrypoint separation
+
+[ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) proposes a narrow boundary rule requiring explicit approval. The candidate reads Odin arguments separately from pure parsing, keeps the documentation entrypoint's existing composition, and separates build observations/I/O from pure manifest validation/construction. Its four additional manifest controls test format/machine rejection and hosted identity handling. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) records actual results; passing tests do not approve the rule or formally accept Phase 1.

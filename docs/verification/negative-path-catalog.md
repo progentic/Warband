@@ -23,5 +23,9 @@ WB-NEG-001 through WB-NEG-012 remain deferred runtime obligations. These additio
 - **WB-NEG-014:** Omitted/deleted test packages, unexpected names/counts, and unsuccessful compiler reports fail the test gate.
 - **WB-NEG-015:** Truncated/oversized fixture bytes, unknown fixture schema, and empty identifiers fail decoding or domain validation.
 - **WB-NEG-016:** Phase 1 cannot bypass required documents, contract headings, repository link bounds, guidance limits, skill metadata, or traceability.
+- **WB-NEG-017:** Unsupported platforms, wrong executable formats/architectures, and wrong ELF machine observations cannot produce a verified build manifest.
+- **WB-NEG-018:** Missing hosted runner image/version fails manifest construction instead of falling back to a local identity or overwriting the last valid manifest.
+
+WB-NEG-017/018 are exercised by the entrypoint-refactor candidate's manifest controls and the recorded real missing-runner invocation. The [candidate evidence](phase1-entrypoint-evidence.md) distinguishes functional verification from pending procedure-rule approval.
 
 Verification lives in `tests/governance/`, `tests/odin/negative/`, and the manifest runner. No capability, approval, persistence, worker, or audit acceptance exists in this phase.

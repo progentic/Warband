@@ -43,3 +43,11 @@ Keep orchestration, pure domain decisions, and technical operations separate. Pu
 The fixture format is portable verification data, not an accepted event-store format. Ticks and identifiers are explicitly supplied; encoding reads no wall clock or random identity.
 
 The supplied structural guidance's literal call graph conflicts with its purity rule when Mid functions call I/O wrappers. Effect dispatch and general procedure layering remain unresolved, as ADR-0004 specifies. This foundation does not silently accept a general runtime layering exception. Domain validation remains free of I/O; package layout is not a sandbox guarantee.
+
+### Proposed narrow entrypoint clarification
+
+**Approval pending.** [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) records this proposal. It is not an operative exception until the user explicitly approves it; passing tests do not close the hierarchy findings.
+
+> Entrypoints are boundary adapters, not High level domain procedures. They may acquire external inputs, invoke application procedures, and present results. They must not contain policy decisions, evidence evaluation, authoritative state transitions, or unrelated technical operations. Pure domain procedures remain isolated from filesystem, process, network, and database operations.
+
+The proposed Phase 1 scope is the Odin CLI entrypoint and the documentation/build-manifest entrypoints. Input acquisition and presentation stay at their technical boundaries. Runtime authorization, evidence evaluation and authoritative transitions retain the stronger High/Mid/Low contracts. This proposal does not make a runtime coordinator an entrypoint or permit domain rules to call I/O wrappers.

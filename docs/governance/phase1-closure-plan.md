@@ -24,7 +24,7 @@ The user authorized publishing the current foundation, then separately selected 
 
 ### Structural findings for the approval review
 
-Technical test passes do not resolve every literal procedure-layering requirement. The documentation-only pass records these existing mismatches without changing application code:
+Technical test passes do not resolve every literal procedure-layering requirement. The following findings were recorded against the published baseline through 06afd20:
 
 - [High] `cmd/warband/main.odin` `main()` L21 calls `read_command()` directly -> orchestration reaches argument parsing rather than calling only Mid decisions.
 - [High] `scripts/check_docs.py` `main()` L13 and L15 calls inventory loading and presentation -> orchestration crosses directly into filesystem/parsing/reporting boundaries.
@@ -32,7 +32,7 @@ Technical test passes do not resolve every literal procedure-layering requiremen
 
 These are concrete instances of the already recorded effect-dispatch/layering question. A review must choose a compliant boundary arrangement or explicitly approve revised guidance before claiming complete structural compliance. Do not label I/O wrappers pure domain functions or silently accept an exception through ADR-0004. Publication of the current foundation does not resolve these findings or claim structural approval.
 
-The user has been asked whether to permit a narrowly scoped effectful entrypoint adapter. The literal supplied rules require every function to be High/Mid/Low, prohibit I/O in High/Mid and prohibit upward calls from Low; those rules leave an executable entrypoint without a legal connection between policy and effects. That clarification remains pending. A refactor must preserve pure decisions and explicit technical wrappers rather than hide the same violation in a renamed helper or lifecycle hook.
+The user recommended specific entrypoint wording but required explicit approval before closing findings. [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) and the proposed engineering-standard wording make that choice reviewable. The candidate separates argument acquisition from pure parsing, keeps `check_docs.main()` unchanged, and separates manifest inspection, pure validation/construction and output. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) records verification. No finding is closed while rule approval remains pending; runtime authorization retains the stronger boundaries.
 
 ## Gate 2 Select and connect the hosted repository
 
@@ -91,6 +91,7 @@ No general agent orchestration, provider integration, new execution surface, dis
 | Runner migration | ADR-0006 Proposed; owner/option/review pending before 2026-10-19 rollout |
 | Required checks | Configured with no reviewer requirement; readback and blocked failing-PR evidence recorded |
 | Owner assignment and ADR acceptance | Pending user input/review; ADR-0004 remains Proposed |
+| Procedure hierarchy | ADR-0007 and candidate refactor prepared; explicit rule approval pending |
 | ADR-0005 design | Proposed draft only |
 | Phase 2 implementation | Not authorized |
 

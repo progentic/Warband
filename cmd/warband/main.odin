@@ -18,7 +18,9 @@ FixtureRun :: domain.RunId(2)
 FixtureTick :: domain.Tick(3)
 
 main :: proc() {
-	run_command(read_command())
+	arguments := read_arguments()
+	command := parse_command(arguments)
+	run_command(command)
 }
 
 run_command :: proc(command: Command) {
@@ -40,13 +42,17 @@ reject_command :: proc() {
 	exit_with_status(FailureStatus)
 }
 
-read_command :: proc() -> Command {
-	if len(os.args) != RequiredArgumentCount { return .Invalid }
-	switch os.args[1] {
+parse_command :: proc(arguments: []string) -> Command {
+	if len(arguments) != RequiredArgumentCount { return .Invalid }
+	switch arguments[1] {
 	case VersionCommand: return .Version
 	case FixtureCommand: return .Fixture
 	}
 	return .Invalid
+}
+
+read_arguments :: proc() -> []string {
+	return os.args
 }
 
 write_line :: proc(text: string) {
