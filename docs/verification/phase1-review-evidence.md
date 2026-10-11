@@ -87,7 +87,7 @@ Source-only transfer also exposed macOS metadata sidecars and an overly broad ar
 | Independent native ARM64 build/tests and portable golden | PASS locally |
 | Governance and test completeness rejection controls | PASS locally, including fresh-checkout simulation |
 | Workflow syntax, least privilege, exact action pins, ubuntu-latest placement | PASS local inspection |
-| Actual hosted CI execution and branch enforcement | Pending: publication authorized after this review; actual workflow results and enforcement remain unverified; see the [closure plan](../governance/phase1-closure-plan.md) |
+| Actual hosted CI execution and branch enforcement | Subsequent results are recorded in [publication evidence](phase1-publication-evidence.md); branch enforcement remains pending |
 | Foundation traceability and preserved runtime invariants | PASS; Phase 2 properties remain unimplemented |
 | ADR ownership and formal acceptance | BLOCKED: owner unassigned, ADR-0004 Proposed |
 

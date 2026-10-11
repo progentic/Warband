@@ -12,7 +12,7 @@ This file records user-visible and architecture-visible changes to Warband.
 - Project-scoped Lima recipes, including a provisioned x64 verification guest with a reviewed image digest; production architecture remains unset.
 - Proposed ADR-0005 design and a Phase 1 closure plan.
 
-The foundation is technically verified locally on Linux x64 and macOS ARM64. Publication of the reviewed source on the selected repository's `main` is authorized. Hosted CI results remain pending. ADR-0004 remains Proposed with an unassigned owner; formal completion is not claimed.
+The foundation is published on the selected repository's `main` and technically verified locally on Linux x64 and macOS ARM64. See [runner evidence](docs/verification/phase1-publication-evidence.md) for actual hosted results. Workflows retain stage logs, source identities, manifests and test reports after success or failure. ADR-0004 remains Proposed with an unassigned owner; formal completion is not claimed.
 
 - Initial documentation-only repository bootstrap.
 - Runtime constitution.

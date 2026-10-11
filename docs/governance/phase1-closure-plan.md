@@ -10,7 +10,7 @@ Before staging, confirm the Git top level is exactly `/Users/godzilla/Documents/
 
 The remote already has `main` at `c2bb2919e2366f7d27d9f3036947bdb7df618ae8` (Initial commit), containing `.gitignore`, `LICENSE`, and `README.md`. These files were inspected through GitHub and compared with the local files. The remote README is a short placeholder and its ignore rules target Rust. On 2026-10-10 the user directed adoption of the remote BSD 3-Clause license, copyright 2026 Proto. The active root LICENSE was replaced byte-for-byte with remote Git blob `6e0dd6167e4717f43f97d29904779b28bfa4b53e`. The retained original bootstrap snapshot remains unchanged.
 
-The remote initial commit was fetched and adopted as the local branch/index baseline using a mixed reset, preserving working files. The foundation commit will retain that commit as an ancestor. Refresh the remote reference before publication; do not force-push or replace existing history.
+The remote initial commit was fetched and adopted as the local branch/index baseline using a mixed reset, preserving working files. Foundation commit `53415e7853b598bc341bc651df2edc694b9afe7e` was pushed to `main` as a fast-forward, retaining that initial commit as its parent. Do not force-push or replace existing history.
 
 Include root project guidance, license, active documents, `.agents/skills/`, workflows, source, tests, toolchain lock, and VM recipes. Exclude `.local/`, `out/`, `build/`, interpreter caches, ZIP attachments, and the original extracted bootstrap. Preserve those input/evidence files locally.
 
@@ -40,11 +40,11 @@ After authorization, integrate the reviewed foundation onto the existing remote 
 
 ## Gate 3 Preserve actual CI evidence
 
-The current workflow only writes a success summary. Before the hosted run, prepare a separately reviewed workflow change to capture compiler, build, governance, test, and smoke output into platform-specific `out/` logs. Set `shell: bash` explicitly so logging through `tee` keeps fail-fast and pipefail behavior. Verify a failing producer cannot turn into a successful pipeline.
+The first published workflow wrote a Linux success summary. The subsequent runner-evidence change captures compiler, build, governance, test, and smoke output into platform-specific `out/` logs. Explicit `shell: bash` preserves fail-fast and pipefail behavior when logging through `tee`. A local failure control verified that producer exit 7 remains exit 7 and its log is retained; a successful producer remains successful.
 
-Upload only the platform `out/` evidence directory after success or failure, using a reviewed full action SHA and `if: always()`. Exclude hidden files, source credentials, `.git`, `.local`, VM state, and provider data. Use unique artifact names containing platform, tested source SHA, and run attempt. A missing initialized evidence directory should fail the upload; checkout/setup infrastructure failures may have only native Actions logs.
+The workflows upload only their `out/` evidence directories after success or failure, using a reviewed full action SHA and `if: always()`. Hidden files, source credentials, `.git`, `.local`, VM state, and provider data are excluded. Unique artifact names contain platform, tested source SHA, and run attempt; the source SHA is also stored in each directory. Missing evidence fails the upload; checkout/setup infrastructure failures may have only native Actions logs. Actual uploaded contents require inspection before this gate passes.
 
-The public official upload-artifact v4.6.2 commit inspected for this plan is `ea165f8d65b6e75b540449e92b4886f43607fa02`. It is a planned dependency, not installed or configured by this documentation pass. Recheck its suitability when making the workflow change.
+The public official upload-artifact v4.6.2 commit is `ea165f8d65b6e75b540449e92b4886f43607fa02`. Its action metadata and configured inputs were inspected before adding it. The action remains pinned to that full SHA. Routine artifacts use 30-day retention; acceptance evidence still needs a durable archive and restore verification.
 
 Retain source/workflow SHA, resolved runner image/version, Odin SHA and report, LLVM/C++ versions, exact package receipts, build flags, binary SHA-256 and architecture/linkage, complete test identities/counts, and failed-stage logs. Artifact retention must fit repository policy; propose 30 days for routine run evidence and export acceptance evidence into a durable maintainer-controlled archive. A successful upload is not proof the tests passed. PR artifacts remain untrusted data and must not be executed or deployed by a privileged follow-up job.
 
@@ -75,10 +75,10 @@ No general agent orchestration, provider integration, new execution surface, dis
 | Gate | Current disposition |
 |---|---|
 | Local technical foundation | PASS; previously recorded Linux and macOS evidence |
-| Source baseline review and foundation commit | Commit/push authorized; license aligned; existing remote history adopted; publication verification in progress |
+| Source baseline review and foundation commit | Published as 53415e7; original remote commit preserved; ignored input/state excluded |
 | Repository connection | Configured and verified; existing authentication unchanged |
-| Hosted runs | Pending publication and actual workflow results |
-| Evidence upload and dependency recovery | Plan prepared; workflow/archive changes and restore test pending |
+| Hosted runs | First documentation, Linux x64 and macOS ARM64 jobs passed at 53415e7; new evidence capture pending hosted inspection |
+| Evidence upload and dependency recovery | Capture/upload configured; hosted artifact inspection, archive and restore test pending |
 | Owner assignment, ADR acceptance, enforced required checks | Deferred by the user |
 | ADR-0005 design | Proposed draft only |
 | Phase 2 implementation | Not authorized |
