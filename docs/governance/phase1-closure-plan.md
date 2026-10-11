@@ -42,7 +42,7 @@ After authorization, integrate the reviewed foundation onto the existing remote 
 
 The first published workflow wrote a Linux success summary. The subsequent runner-evidence change captures compiler, build, governance, test, and smoke output into platform-specific `out/` logs. Explicit `shell: bash` preserves fail-fast and pipefail behavior when logging through `tee`. A local failure control verified that producer exit 7 remains exit 7 and its log is retained; a successful producer remains successful.
 
-The workflows upload only their `out/` evidence directories after success or failure, using a reviewed full action SHA and `if: always()`. Hidden files, source credentials, `.git`, `.local`, VM state, and provider data are excluded. Unique artifact names contain platform, tested source SHA, and run attempt; the source SHA is also stored in each directory. Missing evidence fails the upload; checkout/setup infrastructure failures may have only native Actions logs. Actual uploaded contents require inspection before this gate passes.
+The workflows upload only their `out/` evidence directories after success or failure, using a reviewed full action SHA and `if: always()`. Hidden files, source credentials, `.git`, `.local`, VM state, and provider data are excluded. Unique artifact names contain platform, tested source SHA, and run attempt; the source SHA is also stored in each directory. Missing evidence fails the upload; checkout/setup infrastructure failures may have only native Actions logs. All three success artifacts at d6448e1 were downloaded and inspected, including archive digests, source identities, binary hashes/metadata, reports and logs. Failure-time upload was not deliberately exercised on a hosted job.
 
 The public official upload-artifact v4.6.2 commit is `ea165f8d65b6e75b540449e92b4886f43607fa02`. Its action metadata and configured inputs were inspected before adding it. The action remains pinned to that full SHA. Routine artifacts use 30-day retention; acceptance evidence still needs a durable archive and restore verification.
 
@@ -64,6 +64,8 @@ Assign a responsible ADR-0004 owner and reviewer. Review implementation evidence
 
 Configure supported branch protection/rulesets only after the account/repository/plan is known and the actual named jobs have run. Require the observed checks and appropriate review for source, contracts, toolchain, and workflow changes. Inspect the effective settings and prove an unpassing change cannot merge through the intended path. Document unsupported controls instead of claiming enforcement.
 
+The post-publication API inspection found `main` unprotected, required checks off, and no repository or inherited rulesets. No enforcement settings were changed. The actual run also identified action-runtime deprecation and an announced ubuntu-latest migration; these maintenance findings and the retained fail-closed guard are recorded in [runner evidence](../verification/phase1-publication-evidence.md).
+
 ## Gate 6 Prepare Phase 2 design
 
 [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md) is a Proposed design draft. It addresses event encoding, anchors, evidence provenance, transactional acceptance, capability consumption, uncertain execution outcomes, and deterministic replay. Its open decisions and verification matrix must be reviewed before any Phase 2 code is authorized.
@@ -77,8 +79,9 @@ No general agent orchestration, provider integration, new execution surface, dis
 | Local technical foundation | PASS; previously recorded Linux and macOS evidence |
 | Source baseline review and foundation commit | Published as 53415e7; original remote commit preserved; ignored input/state excluded |
 | Repository connection | Configured and verified; existing authentication unchanged |
-| Hosted runs | First documentation, Linux x64 and macOS ARM64 jobs passed at 53415e7; new evidence capture pending hosted inspection |
-| Evidence upload and dependency recovery | Capture/upload configured; hosted artifact inspection, archive and restore test pending |
+| Hosted runs | Documentation, Linux x64 and macOS ARM64 passed at 53415e7 and d6448e1 |
+| Runner evidence | Success artifacts uploaded and inspected at d6448e1; failure upload not deliberately exercised |
+| Dependency recovery | Durable archive and clean restore test pending |
 | Owner assignment, ADR acceptance, enforced required checks | Deferred by the user |
 | ADR-0005 design | Proposed draft only |
 | Phase 2 implementation | Not authorized |

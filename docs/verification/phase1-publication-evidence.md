@@ -30,10 +30,24 @@ Homebrew warned that LLVM 19 was installed but not linked because LLVM 18 was al
 
 ## Runner evidence change
 
-The subsequent workflow diff adds explicit bash, stage logs through `tee`, source-commit files, platform summaries, and reviewed SHA-pinned upload-artifact v4.6.2. Uploads run after success or failure, exclude hidden files, fail on missing evidence, and retain only their scoped `out/` directories for 30 days. A local control verified that a producer exiting 7 still exits 7 through `tee` and retains its output; a successful producer remains successful. Actual hosted uploads and their contents remain to be verified.
+Commit [d6448e15879443fed52889c89b05e0991ebdcc84](https://github.com/progentic/Warband/commit/d6448e15879443fed52889c89b05e0991ebdcc84) adds explicit bash, stage logs through `tee`, source-commit files, platform summaries, and reviewed SHA-pinned upload-artifact v4.6.2. Uploads run after success or failure, exclude hidden files, fail on missing evidence, and retain only their scoped `out/` directories for 30 days. A local control verified that a producer exiting 7 still exits 7 through `tee` and retains its output; a successful producer remains successful.
+
+Both the [foundation run](https://github.com/progentic/Warband/actions/runs/38104733402) and [documentation run](https://github.com/progentic/Warband/actions/runs/38104733455) passed at d6448e1. All three artifacts were downloaded. Their archive SHA-256 values match GitHub's reported digests, and their paths remain within the intended output scope. Platform binary hashes match their manifests; source-commit files identify d6448e1; actual LLVM versions and Odin SHA match the lock. Both platforms' JSON reports contain exactly the five manifest test identities with successful results. Each platform's logs show 17 Python controls and CLI smoke passing. Downloaded binaries were inspected as data, not executed.
+
+| Evidence | Linux x64 | macOS ARM64 |
+|---|---|---|
+| Runner image | ubuntu24 / 20261004.327.1 | macos15 / 20260907.0337.1 |
+| LLVM/clang | 19.1.1 | 19.1.7 |
+| Binary SHA-256 | `e500b0023519004c73243b00f87bf0a1decbb42877b78a13d9322a0bdf094a01` | `2f2fde96307641344c7efe9512e84cb893f7cd751b441f205db9a3667169b978` |
+| Independently inspected format | ELF64 x86-64 | Mach-O ARM64 |
+| Artifact | [Linux evidence](https://github.com/progentic/Warband/actions/runs/38104733402/artifacts/11688869243) | [macOS evidence](https://github.com/progentic/Warband/actions/runs/38104733402/artifacts/11689300841) |
+
+The [documentation artifact](https://github.com/progentic/Warband/actions/runs/38104733455/artifacts/11689123446) contains the source SHA and passing governance log. All three artifacts expire on 2026-11-10; they are routine run evidence, not a durable acceptance or dependency archive. Failure-time upload is configured with `always()` but was not demonstrated by deliberately failing a hosted job in this run.
 
 The runner is an independent verification environment. Differences from local dependencies, architecture, compiler output, and test results are evidence to inspect. This change does not loosen exact version checks, replace failures with local passes, or require platform binaries to have matching hashes. Strict bitwise reproducibility is not claimed.
 
+The runner's Linux package receipts match the earlier x64 guest's locked LLVM revisions, GCC 14 headers and make version. Native macOS 27.0.1 and hosted macOS 15.7.9 use different host/SDK/bottle inputs with the same exact LLVM version. Both platform test identities and success results agree with local verification. Binary hashes differ and are recorded separately; neither platform establishes the future Linux runtime sandbox.
+
 ## Remaining gates
 
-ADR-0004 remains Proposed with an unassigned owner. Required-check enforcement, dependency retention/recovery, and the recorded procedure-layering findings remain open in [the closure plan](../governance/phase1-closure-plan.md). The original WB-CON, WB-INV, and WB-NEG-001 through WB-NEG-012 runtime requirements are still planned/deferred. ADR-0005 is a Proposed design only. Phase 2 implementation and formal Phase 1 acceptance are not authorized by publication.
+GitHub's branch API reports `main` as unprotected with required checks off, and the repository ruleset listing including inherited rules is empty. These settings were inspected without changing them. ADR-0004 remains Proposed with an unassigned owner. Required-check enforcement, dependency retention/recovery, and the recorded procedure-layering findings remain open in [the closure plan](../governance/phase1-closure-plan.md). The original WB-CON, WB-INV, and WB-NEG-001 through WB-NEG-012 runtime requirements are still planned/deferred. ADR-0005 is a Proposed design only. Phase 2 implementation and formal Phase 1 acceptance are not authorized by publication.

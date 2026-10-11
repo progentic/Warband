@@ -36,7 +36,7 @@ python3 scripts/check_docs.py
 
 ## Repository status
 
-**Phase 1: Local implementation authorized; formal completion blocked**
+**Phase 1: Foundation verified locally and on hosted runners; formal acceptance pending**
 
 `project.json` declares Phase 1. The CLI supports `version` and `fixture`; it cannot execute tools or commit authoritative state. See [Phase 1 build and verification](docs/engineering/phase1-build-and-verification.md) and [verification evidence](docs/verification/phase1-evidence.md).
 

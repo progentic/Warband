@@ -26,7 +26,7 @@ The constitutional rows above remain planned. Foundation tests do not establish 
 | WB-P1-003: explicit phase | `project.json`, `scripts/check_docs.py`, `scripts/governance.py`, `scripts/document_io.py` | Governance fixtures; WB-NEG-013/016 | locally verified |
 | WB-P1-004: complete test execution | `tests/odin-packages.json`, `scripts/run_odin_tests.py`, `scripts/test_inventory.py` | Exact source/manifest/report inventory; WB-NEG-014 | 2 packages / 5 tests verified separately on macOS and Linux; 17 Python controls |
 | WB-P1-005: VM preparation | `vm/lima.yaml`, `vm/selection.json` | Explicit development architecture; no mounts/forwarded application ports; image gate | original ARM profile pending; reviewed x64 verification VM provisioned |
-| WB-P1-006: hosted CI | `.github/workflows/docs.yml`, `.github/workflows/phase1.yml` | actionlint, pinned actions, read-only token, credential-free checkout; `docs/verification/phase1-publication-evidence.md` | published; first Linux/macOS/docs jobs passed; new artifact capture pending inspection |
+| WB-P1-006: hosted CI | `.github/workflows/docs.yml`, `.github/workflows/phase1.yml` | actionlint, pinned actions, read-only token, credential-free checkout; `docs/verification/phase1-publication-evidence.md` | Linux/macOS/docs passed at d6448e1; artifact digests, manifests and reports inspected; branch enforcement pending |
 | WB-P1-007: deterministic data | `src/domain/`, `src/fixture/` | Golden bytes, supplied IDs/tick, round trip, distinct types, WB-NEG-015 | verified locally on macOS and Linux |
 
 ## Invariant coverage status
