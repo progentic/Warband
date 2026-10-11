@@ -36,4 +36,4 @@ Instructions guide behavior. Repository controls and verification enforce behavi
 
 ## Phase 1 closure
 
-The [closure plan](phase1-closure-plan.md) records baseline review, commit/remote authorization, hosted evidence retention, dependency recovery, ownership and required-check gates. Account/repository and owner selection are deferred by the user. Local technical verification does not imply formal ADR acceptance or Phase 2 authorization.
+The [closure plan](phase1-closure-plan.md) records source publication, hosted evidence retention, dependency recovery, ownership and required-check gates. The repository is selected and the hosted baseline passes; ownership and formal acceptance remain pending. [ADR-0006](../decisions/0006-hosted-linux-runner-compatibility.md) tracks the announced runner migration without relaxing the toolchain guard. Technical verification does not imply formal ADR acceptance or Phase 2 authorization.

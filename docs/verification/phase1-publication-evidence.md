@@ -48,6 +48,14 @@ The runner is an independent verification environment. Differences from local de
 
 The runner's Linux package receipts match the earlier x64 guest's locked LLVM revisions, GCC 14 headers and make version. Native macOS 27.0.1 and hosted macOS 15.7.9 use different host/SDK/bottle inputs with the same exact LLVM version. Both platform test identities and success results agree with local verification. Binary hashes differ and are recorded separately; neither platform establishes the future Linux runtime sandbox.
 
-## Remaining gates
+## Repository recheck at 8da731e
 
-GitHub's branch API reports `main` as unprotected with required checks off, and the repository ruleset listing including inherited rules is empty. These settings were inspected without changing them. ADR-0004 remains Proposed with an unassigned owner. Required-check enforcement, dependency retention/recovery, and the recorded procedure-layering findings remain open in [the closure plan](../governance/phase1-closure-plan.md). The original WB-CON, WB-INV, and WB-NEG-001 through WB-NEG-012 runtime requirements are still planned/deferred. ADR-0005 is a Proposed design only. Phase 2 implementation and formal Phase 1 acceptance are not authorized by publication.
+The latest [foundation run](https://github.com/progentic/Warband/actions/runs/38104980945) and [documentation run](https://github.com/progentic/Warband/actions/runs/38104980875) both completed successfully at `8da731ef0af3d341908d8c74c62d4ccb741b4c79`. Together with the four earlier runs, all six published workflow runs passed. The recheck confirms hosted execution; it does not accept ADR-0004 or enforce merge checks. Detailed artifact inspection above is specifically tied to d6448e1 and is not silently attributed to another commit.
+
+The unchanged strict OS/toolchain checks remain active. [ADR-0006](../decisions/0006-hosted-linux-runner-compatibility.md) now records the migration deadline, candidate options and required compatibility evidence.
+
+## Remaining acceptance gates
+
+The initial branch API inspection reported `main` as unprotected with required checks off and no inherited rulesets. The user subsequently selected required checks without a reviewer requirement. [Protection evidence](../governance/phase1-protection-proposal.md) records applied/read-back settings, a failing non-draft PR blocked from merging, and actual failure-time uploads from all three jobs. The probe was closed without merging.
+
+ADR-0004 remains Proposed with an unassigned owner. Dependency retention/recovery and the recorded procedure-layering findings remain open in [the closure plan](../governance/phase1-closure-plan.md). The original WB-CON, WB-INV, and WB-NEG-001 through WB-NEG-012 runtime requirements are still planned/deferred. ADR-0005 is a Proposed design only. Phase 2 implementation and formal Phase 1 acceptance are not authorized by publication or branch protection.

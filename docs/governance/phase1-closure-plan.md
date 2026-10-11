@@ -6,7 +6,7 @@ On 2026-10-10 the user selected [progentic/Warband](https://github.com/progentic
 
 ## Gate 1 Review the source baseline
 
-Before staging, confirm the Git top level is exactly `/Users/godzilla/Documents/Projects/Warband`. Review the complete prospective file inventory and differences against the immutable bootstrap and selected remote baseline. The local branch now starts at the remote initial commit. Most foundation files are still new, so ordinary unstaged `git diff` alone cannot review them.
+Before staging, confirm the Git top level is exactly `/Users/godzilla/Documents/Projects/Warband`. The initial publication review included a complete prospective inventory because the foundation files were then untracked. For subsequent changes, inspect the complete diff against the published main baseline and preserve the immutable bootstrap and accepted decisions.
 
 The remote already has `main` at `c2bb2919e2366f7d27d9f3036947bdb7df618ae8` (Initial commit), containing `.gitignore`, `LICENSE`, and `README.md`. These files were inspected through GitHub and compared with the local files. The remote README is a short placeholder and its ignore rules target Rust. On 2026-10-10 the user directed adoption of the remote BSD 3-Clause license, copyright 2026 Proto. The active root LICENSE was replaced byte-for-byte with remote Git blob `6e0dd6167e4717f43f97d29904779b28bfa4b53e`. The retained original bootstrap snapshot remains unchanged.
 
@@ -20,7 +20,7 @@ Produce a sorted prospective-commit manifest with path, size, mode, and SHA-256.
 
 Run governance, Python controls, explicit Odin package discovery, native build/test/smoke, actionlint, and shellcheck against a source-only checkout without ignored input directories. Link real Linux evidence to the exact reviewed source tree. Record outstanding structural findings rather than converting technical test passes into general architecture approval.
 
-The user has authorized staging, committing, and pushing the current foundation. Review the concrete inventory/diff and available verification before doing so. This authorization does not accept ADRs, configure branch enforcement, or authorize Phase 2.
+The user authorized publishing the current foundation, then separately selected required-check protection with no reviewer requirement. Review the concrete inventory/diff and available verification before publishing changes through the protected path. These authorizations do not accept ADRs or authorize Phase 2.
 
 ### Structural findings for the approval review
 
@@ -32,17 +32,19 @@ Technical test passes do not resolve every literal procedure-layering requiremen
 
 These are concrete instances of the already recorded effect-dispatch/layering question. A review must choose a compliant boundary arrangement or explicitly approve revised guidance before claiming complete structural compliance. Do not label I/O wrappers pure domain functions or silently accept an exception through ADR-0004. Publication of the current foundation does not resolve these findings or claim structural approval.
 
+The user has been asked whether to permit a narrowly scoped effectful entrypoint adapter. The literal supplied rules require every function to be High/Mid/Low, prohibit I/O in High/Mid and prohibit upward calls from Low; those rules leave an executable entrypoint without a legal connection between policy and effects. That clarification remains pending. A refactor must preserve pure decisions and explicit technical wrappers rather than hide the same violation in a renamed helper or lifecycle hook.
+
 ## Gate 2 Select and connect the hosted repository
 
-Repository selection and remote configuration are complete: `origin` is `https://github.com/progentic/Warband.git`, the repository is public, and its default branch is `main`. GitHub reported push/admin permissions for the existing authentication. The user separately authorized commit/push; enforcement configuration, account plan, and collaborator policy remain pending. Do not switch authentication implicitly.
+Repository selection and remote configuration are complete: `origin` is `https://github.com/progentic/Warband.git`, the repository is public, and its default branch is `main`. Existing authentication is unchanged. Commit/push and required-check protection are separately authorized. Apply subsequent changes through the protected path; do not infer ADR ownership from the GitHub account.
 
-After authorization, integrate the reviewed foundation onto the existing remote history and push the resulting commit. Run the complete Phase 1 workflow at that commit. Preserve stable checks: Documentation Governance / validate, Phase 1 Linux Foundation, and Phase 1 macOS Portability. Primary Linux compiler/build/test jobs remain on `ubuntu-latest`; retain the Ubuntu 24.04 guard and reject unexpected OS changes. A moving runner label does not freeze dependency inputs.
+The foundation is integrated with the existing remote history. Publish subsequent reviewed changes through the protected path and run the complete Phase 1 workflow. Preserve the observed contexts in [protection evidence](phase1-protection-proposal.md). Primary Linux compiler/build/test jobs remain on `ubuntu-latest`; retain the Ubuntu 24.04 guard and reject unexpected OS changes. A moving runner label does not freeze dependency inputs.
 
 ## Gate 3 Preserve actual CI evidence
 
 The first published workflow wrote a Linux success summary. The subsequent runner-evidence change captures compiler, build, governance, test, and smoke output into platform-specific `out/` logs. Explicit `shell: bash` preserves fail-fast and pipefail behavior when logging through `tee`. A local failure control verified that producer exit 7 remains exit 7 and its log is retained; a successful producer remains successful.
 
-The workflows upload only their `out/` evidence directories after success or failure, using a reviewed full action SHA and `if: always()`. Hidden files, source credentials, `.git`, `.local`, VM state, and provider data are excluded. Unique artifact names contain platform, tested source SHA, and run attempt; the source SHA is also stored in each directory. Missing evidence fails the upload; checkout/setup infrastructure failures may have only native Actions logs. All three success artifacts at d6448e1 were downloaded and inspected, including archive digests, source identities, binary hashes/metadata, reports and logs. Failure-time upload was not deliberately exercised on a hosted job.
+The workflows upload only their `out/` evidence directories after success or failure, using a reviewed full action SHA and `if: always()`. Hidden files, source credentials, `.git`, `.local`, VM state, and provider data are excluded. Unique artifact names contain platform, tested source SHA, and run attempt; the source SHA is also stored in each directory. Missing evidence fails the upload; checkout/setup infrastructure failures may have only native Actions logs. All three success artifacts at d6448e1 were downloaded and inspected, including archive digests, source identities, binary hashes/metadata, reports and logs. The subsequent protection probe also demonstrated failure-time upload in all three jobs; see [protection evidence](phase1-protection-proposal.md).
 
 The public official upload-artifact v4.6.2 commit is `ea165f8d65b6e75b540449e92b4886f43607fa02`. Its action metadata and configured inputs were inspected before adding it. The action remains pinned to that full SHA. Routine artifacts use 30-day retention; acceptance evidence still needs a durable archive and restore verification.
 
@@ -64,7 +66,11 @@ Assign a responsible ADR-0004 owner and reviewer. Review implementation evidence
 
 Configure supported branch protection/rulesets only after the account/repository/plan is known and the actual named jobs have run. Require the observed checks and appropriate review for source, contracts, toolchain, and workflow changes. Inspect the effective settings and prove an unpassing change cannot merge through the intended path. Document unsupported controls instead of claiming enforcement.
 
-The post-publication API inspection found `main` unprotected, required checks off, and no repository or inherited rulesets. No enforcement settings were changed. The actual run also identified action-runtime deprecation and an announced ubuntu-latest migration; these maintenance findings and the retained fail-closed guard are recorded in [runner evidence](../verification/phase1-publication-evidence.md).
+Before the user's protection selection, API inspection found `main` unprotected, required checks off, and no repository or inherited rulesets. That inspection changed no settings. The hosted run also identified action-runtime deprecation and an announced ubuntu-latest migration; these maintenance findings and the retained fail-closed guard are recorded in [runner evidence](../verification/phase1-publication-evidence.md).
+
+The [protection configuration and evidence](phase1-protection-proposal.md) records the user-selected settings, exact observed check contexts/app ID, API readback and a deliberately failing non-draft PR whose merge state stayed BLOCKED. The probe was closed without merging and its branch removed. ADR-0004 ownership remains pending user input.
+
+[ADR-0006](../decisions/0006-hosted-linux-runner-compatibility.md) is the Proposed compatibility record, with a review deadline of 2026-10-18. It records options and required evidence; it does not change the current OS guard, toolchain lock or runner label.
 
 ## Gate 6 Prepare Phase 2 design
 
@@ -79,10 +85,12 @@ No general agent orchestration, provider integration, new execution surface, dis
 | Local technical foundation | PASS; previously recorded Linux and macOS evidence |
 | Source baseline review and foundation commit | Published as 53415e7; original remote commit preserved; ignored input/state excluded |
 | Repository connection | Configured and verified; existing authentication unchanged |
-| Hosted runs | Documentation, Linux x64 and macOS ARM64 passed at 53415e7 and d6448e1 |
-| Runner evidence | Success artifacts uploaded and inspected at d6448e1; failure upload not deliberately exercised |
+| Hosted runs | All six workflow runs across 53415e7, d6448e1 and 8da731e passed |
+| Runner evidence | Success artifacts inspected at d6448e1; all three failure uploads demonstrated and inspected in protection probe |
 | Dependency recovery | Durable archive and clean restore test pending |
-| Owner assignment, ADR acceptance, enforced required checks | Deferred by the user |
+| Runner migration | ADR-0006 Proposed; owner/option/review pending before 2026-10-19 rollout |
+| Required checks | Configured with no reviewer requirement; readback and blocked failing-PR evidence recorded |
+| Owner assignment and ADR acceptance | Pending user input/review; ADR-0004 remains Proposed |
 | ADR-0005 design | Proposed draft only |
 | Phase 2 implementation | Not authorized |
 
