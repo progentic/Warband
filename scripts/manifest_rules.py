@@ -35,6 +35,9 @@ class RunnerObservation:
     version: str | None
 
 
+LOCAL_RUNNER = RunnerObservation(False, LOCAL_IDENTITY, LOCAL_IDENTITY)
+
+
 @dataclass(frozen=True)
 class BuildObservation:
     artifact: ArtifactObservation
@@ -107,7 +110,7 @@ def validate_runner_version(runner: RunnerObservation) -> None:
 def choose_runner_identity(runner: RunnerObservation) -> RunnerObservation:
     if runner.hosted:
         return runner
-    return RunnerObservation(False, LOCAL_IDENTITY, LOCAL_IDENTITY)
+    return LOCAL_RUNNER
 
 
 def describe_manifest(observation: BuildObservation, runner: RunnerObservation) -> BuildManifest:
