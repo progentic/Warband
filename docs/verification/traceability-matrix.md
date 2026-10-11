@@ -28,7 +28,7 @@ The constitutional rows above remain planned. Foundation tests do not establish 
 | WB-P1-005: VM preparation | `vm/lima.yaml`, `vm/selection.json` | Explicit development architecture; no mounts/forwarded application ports; image gate | original ARM profile pending; reviewed x64 verification VM provisioned |
 | WB-P1-006: hosted CI | `.github/workflows/docs.yml`, `.github/workflows/phase1.yml` | actionlint, pinned actions, read-only token, credential-free checkout; `docs/verification/phase1-publication-evidence.md`; `docs/governance/phase1-protection-proposal.md` | Linux/macOS/docs passed at d6448e1; artifacts inspected; strict required checks applied; blocked negative probe and failure uploads verified |
 | WB-P1-007: deterministic data | `src/domain/`, `src/fixture/` | Golden bytes, supplied IDs/tick, round trip, distinct types, WB-NEG-015 | verified locally on macOS and Linux |
-| WB-P1-008: explicit entrypoint boundaries | `cmd/warband/main.odin`, `scripts/check_docs.py`, `scripts/build_manifest.py`, `scripts/manifest_rules.py`, `scripts/manifest_io.py` | `tests/governance/test_manifest_rules.py`, existing CLI smoke, manifest parity and WB-NEG-017/018; `docs/verification/phase1-entrypoint-evidence.md` | candidate verified locally; ADR-0007 rule approval and hosted candidate checks pending |
+| WB-P1-008: explicit entrypoint boundaries | `cmd/warband/main.odin`, `scripts/check_docs.py`, `scripts/build_manifest.py`, `scripts/manifest_rules.py`, `scripts/manifest_io.py` | `tests/governance/test_manifest_rules.py`, existing CLI smoke, manifest parity and WB-NEG-017/018; `docs/verification/phase1-entrypoint-evidence.md` | candidate b87c8be verified locally and on both hosted platforms; ADR-0007 rule approval pending |
 
 ## Invariant coverage status
 

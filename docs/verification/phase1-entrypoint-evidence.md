@@ -1,6 +1,6 @@
 # Phase 1 entrypoint candidate evidence
 
-**Disposition: functional candidate verified locally; rule approval pending.** This record does not close the hierarchy findings or accept ADR-0004/0007. The candidate is scoped by [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md).
+**Disposition: functional candidate verified locally and on hosted runners; rule approval pending.** This record does not close the hierarchy findings or accept ADR-0004/0007. The candidate is scoped by [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md).
 
 ## Baseline recheck
 
@@ -33,7 +33,20 @@ Native macOS ARM64 verification used the existing source-built Odin at `8b35c86e
 
 The four new controls use supplied observations to verify supported formats and preserved provenance, unsupported format/machine/platform rejection, missing hosted identity rejection without local fallback, and local treatment of stale hosted labels. They do not fabricate source-compiler or executable checks. The old/new comparison exercised the real native compiler/version/linkage/hash acquisition separately from these pure tests.
 
-Native parity JSON and the real rejection log are retained under `.local/closure-review/entrypoint/`. The reviewed diff preserves the constitution, invariant definitions and accepted ADRs byte-for-byte; the pure manifest module imports only dataclasses. Linux x64 and macOS ARM64 hosted candidate checks and their artifacts still need recorded outcomes. Do not substitute the passing baseline runs for the candidate.
+Native parity JSON and the real rejection log are retained under `.local/closure-review/entrypoint/`. The reviewed diff preserves the constitution, invariant definitions and accepted ADRs byte-for-byte; the pure manifest module imports only dataclasses.
+
+## Actual hosted candidate results
+
+Draft [PR #3](https://github.com/progentic/Warband/pull/3) at head `b87c8be8db7c49fed9707a10e26e6a5f56ddb260` passed its [foundation run](https://github.com/progentic/Warband/actions/runs/38108611919) and [documentation run](https://github.com/progentic/Warband/actions/runs/38108610057). Actions tested PR merge source `d2978ffe504af31a73edc279426378d4d13dc72c` against base `06afd20`; that test merge is not a merge into main.
+
+| Platform | Actual result | Binary SHA-256 |
+|---|---|---|
+| ubuntu24 / 20261004.327.1, x64 | PASS: pinned source compiler, ELF x86-64, governance, 21 Python controls, original five Odin tests, CLI smoke and artifact upload | `9650cdd2e918c8f0642910e0f1aa6382bc94e55ef8a740c9957f8941ed27a32d` |
+| macos15 / 20260907.0337.1, ARM64 | PASS: pinned source compiler, ARM64 Mach-O, governance, 21 Python controls, original five Odin tests, CLI smoke and artifact upload | `436d3e9686776958d00dca787d6f7a98b246ec85076523045e20226f98a529f1` |
+
+All three artifact archives were downloaded and their SHA-256 digests matched GitHub metadata. Platform manifests identified the unchanged Odin SHA and exact LLVM profiles; binary hashes and independently inspected file formats matched the manifests. Source-commit files identified the tested PR merge source. Reports contained the exact original package/test identities and successes, and logs showed all 21 Python controls and CLI smoke passing. Downloaded binaries were inspected as data, not executed. Metadata, archives and the review summary remain under `.local/closure-review/entrypoint/`.
+
+These outcomes are specifically tied to the cited candidate head/test merge. A later documentation update or rule approval is not silently included in that tested commit. No finding is closed from these passes.
 
 ## Remaining approval and governance
 
