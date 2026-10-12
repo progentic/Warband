@@ -30,7 +30,7 @@ Technical test passes do not resolve every literal procedure-layering requiremen
 - [High] `scripts/check_docs.py` `main()` L13 and L15 calls inventory loading and presentation -> orchestration crosses directly into filesystem/parsing/reporting boundaries.
 - [High] `scripts/build_manifest.py` `main()` L18 reads/parses JSON and L28 hashes executable bytes alongside architecture validation -> the entry function mixes technical operations with decisions and exceeds the High size limit.
 
-These are concrete instances of the already recorded effect-dispatch/layering question. A review must choose a compliant boundary arrangement or explicitly approve revised guidance before claiming complete structural compliance. Do not label I/O wrappers pure domain functions or silently accept an exception through ADR-0004. Publication of the current foundation does not resolve these findings or claim structural approval.
+These baseline findings exposed the effect-composition contradiction. The owner explicitly selected the E1 qualification below. Do not label I/O wrappers pure or infer an exception through ADR-0004; the scoped implementation and its evidence still require formal finding review.
 
 The owner selected Option A and then authorized E1 in [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md). The [actual call/effect review](../engineering/phase1-effect-composition-review.md) maps the scoped High qualification and pure decisions. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) records implementation verification separately from formal acceptance. PR #3 stays draft; no finding is automatically closed and runtime authority rules are unchanged. The options document is historical comparison; E2 is not selected.
 

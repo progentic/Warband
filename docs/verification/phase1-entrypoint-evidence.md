@@ -60,7 +60,7 @@ Starting branch/head `phase1-entrypoint-separation` / `028dba1f46085b8052293d3c7
 
 The native build used unchanged source-built Odin SHA `8b35c86efb78e9ab5223673a07e02fc2a6884191`, LLVM/clang 19.1.7 and vet/warnings-as-errors. ARM64 Mach-O SHA-256: `f652b9159d86807cffcc7b31f9d7711e57aeacee294dec82042509afaa46a828`. Two Odin packages/five original named tests and CLI smoke passed. All 21 existing Python controls were retained; one bounded structural test includes deliberate effect/upward/raw-API/Mid-call violations (22 total).
 
-Application sources at reviewed `79c2fdf` and starting `028dba1` were identical (the intervening changes were documentation). The saved baseline manifest program and E1 program inspected the same executable/environment independently; complete serialized JSON bytes matched. Real missing hosted ImageOS, unsupported platform and incorrect executable-format invocations failed nonzero without changing existing manifest bytes. Reports, baseline sources, parity JSON and rejection logs are retained under `.local/closure-review/e1/`. A source-only copy, with only an empty `.local` scratch directory for existing tests, passed documentation governance and all 22 controls. actionlint, shellcheck and `git diff --check` passed. These ignored local records are not hosted evidence.
+Application sources at reviewed `79c2fdf` and starting `028dba1` were identical (the intervening changes were documentation). The saved baseline manifest program and E1 program inspected the same executable/environment independently; complete serialized JSON bytes matched. Documentation CLI success and invalid-phase streams/statuses matched the saved baseline. Real missing hosted ImageOS, unsupported platform and incorrect executable-format invocations failed nonzero without changing existing manifest bytes. Reports, baseline sources, parity JSON and rejection logs are retained under `.local/closure-review/e1/`. A source-only copy, with only an empty `.local` scratch directory for existing tests, passed documentation governance and all 22 controls. actionlint, shellcheck and `git diff --check` passed. These ignored local records are not hosted evidence.
 
 Exact commands:
 
@@ -78,4 +78,17 @@ git diff --check
 python3 .local/closure-review/e1/verify_regression.py
 ```
 
-Final hosted candidate results will be tied to an actual pushed head and run; local macOS verification alone is not Linux proof.
+## E1 hosted implementation evidence
+
+Head `c7052b4450221cc6071142db59cb564c1604e7f5` passed [Linux/macOS foundation](https://github.com/progentic/Warband/actions/runs/38203043711) and [documentation governance](https://github.com/progentic/Warband/actions/runs/38203043708). The tested PR merge source was `e301ed92ca965e054175f8309b1cc282a5355b73`, whose parents were main `06afd20` and that head; this was not a merge into main.
+
+| Platform / runner | Observed gates | Binary SHA-256 |
+|---|---|---|
+| Linux x64 / ubuntu24 / 20261004.327.1 | Pinned Odin source, LLVM/clang 19.1.1, ELF x86-64, governance, 22 Python controls, exact five Odin tests/two packages, CLI smoke and upload passed | `a697356b7f329fc2a64c674b3b3a18cac154d8103c04d314024189bc277807cd` |
+| macOS ARM64 / macos15 / 20260907.0337.1 | Same Odin source, LLVM/clang 19.1.7, ARM64 Mach-O, governance, 22 Python controls, exact five Odin tests/two packages, CLI smoke and upload passed | `41f63710695de34502609ebe393204144a3a1efa7bec165b643b12e4551ad1db` |
+
+All three downloaded archive digests matched GitHub artifact metadata. Binary SHA-256 values matched manifests; independent byte-header inspection confirmed Linux ELF64 little-endian machine 62 and macOS ARM64 Mach-O CPU type 0x0100000c. `file` independently confirmed the formats. Reports matched all five manifest-declared names and success counts; logs confirmed 22 Python controls, CLI smoke and the full compiler source identity. Downloaded binaries were inspected as data, not executed. Raw logs, archives, metadata and review summary are retained under `.local/closure-review/e1/`.
+
+Exact hosted inspection commands included `gh run view 38203043711 --repo progentic/Warband --log`, `gh api repos/progentic/Warband/actions/runs/38203043711/artifacts` and `gh api repos/progentic/Warband/actions/artifacts/<id>/zip`. The read-only main/protection readback still showed main `06afd20`, strict three required checks, administrator enforcement, no approval requirement and no force pushes/deletion. Those settings were not changed.
+
+This evidence-record revision requires fresh hosted checks at its own final draft head. The results above certify the implementation head explicitly, not an untested later commit.
