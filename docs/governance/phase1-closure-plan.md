@@ -32,7 +32,7 @@ Technical test passes do not resolve every literal procedure-layering requiremen
 
 These are concrete instances of the already recorded effect-dispatch/layering question. A review must choose a compliant boundary arrangement or explicitly approve revised guidance before claiming complete structural compliance. Do not label I/O wrappers pure domain functions or silently accept an exception through ADR-0004. Publication of the current foundation does not resolve these findings or claim structural approval.
 
-The user recommended specific entrypoint wording but required explicit approval before closing findings. [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) and the proposed engineering-standard wording make that choice reviewable. The candidate separates argument acquisition from pure parsing, keeps `check_docs.main()` unchanged, and separates manifest inspection, pure validation/construction and output. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) records verification. No finding is closed while rule approval remains pending; runtime authorization retains the stronger boundaries.
+On 2026-10-11 the owner selected Option A in [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md): preserve strict High/Mid/Low. The fourth-level entrypoint proposal is not selected and its engineering wording is removed. The [focused review](../engineering/phase1-effect-composition-review.md) maps the actual three entrypoint graphs and records the transitive-purity contradiction. No legal complete composition is established; application-code correction stops there. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) remains behavioral evidence only. PR #3 stays draft, no finding closes, and runtime authority rules are unchanged.
 
 ## Gate 2 Select and connect the hosted repository
 
@@ -91,7 +91,7 @@ No general agent orchestration, provider integration, new execution surface, dis
 | Runner migration | ADR-0006 Proposed; owner/option/review pending before 2026-10-19 rollout |
 | Required checks | Configured with no reviewer requirement; readback and blocked failing-PR evidence recorded |
 | Owner assignment and ADR acceptance | Pending user input/review; ADR-0004 remains Proposed |
-| Procedure hierarchy | ADR-0007 and candidate refactor prepared; explicit rule approval pending |
+| Procedure hierarchy | Option A selected; legal effect composition unresolved; all three findings open; PR #3 draft |
 | ADR-0005 design | Proposed draft only |
 | Phase 2 implementation | Not authorized |
 

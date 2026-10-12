@@ -1,6 +1,6 @@
 # Phase 1 entrypoint candidate evidence
 
-**Disposition: functional candidate verified locally and on hosted runners; rule approval pending.** This record does not close the hierarchy findings or accept ADR-0004/0007. The candidate is scoped by [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md).
+**Disposition: behavior verified; structural compliance unresolved under owner-selected Option A.** [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) records strict High/Mid/Low and rejects the earlier fourth-level proposal. This record closes no hierarchy finding and accepts no ADR. The [focused effect-composition review](../engineering/phase1-effect-composition-review.md) maps the unresolved graph.
 
 ## Baseline recheck
 
@@ -8,10 +8,10 @@ The post-merge [foundation run](https://github.com/progentic/Warband/actions/run
 
 ## Candidate changes
 
-| Boundary | Candidate disposition |
+| Entrypoint | Behavior-tested candidate disposition, not a layer exception |
 |---|---|
 | Odin CLI | `read_arguments` acquires process arguments; `parse_command` consumes only supplied values; the entrypoint composes acquisition/parsing/presentation. Output streams, command names and exit codes are unchanged. |
-| Documentation CLI | Existing three-step `main()` retained. Its classification awaits approval of the proposed entrypoint rule. |
+| Documentation CLI | Existing three-step `main()` retained. Its cross-layer composition remains an open finding under Option A. |
 | Build manifest | Entry composition contains no raw JSON, hashing, subprocess or formatting calls. Technical observation/output helpers and pure frozen-record validation/construction are in separate modules. Format/machine rejection remains before linkage inspection. |
 
 Pure manifest rules have no filesystem, subprocess or environment imports/access. The observations and output manifest are frozen records. Technical collection helpers do not perform architecture acceptance or runner-identity decisions. No runtime authorization, evaluator or state-transition procedure is introduced.
@@ -50,6 +50,6 @@ These outcomes are specifically tied to the cited candidate head/test merge. A l
 
 ## Remaining approval and governance
 
-The proposed rule explicitly excludes policy decisions, runtime evidence evaluation and authoritative transitions from entrypoints. It requires explicit user approval before the three findings can close. Test results are implementation evidence, not that approval.
+The previous entrypoint rule is not selected. The owner requires the unchanged three-level hierarchy and a concrete legal effect-composition graph. The focused review identifies forbidden edges and the transitive-purity contradiction; application-code correction stops without an unapproved workaround. PR #3 remains draft and all three findings remain open. Existing test passes support only the cited candidate's behavior.
 
 Accepted ADRs 0001–0003, constitutional requirements, existing invariant identifiers and WB-NEG-001 through WB-NEG-016 semantics remain unchanged. WB-NEG-017/018 extend foundation build verification only. ADR-0004 ownership/formal acceptance, dependency recovery and ADR-0006 compatibility selection/review remain pending. No Phase 2 code or production architecture is selected.

@@ -28,7 +28,7 @@ The constitutional rows above remain planned. Foundation tests do not establish 
 | WB-P1-005: VM preparation | `vm/lima.yaml`, `vm/selection.json` | Explicit development architecture; no mounts/forwarded application ports; image gate | original ARM profile pending; reviewed x64 verification VM provisioned |
 | WB-P1-006: hosted CI | `.github/workflows/docs.yml`, `.github/workflows/phase1.yml` | actionlint, pinned actions, read-only token, credential-free checkout; `docs/verification/phase1-publication-evidence.md`; `docs/governance/phase1-protection-proposal.md` | Linux/macOS/docs passed at d6448e1; artifacts inspected; strict required checks applied; blocked negative probe and failure uploads verified |
 | WB-P1-007: deterministic data | `src/domain/`, `src/fixture/` | Golden bytes, supplied IDs/tick, round trip, distinct types, WB-NEG-015 | verified locally on macOS and Linux |
-| WB-P1-008: explicit entrypoint boundaries | `cmd/warband/main.odin`, `scripts/check_docs.py`, `scripts/build_manifest.py`, `scripts/manifest_rules.py`, `scripts/manifest_io.py` | `tests/governance/test_manifest_rules.py`, existing CLI smoke, manifest parity and WB-NEG-017/018; `docs/verification/phase1-entrypoint-evidence.md` | candidate b87c8be verified locally and on both hosted platforms; ADR-0007 rule approval pending |
+| WB-P1-008: explicit entrypoint boundaries | `cmd/warband/main.odin`, `scripts/check_docs.py`, `scripts/build_manifest.py`, `scripts/manifest_rules.py`, `scripts/manifest_io.py` | `tests/governance/test_manifest_rules.py`, existing CLI smoke, manifest parity and WB-NEG-017/018; `docs/verification/phase1-entrypoint-evidence.md`; `docs/engineering/phase1-effect-composition-review.md` | candidate behavior verified; Option A selected; legal effect composition unresolved; three findings open |
 
 ## Invariant coverage status
 
@@ -57,4 +57,4 @@ The initial evidence is historical. Local platform pins, manifests, transport li
 
 `docs/decisions/0006-hosted-linux-runner-compatibility.md` tracks the WB-P1-001/WB-P1-006 build-environment risk and required future compatibility evidence. It selects no replacement profile and leaves exact version/OS rejection unchanged.
 
-`docs/decisions/0007-phase1-entrypoint-boundaries.md` records a Proposed rule for three existing entrypoints. The candidate refactor adds four manifest controls for 21 Python tests while retaining the original five Odin tests. It closes no hierarchy finding until the scoped rule is explicitly approved. Runtime requirements remain planned/deferred.
+`docs/decisions/0007-phase1-entrypoint-boundaries.md` remains Proposed and records the owner's strict three-level direction. The candidate's 21 Python controls and original five Odin tests demonstrate behavior, not compliance. `docs/engineering/phase1-effect-composition-review.md` records the blocked legal graph; no hierarchy finding closes. Runtime requirements remain planned/deferred.
