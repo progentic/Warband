@@ -38,10 +38,34 @@ Unknown enum values, tools, policy rules, schema versions, and effect kinds must
 
 ## Phase 1 procedure structure
 
-Keep orchestration, pure domain decisions, and technical operations separate under the existing High/Mid/Low hierarchy. High procedures call Mid procedures only. Mid procedures apply rules to supplied values, remain pure, and call only permitted Low helpers. Low procedures implement narrow technical operations without calling upward or making policy decisions. Entrypoints have no exempt fourth classification.
+Keep orchestration, pure domain decisions and technical operations separate under High/Mid/Low. The owner-authorized Phase 1 E1 qualification below governs only the listed workflows; there is no fourth classification. Outside that scope, High calls pure Mid only. Mid remains transitively pure everywhere. Low has no upward calls or application policy decisions.
 
 The fixture format is portable verification data, not an accepted event-store format. Ticks and identifiers are explicitly supplied; encoding reads no wall clock or random identity.
 
-[ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) records the owner's Option A direction on 2026-10-11. The previous fourth-level entrypoint proposal is not selected. The [focused effect-composition review](phase1-effect-composition-review.md) maps the three existing entrypoints and records why their required I/O cannot currently compose with pure application decisions under all of the unchanged rules. The three findings remain open. Passing behavior tests do not establish a legal call graph, and the contradiction does not authorize an exception or additional framework.
+[ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) remains Proposed for formal acceptance and records the owner-authorized E1 implementation direction. The [actual call/effect review](phase1-effect-composition-review.md) maps the implementation. Structural review and behavioral verification are separate; passing tests alone close no finding.
 
-The [effect-semantics comparison](phase1-effect-semantics-options.md) offers two nonoperative rule qualifications within these levels. Until the owner selects and authorizes one, the rules above remain unchanged and implementation remains blocked.
+### Phase 1 E1 effect composition
+
+| Caller | Permitted calls | Restriction |
+|---|---|---|
+| Listed eligible High | Related listed High, pure Mid, reviewed Low | Only the listed Phase 1 programs/subflows/effects; no raw library calls, parsing, hashing, formatting or direct filesystem manipulation |
+| Other High | Pure Mid only | Original rule unchanged |
+| Mid | Pure Low helpers only | No direct or transitive external effects or technical handles in decisions |
+| Low | Low helpers and technical APIs | No upward calls, policy decisions or application-behavior selection |
+
+The following is the complete eligible effectful High list. Pure High coordinators `governance.validate_inventory` and `manifest_rules.construct_manifest` remain pure and call Mid only.
+
+| Eligible High procedure | Direct permitted Low dependencies | Related High / pure Mid dependencies | External effects |
+|---|---|---|---|
+| `cmd/warband/main.odin:main` | `read_arguments`, `write_result`, `exit_with_status` | `parse_command`, `describe_command` | Arguments, stdout/stderr, process exit |
+| `scripts/check_docs.py:main` | `project_root`, `report_findings`, `exit_with_status` | `read_inventory`, `validate_inventory`, `describe_validation` | Project-root/inventory observations, reporting, exit |
+| `scripts/document_io.py:read_inventory` | `collect_paths`, `inspect_catalog`, `readable_markdown`, `read_documents`, `read_document_links`, `read_phase`, `child_path` | `assemble_inventory` | Project paths, metadata/text/phase and link observations |
+| `scripts/build_manifest.py:main` | `read_platform_argument`, `project_root`, `inspection_paths` | `acquire_artifact`, `acquire_build_observation`, `construct_manifest`, `publish_verified_manifest`; platform/format/machine decisions | Arguments, artifact/provenance observations, manifest output |
+| `scripts/build_manifest.py:acquire_artifact` | `executable_identity`, `inspect_elf_header` | `assemble_artifact` | Fixed `file`/`readelf` inspections |
+| `scripts/build_manifest.py:acquire_build_observation` | `inspect_linkage`, `read_bytes`, `hash_bytes`, `inspect_runner` | `acquire_compiler_provenance`, `assemble_build_observation` | Fixed linkage inspection, binary/environment reads |
+| `scripts/build_manifest.py:acquire_compiler_provenance` | `read_text`, `parse_json`, `capture_odin_version`, `capture_version`, `read_environment` | `describe_compiler` | Locked configuration and fixed compiler-version queries |
+| `scripts/build_manifest.py:publish_verified_manifest` | `manifest_record`, `serialize_json`, `write_text`, `verified_message`, `write_line` | None | Existing manifest destination and status output |
+
+Low dependencies expand only through the technical helpers in the actual review. `capture` never selects application behavior; its callers supply the fixed inspection/version commands. Output helpers use the already selected data representation/stream/status. No callable input, registry, general dispatcher or lifecycle path is permitted. Startup only invokes `main`; root/input acquisition occurs explicitly inside the listed flow.
+
+Runtime coordinator, policy engine, capability gateway, evaluator, state writer, recovery and model adapters are not eligible. Adding an effect/procedure requires a scoped review update; this matrix is not general High-to-Low authority. Layering does not enforce a sandbox or authorize a runtime transition.

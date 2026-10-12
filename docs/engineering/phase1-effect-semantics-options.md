@@ -1,8 +1,8 @@
 # Phase 1 effect semantics: owner decision comparison
 
-**Decision gate: no option selected; no application-code change authorized by this comparison.** The reviewed baseline is draft PR #3 at `79c2fdf265e34141535d2596738929b16ca3fc57`, based on main `06afd20049af0d26a4953d0353da06e623482c8a`. Both local and remote heads were checked. [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) remains Proposed; its Option A direction preserves three named levels. This comparison offers two explicit qualifications of inconsistent rules within those levels. It does not make either qualification operative.
+**Historical comparison; E1 selected and implementation authorized.** The reviewed comparison baseline was draft PR #3 at `79c2fdf265e34141535d2596738929b16ca3fc57`, based on main `06afd20049af0d26a4953d0353da06e623482c8a`. The owner subsequently selected E1. [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) remains Proposed for formal acceptance; the [engineering standard](coding-standard.md#phase-1-e1-effect-composition) and [actual review](phase1-effect-composition-review.md) govern the implemented candidate. E2 is not selected. The proposed names/graphs below are retained as decision history, not permission for an alternative implementation.
 
-Preserving High/Mid/Low names is different from preserving every current call restriction. With High -> Mid only, transitive Mid purity, and Low's ban on upward calls/policy decisions all unchanged, the required effects have no legal composition. The [current review](phase1-effect-composition-review.md) remains the exact call/effect map; all three findings stay open.
+Preserving the three named levels is different from preserving every original restriction. E1 qualifies only the listed High dependencies while preserving universal transitive Mid purity.
 
 ## Current versus proposed graphs
 
@@ -146,4 +146,4 @@ Behavioral regression requires existing phase-aware governance; all 21 Python co
 
 Mechanical Mid I/O forwarding remains impure under the old rule. A Low callback to a decision procedure calls upward. A pure effect-description alone leaves execution unclassified. A module/global/lifecycle escape hides composition. These are not technically viable alternatives under the unchanged rules and are not offered as a third choice.
 
-The owner must select and authorize **E1's High call qualification** or **E2's Mid purity/composition qualification**, or request a different precisely defined rule change. This review selects neither. Until that direction is recorded, no application code changes, no finding closure, no merge, no ADR acceptance and no Phase 2 work proceed.
+The owner selected and authorized E1's bounded High call qualification. The alternatives above preserve the three named levels but change different original restrictions; they are decision history, not permission to implement E2. Formal ADR acceptance, finding closure, merge and Phase 2 authorization remain separate.

@@ -1,75 +1,146 @@
 # Phase 1 effect-composition review
 
-**Verdict: no compliant executable composition has been established under the unchanged rules.** Option A is the owner's direction. This review stops at the incompatibility; it introduces no code, new level, dispatcher, callback scheme or privilege. [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) remains Proposed and all three findings remain open.
+**E1 candidate implemented; formal finding closure remains a review decision.** The owner authorized E1 for the three Phase 1 programs. [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) remains Proposed. The [engineering standard](coding-standard.md#phase-1-e1-effect-composition) is the canonical permitted-call matrix and exact effectful High allowlist.
 
-## Scope and role interpretation
+## Evidence-based original mismatches and corrected paths
 
-The scope is only `cmd/warband/main.odin:main`, `scripts/check_docs.py:main`, and `scripts/build_manifest.py:main` on PR #3. Their current bodies coordinate workflows, so this map keeps the baseline High roles rather than silently calling them Low or exempt entrypoints.
+At main `06afd20`, CLI `main -> read_command` coupled external argument acquisition with parsing; documentation `main -> read_inventory / validate_inventory / report_findings` crossed the original High restrictions; manifest `main` mixed raw JSON/hash/inspection with decisions. PR #3 baseline `028dba1` improved supplied-value parsing and pure manifest rules but retained effectful command decisions and broad technical acquisition/publication facades.
 
-High coordinates and calls only Mid. Mid applies rules to supplied values, is pure, and may call only permitted Low helpers. Low performs narrow technical work and cannot call High/Mid or make policy decisions. A Mid procedure calling an effectful Low helper is transitively effectful, even when its own body contains no raw library call. Such a helper is not permitted by strict purity.
+Under the original unchanged restrictions, High could reach only transitively pure Mid, and Low could not coordinate upward: no executable input/output path was legal. E1 expressly qualifies High calls in the listed scope; it does not claim every original restriction remains unchanged. E2 and a fourth level are not selected.
 
-The tables classify callees by their responsibility for this review. They do not certify every helper's size or single-operation granularity. Some existing technical facades group multiple observations or output operations; calling those Low does not establish full structural compliance.
+Current paths:
 
-## Odin CLI
+- CLI: High `main -> Low read_arguments -> Mid parse_command -> Mid describe_command -> Low write_result -> Low exit_with_status`. Arrows here denote execution order; actual callee edges are below. Presentation chooses stream/format/content/status before any output. No Mid reaches I/O.
+- Documents: High `main` invokes High acquisition, pure High validation, Mid status selection, Low reporting and Low termination. Acquisition returns string/value observations; pure rules never receive Path handles.
+- Manifest: High `main` first invokes Mid platform validation; High artifact acquisition precedes Mid format/machine validation; only then does High build acquisition inspect linkage/provenance. Pure High construction validates all observations before High publication writes evidence.
 
-| Actual edge | Role and effect | Result under unchanged rules |
-|---|---|---|
-| `main -> read_arguments` | High -> Low; reads process-global `os.args` | Forbidden direct High -> Low edge |
-| `main -> parse_command` | High -> Mid; count/token decisions use the supplied argument slice | Permitted role edge; no external read in parsing |
-| `main -> run_command` | High -> Mid; selects Version/Fixture/Invalid presentation | The edge alone is permitted, but the callee performs output transitively and is not pure |
-| `run_command -> write_line` | Mid -> Low; writes stdout through `fmt.println` | Violates Mid purity |
-| `run_command -> write_fixture` | Mid -> Mid; forms fixture data, encodes and presents it | Forbidden Mid -> Mid edge; output also violates purity |
-| `write_fixture -> fixture.encode -> write_word` | Mid -> Low pure encoding; endian operations modify only the returned local buffer | No external effect in the encoding chain |
-| `write_fixture -> write_bytes` | Mid -> Low; writes stdout through `fmt.printf` | Violates Mid purity |
-| `run_command -> reject_command -> write_error / exit_with_status` | Decision procedure -> technical rejection sequence; writes stderr and calls `os.exit(2)` | Transitively effectful; the rejection facade also groups more than one technical operation |
+## Complete project procedure hierarchy
 
-Supplied-value parsing is a useful behavior-preserving separation, but it does not make the complete entrypoint graph legal. Moving the argument read into a Mid forwarding procedure would make that procedure observe external state rather than become pure.
+P means no external effects in the full reachable call path; E means direct or transitive external observation/output. Primitive constructors, constants and immutable record declarations are data, not orchestration procedures. APIs/builtins in the calls column are primitive operations at Low or pure record/collection operations in unchanged supplied-value rules. Every project procedure used by these programs is listed; test/toolchain procedures and unused fixture decoding are outside this graph.
 
-## Documentation validator
+### `scripts/check_docs.py`
 
-| Actual edge | Role and effect | Result under unchanged rules |
-|---|---|---|
-| `main -> read_inventory` | High -> Low technical acquisition facade | Forbidden direct High -> Low edge |
-| `read_inventory -> walk_files / read_document / read_links / read_phase` | Technical helpers enumerate/stat/read paths and parse text/JSON | External filesystem observations; no wrapper name removes those effects |
-| `main -> validate_inventory` | High -> High; the validator coordinates seven rule procedures | Forbidden High -> High edge |
-| `validate_inventory -> required_findings / phase_findings / guidance_findings / contract_findings / link_findings / traceability_findings / symlink_findings` | High -> Mid; supplied-inventory rules return findings | Pure rule composition; assigning the coordinator Mid instead would move the problem to Mid -> Mid calls |
-| `main -> report_findings` | High -> Low presentation facade; writes findings/success text and returns status | Forbidden direct High -> Low edge |
-| Module bootstrap -> `sys.exit(main())` | Applies the returned status to the process | Moving composition into module/bootstrap statements would require an expressly governed calling context; it is not an approved escape from the three-level rules |
+| Layer / effects | Function name | Responsibility | Calls | Allowed to call |
+|---|---|---|---|---|
+| High E | `main` | Coordinate the approved program | `describe_validation`, `exit_with_status`, `project_root`, `read_inventory`, `report_findings`, `validate_inventory` | Listed High / pure Mid / reviewed Low |
 
-The earlier three-step implementation is readable, but Option A does not permit its effectful composition. No forwarding layer is added to pretend otherwise.
+### `scripts/document_io.py`
 
-## Build manifest
+| Layer / effects | Function name | Responsibility | Calls | Allowed to call |
+|---|---|---|---|---|
+| High E | `read_inventory` | Sequence documentation observations | `assemble_inventory`, `child_path`, `collect_paths`, `inspect_catalog`, `read_document_links`, `read_documents`, `read_phase`, `readable_markdown` | Listed High / pure Mid / reviewed Low |
+| Low E | `collect_paths` | Materialize enumerated paths | `tuple`, `walk_files` | Low / technical APIs; no upward calls or policy |
+| Low E | `inspect_catalog` | Observe path catalog metadata | `FileCatalog`, `frozenset`, `path.is_symlink`, `path.relative_to`, `root.iterdir`, `str`, `tuple` | Low / technical APIs; no upward calls or policy |
+| Low E | `readable_markdown` | Observe readable Markdown paths | `path.is_symlink`, `tuple` | Low / technical APIs; no upward calls or policy |
+| Low E | `read_documents` | Read supplied document paths | `read_document`, `tuple` | Low / technical APIs; no upward calls or policy |
+| Low E | `read_document_links` | Read supplied link sources | `read_links`, `tuple` | Low / technical APIs; no upward calls or policy |
+| Low E | `walk_files` | Enumerate repository paths | `directory.iterdir`, `path.is_dir`, `path.is_file`, `path.is_symlink`, `sorted`, `walk_files` | Low / technical APIs; no upward calls or policy |
+| Low E | `read_document` | Read document content/metadata | `Document`, `FRONTMATTER_PATTERN.search`, `IDENTIFIER_PATTERN.findall`, `bool`, `frozenset`, `path.read_text`, `path.relative_to`, `path.stat`, `str`, `text.splitlines` | Low / technical APIs; no upward calls or policy |
+| Low E | `read_links` | Read/extract link representations | `LINK_PATTERN.findall`, `path.read_text`, `resolve_link`, `target.strip`, `target.strip().startswith`, `tuple` | Low / technical APIs; no upward calls or policy |
+| Low E | `resolve_link` | Observe resolved target location/existence | `(path.parent / target.split('#', 1)[0]).resolve`, `Link`, `path.relative_to`, `resolved.exists`, `resolved.is_relative_to`, `root.resolve`, `str`, `target.split` | Low / technical APIs; no upward calls or policy |
+| Low E | `read_phase` | Read phase-file representation | `json.loads`, `path.is_file`, `path.is_symlink`, `path.read_text`, `set`, `type`, `unique_object (JSON duplicate-key hook)` | Low / technical APIs; no upward calls or policy |
+| Low P | `unique_object` | Reject duplicate JSON keys | `ValueError`, `dict`, `len` | Low / technical APIs; no upward calls or policy |
+| Low E | `report_findings` | Present selected result | `format_finding`, `write_line`, `write_optional_line` | Low / technical APIs; no upward calls or policy |
+| Low P | `format_finding` | Format supplied finding | `': '.join`, `filter` | Low / technical APIs; no upward calls or policy |
+| Low E | `write_optional_line` | Present nonempty selected text | `write_line` | Low / technical APIs; no upward calls or policy |
+| Low E | `write_line` | Write selected line | `print` | Low / technical APIs; no upward calls or policy |
+| Low P | `child_path` | Join path components |  | Low / technical APIs; no upward calls or policy |
+| Low E | `project_root` | Resolve program root | `Path`, `Path(script).resolve` | Low / technical APIs; no upward calls or policy |
+| Low E | `exit_with_status` | Apply supplied exit status | `sys.exit` | Low / technical APIs; no upward calls or policy |
 
-| Actual edge | Role and effect | Result under unchanged rules |
-|---|---|---|
-| `main -> validate_platform / validate_architecture / validate_machine` | High -> Mid; supplied-value membership/format/machine checks | Permitted role edges; pure checks |
-| `main -> inspect_artifact` | High -> Low technical facade; `file` and Linux `readelf` subprocess observations | Forbidden direct High -> Low edge |
-| `main -> inspect_build` | High -> Low technical facade; lock/binary reads, compiler versions, linkage and environment observations | Forbidden direct High -> Low edge |
-| `inspect_build -> inspect_linkage / capture / read_text / parse_json / read_bytes / hash_bytes / inspect_runner` | Low technical work; `ldd` or `otool`, subprocesses, filesystem/environment reads and pure parsing/hashing | Effects remain at acquisition; this grouping is not certified as a single narrow primitive |
-| `main -> construct_manifest` | High -> High; coordinates validation, runner identity selection and description | Forbidden High -> High edge |
-| `construct_manifest -> validate_platform / validate_architecture / validate_machine / validate_runner_image / validate_runner_version / choose_runner_identity / describe_manifest` | High -> Mid; frozen supplied observations, no I/O | Pure call composition is independently useful; it does not authorize its current entrypoint caller |
-| Mid rules -> `includes_markers / contains_text / target_flags` | Mid -> Low pure primitives | Permitted helper edges |
-| `main -> publish_manifest` | High -> Low presentation facade | Forbidden direct High -> Low edge |
-| `publish_manifest -> manifest_record / serialize_json / write_text / write_line` | Converts the record, writes JSON and prints verified metadata | Output effects; grouped publication is not an approved fourth-level adapter |
+### `scripts/governance.py`
 
-Actual execution still checks the requested platform, acquires file/header metadata, validates format/machine, then acquires linkage and remaining observations. It constructs/validates the manifest before writing it. This review changes neither that order nor the fields, byte parity, pins or rejection behavior.
+| Layer / effects | Function name | Responsibility | Calls | Allowed to call |
+|---|---|---|---|---|
+| High P | `validate_inventory` | Combine governance rule findings | `contract_findings`, `guidance_findings`, `link_findings`, `phase_findings`, `required_findings`, `symlink_findings`, `traceability_findings` | Pure Mid only |
+| Mid P | `assemble_inventory` | Construct supplied-value inventory | `Inventory` | Pure Low only |
+| Mid P | `describe_validation` | Select findings/message/status | `DocumentationResult` | Pure Low only |
+| Mid P | `required_findings` | Require declared files | `Finding`, `tuple` | Pure Low only |
+| Mid P | `phase_findings` | Enforce declared phase | `Finding`, `matches_typed_member`, `tuple` | Pure Low only |
+| Mid P | `guidance_findings` | Check guidance constraints | `Finding`, `any`, `sum`, `tuple` | Pure Low only |
+| Mid P | `contract_findings` | Require contract sections | `Finding`, `starts_with`, `tuple` | Pure Low only |
+| Mid P | `link_findings` | Reject escaped/missing links | `Finding`, `tuple` | Pure Low only |
+| Mid P | `traceability_findings` | Compare invariant identifiers | `Finding`, `sorted`, `tuple` | Pure Low only |
+| Mid P | `symlink_findings` | Reject observed symlinks | `Finding`, `tuple` | Pure Low only |
+| Low P | `matches_typed_member` | Check exact typed membership | `type` | Low / technical APIs; no upward calls or policy |
+| Low P | `starts_with` | Compare string prefix | `text.startswith` | Low / technical APIs; no upward calls or policy |
 
-## Contradiction and smallest owner decision
+### `scripts/build_manifest.py`
 
-Assume the entrypoint retains its High coordination role and all three rules hold:
+| Layer / effects | Function name | Responsibility | Calls | Allowed to call |
+|---|---|---|---|---|
+| High E | `main` | Coordinate the approved program | `acquire_artifact`, `acquire_build_observation`, `construct_manifest`, `inspection_paths`, `project_root`, `publish_verified_manifest`, `read_platform_argument`, `validate_architecture`, `validate_machine`, `validate_platform` | Listed High / pure Mid / reviewed Low |
+| High E | `acquire_artifact` | Sequence executable identity/header observations | `assemble_artifact`, `executable_identity`, `inspect_elf_header` | Listed High / pure Mid / reviewed Low |
+| High E | `acquire_build_observation` | Sequence linkage and remaining build observations | `acquire_compiler_provenance`, `assemble_build_observation`, `hash_bytes`, `inspect_linkage`, `inspect_runner`, `read_bytes` | Listed High / pure Mid / reviewed Low |
+| High E | `acquire_compiler_provenance` | Sequence locked compiler/version observations | `capture_odin_version`, `capture_version`, `describe_compiler`, `parse_json`, `read_environment`, `read_text` | Listed High / pure Mid / reviewed Low |
+| High E | `publish_verified_manifest` | Publish an already validated record | `manifest_record`, `serialize_json`, `verified_message`, `write_line`, `write_text` | Listed High / pure Mid / reviewed Low |
 
-1. Its only permitted procedure calls are Mid calls.
-2. Every reachable Mid procedure must remain pure, including the Low helpers it invokes. Therefore that path cannot acquire process/filesystem input or write/exit externally.
-3. A Low I/O procedure cannot call the Mid/High decisions to coordinate a complete application. Reclassifying all decisions as Low would violate Low's ban on policy decisions and the prohibition on silent reclassification.
+### `scripts/manifest_rules.py`
 
-The CLI requires argument acquisition and observable stdout/stderr/exit behavior. Documentation validation requires filesystem observations and reporting. Manifest verification requires filesystem/process/environment observations and output. Those required effects contradict the reachable pure-only path. Extra Mid wrappers preserve the same transitive impurity; callbacks introduce forbidden upward calls; a pure effect description still needs a legally classified executor. Unclassified bootstrap/lifecycle composition would require an unapproved exception.
+| Layer / effects | Function name | Responsibility | Calls | Allowed to call |
+|---|---|---|---|---|
+| High P | `construct_manifest` | Combine manifest validation and description | `choose_runner_identity`, `describe_manifest`, `validate_architecture`, `validate_machine`, `validate_platform`, `validate_runner_image`, `validate_runner_version` | Pure Mid only |
+| Mid P | `assemble_artifact` | Construct supplied identity record | `ArtifactObservation` | Pure Low only |
+| Mid P | `describe_compiler` | Describe supplied provenance | `CompilerObservation` | Pure Low only |
+| Mid P | `assemble_build_observation` | Construct supplied build observation | `BuildObservation` | Pure Low only |
+| Mid P | `validate_platform` | Require supported platform | `ManifestRejected` | Pure Low only |
+| Mid P | `validate_architecture` | Require executable format/architecture | `ManifestRejected`, `includes_markers` | Pure Low only |
+| Mid P | `validate_machine` | Require Linux machine identity | `ManifestRejected`, `contains_text` | Pure Low only |
+| Mid P | `validate_runner_image` | Require hosted image identity | `ManifestRejected` | Pure Low only |
+| Mid P | `validate_runner_version` | Require hosted image version | `ManifestRejected` | Pure Low only |
+| Mid P | `choose_runner_identity` | Select hosted/local identity |  | Pure Low only |
+| Mid P | `describe_manifest` | Describe validated evidence fields | `BuildManifest`, `target_flags` | Pure Low only |
+| Low P | `includes_markers` | Compare literal markers | `all` | Low / technical APIs; no upward calls or policy |
+| Low P | `contains_text` | Compare literal substring |  | Low / technical APIs; no upward calls or policy |
+| Low P | `target_flags` | Encode fixed target flags |  | Low / technical APIs; no upward calls or policy |
 
-**No legal complete call graph is proposed.** The smallest outstanding owner decision is the precise permitted location and semantics of effect composition within the existing three levels. With transitive Mid purity, High -> Mid only, Low's no-upward/no-policy restrictions, and the current entrypoint roles all unchanged, there is no compliant composition. At least one premise needs explicit clarification or qualification, or this correction must remain suspended. This review selects neither an amendment nor Options B/C.
+### `scripts/manifest_io.py`
 
-The subsequent [two-option decision comparison](phase1-effect-semantics-options.md) identifies exact possible qualifications, complete proposed paths, permitted-call matrices, minimum changes and verification. Neither option creates a fourth level, but both change an original restriction. Owner selection is required before application-code changes.
+| Layer / effects | Function name | Responsibility | Calls | Allowed to call |
+|---|---|---|---|---|
+| Low P | `inspection_paths` | Construct technical inspection paths | `InspectionPaths` | Low / technical APIs; no upward calls or policy |
+| Low E | `executable_identity` | Capture fixed file inspection | `capture`, `str` | Low / technical APIs; no upward calls or policy |
+| Low E | `inspect_elf_header` | Capture applicable header inspection | `capture`, `str` | Low / technical APIs; no upward calls or policy |
+| Low E | `inspect_linkage` | Capture fixed platform linkage inspection | `capture`, `command.append`, `str` | Low / technical APIs; no upward calls or policy |
+| Low E | `inspect_runner` | Observe runner environment | `RunnerObservation`, `os.environ.get` | Low / technical APIs; no upward calls or policy |
+| Low E | `capture_version` | Capture fixed version protocol | `capture`, `str` | Low / technical APIs; no upward calls or policy |
+| Low E | `capture_odin_version` | Capture fixed Odin version protocol | `capture`, `str` | Low / technical APIs; no upward calls or policy |
+| Low P | `parse_json` | Decode JSON | `json.loads` | Low / technical APIs; no upward calls or policy |
+| Low E | `read_text` | Read file text | `path.read_text` | Low / technical APIs; no upward calls or policy |
+| Low E | `read_bytes` | Read file bytes | `path.read_bytes` | Low / technical APIs; no upward calls or policy |
+| Low P | `hash_bytes` | Hash supplied bytes | `hashlib.sha256`, `hashlib.sha256(data).hexdigest` | Low / technical APIs; no upward calls or policy |
+| Low P | `serialize_json` | Serialize supplied record | `json.dumps` | Low / technical APIs; no upward calls or policy |
+| Low P | `manifest_record` | Convert record to plain data | `asdict` | Low / technical APIs; no upward calls or policy |
+| Low E | `capture` | Capture supplied fixed inspection command | `subprocess.check_output`, `subprocess.check_output(command, text=True).strip` | Low / technical APIs; no upward calls or policy |
+| Low E | `write_text` | Write selected evidence text | `path.write_text` | Low / technical APIs; no upward calls or policy |
+| Low E | `write_line` | Write selected line | `print` | Low / technical APIs; no upward calls or policy |
+| Low P | `verified_message` | Format verified identity |  | Low / technical APIs; no upward calls or policy |
+| Low E | `read_environment` | Read named environment value |  | Low / technical APIs; no upward calls or policy |
+| Low E | `read_platform_argument` | Read platform argument |  | Low / technical APIs; no upward calls or policy |
 
-## Disposition and verification
+### Odin CLI and reachable fixture helpers
 
-Stop application-code correction at this point. PR #3 stays draft; behavior-tested candidate parts are not promoted or declared compliant. Reuse of the supplied-value parser and pure manifest procedures remains subject to a legal complete graph and review. No generic framework or artificial forwarding layer is introduced.
+| Layer / effects | Function name | Responsibility | Calls | Allowed to call |
+|---|---|---|---|---|
+| High E | `main` | Coordinate selected command | `read_arguments`, `parse_command`, `describe_command`, `write_result`, `exit_with_status` | Pure Mid / reviewed Low |
+| Mid P | `parse_command` | Interpret supplied command token | `read_fixed_argument` | Pure Low only |
+| Mid P | `describe_command` | Select presentation/content/status | `fixture.encode`; value constructors | Pure Low only |
+| Low E | `write_result` | Render preselected output representation | `output_stream`, `write_bytes`, `write_line` | Low only; no command selection |
+| Low E | `output_stream` | Acquire selected stream handle | `os.stdout`, `os.stderr` | Technical API only |
+| Low E | `read_arguments` | Observe process arguments | `os.args` | Technical API only |
+| Low P | `read_fixed_argument` | Read token from supplied fixed shape | `len`, indexing | Pure primitives only |
+| Low E | `write_line` | Write supplied text | `fmt.fprintln` | Technical API only |
+| Low E | `write_bytes` | Write supplied encoded bytes | `fmt.fprintf` | Technical API only |
+| Low E | `exit_with_status` | Apply supplied exit status | `os.exit` | Technical API only |
+| Low P | `fixture.encode` | Encode fixed byte representation | `write_word`; primitive casts/slices | Pure Low helpers only |
+| Low P | `fixture.write_word` | Encode one little-endian word | `endian.put_u64`, `assert` | Pure primitives only |
 
-Rerun the existing governance and complete hosted gates for this documentation revision. Record exact commits/runs, keeping behavioral results distinct from structural compliance. Constitution, accepted ADRs, invariant identifiers, application code, compiler/dependency pins, output/manifest behavior and current negative controls remain unchanged by this review. ADR-0004 ownership, dependency recovery and ADR-0006 compatibility remain separate.
+## Structural review and limitations
+
+No forbidden project call edge remains in the listed graph under E1. Pure High `validate_inventory` and `construct_manifest` have only pure Mid descendants; every Mid has only pure Low descendants. Effects stay in the named High acquisition/publication order and Low operations. Low branches select technical representations/protocols from supplied values, not command behavior, architecture acceptance, runner fallback or documentation status. Existing phase JSON shape/duplicate-key parsing is Low representation validation; the accepted phase decision remains Mid `phase_findings`.
+
+Python executable bootstrap only calls High `main`; argument/root acquisition and exit are not performed at module initialization. The existing standard-library JSON duplicate-key hook is a fixed Low-to-Low parser mechanism, not a new callback composition system. No generic dispatch, plugin, lifecycle hook or fourth layer was added. Odin presentation receives enum values, never an executable callback or technical handle in Mid.
+
+One focused structural control rejects effectful pure-module dependencies, Mid-to-Mid calls, raw High APIs and Low upward policy calls, including injected violations. It is deliberately bounded to these Python sources and known dependencies, not a complete language analyzer or runtime security mechanism. The Odin and technical-policy distinction require source review. These findings are eligible for owner evaluation; passing tests alone neither close them nor accept an ADR.
+
+Actual command/platform results are in [candidate evidence](../verification/phase1-entrypoint-evidence.md). Existing constitutional/accepted ADR rules, pins, runners, manifest schema and runtime boundaries are unchanged. ADR-0004 ownership, dependency recovery, ADR-0006 compatibility and Phase 1 acceptance remain independent gates.

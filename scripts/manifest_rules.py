@@ -15,6 +15,7 @@ UNSUPPORTED_PLATFORM = 'unsupported build platform'
 WRONG_ARCHITECTURE = 'unexpected executable architecture'
 WRONG_MACHINE = 'readelf machine identity mismatch'
 MISSING_RUNNER = 'hosted runner image identity is missing'
+COMMIT_FIELD = 'commit'
 
 
 class ManifestRejected(ValueError):
@@ -51,6 +52,14 @@ class BuildObservation:
 
 
 @dataclass(frozen=True)
+class CompilerObservation:
+    odin_sha: str
+    odin_version: str
+    llvm_version: str
+    cxx_version: str
+
+
+@dataclass(frozen=True)
 class BuildManifest:
     odin_sha: str
     odin_version: str
@@ -73,6 +82,19 @@ def construct_manifest(observation: BuildObservation) -> BuildManifest:
     validate_runner_version(observation.runner)
     runner = choose_runner_identity(observation.runner)
     return describe_manifest(observation, runner)
+
+
+def assemble_artifact(platform: str, identity: str, header: str) -> ArtifactObservation:
+    return ArtifactObservation(platform, identity, header)
+
+
+def describe_compiler(lock: dict, odin: str, llvm: str, cxx: str) -> CompilerObservation:
+    return CompilerObservation(lock[COMMIT_FIELD], odin, llvm, cxx)
+
+
+def assemble_build_observation(artifact, linkage, compiler, digest, runner) -> BuildObservation:
+    return BuildObservation(artifact, linkage, compiler.odin_sha, compiler.odin_version,
+                            compiler.llvm_version, compiler.cxx_version, digest, runner)
 
 
 def validate_platform(platform: str) -> None:

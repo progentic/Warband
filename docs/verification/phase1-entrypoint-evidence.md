@@ -1,12 +1,12 @@
 # Phase 1 entrypoint candidate evidence
 
-**Disposition: behavior verified; structural compliance unresolved under owner-selected Option A.** [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) records strict High/Mid/Low and rejects the earlier fourth-level proposal. This record closes no hierarchy finding and accepts no ADR. The [focused effect-composition review](../engineering/phase1-effect-composition-review.md) maps the unresolved graph.
+**Disposition: E1 candidate implemented under explicit owner authorization; formal closure remains pending.** [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) remains Proposed. The [actual effect review](../engineering/phase1-effect-composition-review.md) lists the qualified High graph and every pure/effectful procedure. The older results below belong to their cited pre-E1 heads. They do not certify the new candidate.
 
 ## Baseline recheck
 
 The post-merge [foundation run](https://github.com/progentic/Warband/actions/runs/38106636883) and [documentation run](https://github.com/progentic/Warband/actions/runs/38106636905) passed at `06afd20049af0d26a4953d0353da06e623482c8a`. These results belong to the pre-refactor baseline. Main protection and its positive/negative verification remain recorded in [protection evidence](../governance/phase1-protection-proposal.md).
 
-## Candidate changes
+## Historical pre-E1 candidate changes
 
 | Entrypoint | Behavior-tested candidate disposition, not a layer exception |
 |---|---|
@@ -16,7 +16,7 @@ The post-merge [foundation run](https://github.com/progentic/Warband/actions/run
 
 Pure manifest rules have no filesystem, subprocess or environment imports/access. The observations and output manifest are frozen records. Technical collection helpers do not perform architecture acceptance or runner-identity decisions. No runtime authorization, evaluator or state-transition procedure is introduced.
 
-## Actual local results
+## Historical pre-E1 local results
 
 Native macOS ARM64 verification used the existing source-built Odin at `8b35c86efb78e9ab5223673a07e02fc2a6884191` and exact LLVM/clang 19.1.7. Compiler identity was checked before rebuilding Warband with vet and warnings-as-errors.
 
@@ -35,7 +35,7 @@ The four new controls use supplied observations to verify supported formats and 
 
 Native parity JSON and the real rejection log are retained under `.local/closure-review/entrypoint/`. The reviewed diff preserves the constitution, invariant definitions and accepted ADRs byte-for-byte; the pure manifest module imports only dataclasses.
 
-## Actual hosted candidate results
+## Historical pre-E1 hosted results
 
 Draft [PR #3](https://github.com/progentic/Warband/pull/3) at head `b87c8be8db7c49fed9707a10e26e6a5f56ddb260` passed its [foundation run](https://github.com/progentic/Warband/actions/runs/38108611919) and [documentation run](https://github.com/progentic/Warband/actions/runs/38108610057). Actions tested PR merge source `d2978ffe504af31a73edc279426378d4d13dc72c` against base `06afd20`; that test merge is not a merge into main.
 
@@ -50,6 +50,32 @@ These outcomes are specifically tied to the cited candidate head/test merge. A l
 
 ## Remaining approval and governance
 
-The previous entrypoint rule is not selected. The owner requires the unchanged three-level hierarchy and a concrete legal effect-composition graph. The focused review identifies forbidden edges and the transitive-purity contradiction; application-code correction stops without an unapproved workaround. PR #3 remains draft and all three findings remain open. Existing test passes support only the cited candidate's behavior.
+The owner selected E1 and authorized the candidate implementation and draft-branch publication. E1's qualified High calls resolve the original pure-only reachability contradiction within the listed scope. PR #3 remains draft; all three findings await formal review. Formal ADR acceptance, merge and Phase 1 closure are not inferred from implementation or tests.
 
 Accepted ADRs 0001–0003, constitutional requirements, existing invariant identifiers and WB-NEG-001 through WB-NEG-016 semantics remain unchanged. WB-NEG-017/018 extend foundation build verification only. ADR-0004 ownership/formal acceptance, dependency recovery and ADR-0006 compatibility selection/review remain pending. No Phase 2 code or production architecture is selected.
+
+## E1 local implementation evidence (2026-10-12)
+
+Starting branch/head `phase1-entrypoint-separation` / `028dba1f46085b8052293d3c7c83e77c526b8236` matched the live draft PR #3 head. Main remained `06afd20`. The baseline sources were retained before editing.
+
+The native build used unchanged source-built Odin SHA `8b35c86efb78e9ab5223673a07e02fc2a6884191`, LLVM/clang 19.1.7 and vet/warnings-as-errors. ARM64 Mach-O SHA-256: `f652b9159d86807cffcc7b31f9d7711e57aeacee294dec82042509afaa46a828`. Two Odin packages/five original named tests and CLI smoke passed. All 21 existing Python controls were retained; one bounded structural test includes deliberate effect/upward/raw-API/Mid-call violations (22 total).
+
+Application sources at reviewed `79c2fdf` and starting `028dba1` were identical (the intervening changes were documentation). The saved baseline manifest program and E1 program inspected the same executable/environment independently; complete serialized JSON bytes matched. Real missing hosted ImageOS, unsupported platform and incorrect executable-format invocations failed nonzero without changing existing manifest bytes. Reports, baseline sources, parity JSON and rejection logs are retained under `.local/closure-review/e1/`. A source-only copy, with only an empty `.local` scratch directory for existing tests, passed documentation governance and all 22 controls. actionlint, shellcheck and `git diff --check` passed. These ignored local records are not hosted evidence.
+
+Exact commands:
+
+```sh
+export LLVM_CONFIG="$PWD/.local/toolchains/llvm@19/19.1.7/bin/llvm-config"
+export CXX="$PWD/.local/toolchains/llvm@19/19.1.7/bin/clang++"
+bash scripts/build_warband.sh darwin_arm64
+python3 scripts/check_docs.py
+python3 -m unittest discover -s tests/governance -v
+python3 scripts/run_odin_tests.py --odin .local/toolchains/odin-darwin_arm64/odin --output out/darwin_arm64/tests
+python3 scripts/verify_cli.py out/darwin_arm64/warband
+actionlint
+shellcheck scripts/*.sh
+git diff --check
+python3 .local/closure-review/e1/verify_regression.py
+```
+
+Final hosted candidate results will be tied to an actual pushed head and run; local macOS verification alone is not Linux proof.

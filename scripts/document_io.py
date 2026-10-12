@@ -1,9 +1,10 @@
 """Read and parse repository documents into the validation inventory."""
 import json
 import re
+import sys
 from pathlib import Path
 
-from governance import Document, Inventory, Link
+from governance import Document, DocumentationResult, FileCatalog, Inventory, Link, assemble_inventory
 
 LINK_PATTERN = re.compile(r'(?<!!)\[[^\]]+\]\(([^)]+)\)')
 IDENTIFIER_PATTERN = re.compile(r'\bWB-CON-\d{3}\b')
@@ -13,20 +14,43 @@ FRONTMATTER_PATTERN = re.compile(
 )
 IGNORED_DIRECTORIES = frozenset(('.git', '.local', 'out', 'build', 'warband-docs-bootstrap-v2'))
 EXTERNAL_PREFIXES = ('http://', 'https://', 'mailto:', '#')
+PHASE_FILE = 'project.json'
+OVERRIDE_FILE = 'AGENTS.override.md'
 
 
 def read_inventory(root: Path) -> Inventory:
-    paths = tuple(walk_files(root))
-    readable = tuple(path for path in paths if not path.is_symlink())
-    documents = tuple(read_document(root, path) for path in readable if path.suffix == '.md')
-    links = tuple(link for path in readable if path.suffix == '.md' for link in read_links(root, path))
-    return Inventory(
+    paths = collect_paths(root)
+    catalog = inspect_catalog(root, paths)
+    markdown = readable_markdown(paths)
+    documents = read_documents(root, markdown)
+    links = read_document_links(root, markdown)
+    phase = read_phase(child_path(root, PHASE_FILE))
+    return assemble_inventory(catalog, documents, links, phase)
+
+
+def collect_paths(root: Path):
+    return tuple(walk_files(root))
+
+
+def inspect_catalog(root: Path, paths) -> FileCatalog:
+    return FileCatalog(
         frozenset(str(path.relative_to(root)) for path in paths),
-        frozenset(path.name for path in root.iterdir()), documents, links,
-        read_phase(root / 'project.json'),
-        tuple(str(path.relative_to(root)) for path in paths if path.name == 'AGENTS.override.md'),
+        frozenset(path.name for path in root.iterdir()),
+        tuple(str(path.relative_to(root)) for path in paths if path.name == OVERRIDE_FILE),
         tuple(str(path.relative_to(root)) for path in paths if path.is_symlink()),
     )
+
+
+def readable_markdown(paths):
+    return tuple(path for path in paths if not path.is_symlink() and path.suffix == '.md')
+
+
+def read_documents(root: Path, paths):
+    return tuple(read_document(root, path) for path in paths)
+
+
+def read_document_links(root: Path, paths):
+    return tuple(link for path in paths for link in read_links(root, path))
 
 
 def walk_files(directory: Path, root: Path | None = None):
@@ -80,11 +104,33 @@ def unique_object(pairs):
     return value
 
 
-def report_findings(findings) -> int:
-    for finding in findings:
-        subject = ': '.join(filter(None, (finding.subject, finding.detail)))
-        print(f'ERROR: {finding.code}: {subject}')
-    if findings:
-        return 1
-    print('Warband documentation governance checks passed.')
-    return 0
+def report_findings(result: DocumentationResult) -> None:
+    for finding in result.findings:
+        write_line(format_finding(finding))
+    write_optional_line(result.message)
+
+
+def format_finding(finding) -> str:
+    subject = ': '.join(filter(None, (finding.subject, finding.detail)))
+    return f'ERROR: {finding.code}: {subject}'
+
+
+def write_optional_line(text: str) -> None:
+    if text:
+        write_line(text)
+
+
+def write_line(text: str) -> None:
+    print(text)
+
+
+def child_path(root: Path, name: str) -> Path:
+    return root / name
+
+
+def project_root(script: str) -> Path:
+    return Path(script).resolve().parents[1]
+
+
+def exit_with_status(status: int) -> None:
+    sys.exit(status)

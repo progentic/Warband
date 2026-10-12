@@ -2,67 +2,41 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-10
-- **Recorded owner direction:** 2026-10-11: select Option A, preserve Warband's existing three-level procedure hierarchy
-- **Decision owner:** Unassigned for formal ADR review and acceptance
-- **Previous proposal:** Additional entrypoint `Boundary` classification not approved
-- **Scope:** Existing Phase 1 CLI, documentation validator, and build manifest only
+- **Recorded owner direction:** Option A preserves High/Mid/Low; E1 selected and Phase 1 implementation explicitly authorized by the project owner
+- **Implementation record:** 2026-10-12
+- **Decision owner:** Unassigned for formal review and acceptance
+- **Scope:** Existing Phase 1 CLI, documentation validator and build manifest, including explicitly listed related helpers
 - **Supersedes:** None
 - **Related:** ADR-0004 (Proposed); accepted ADR-0001 through ADR-0003 unchanged
 
-## Decision direction and limits
+## Selected effect semantics
 
-The project owner has selected **Option A: preserve the existing High/Mid/Low hierarchy**. The earlier proposal to classify entrypoints as a fourth, exempt `Boundary` level is **not selected**. Its passing candidate tests are evidence of behavior, not approval of an architecture exception.
+E1 gives the three listed Phase 1 High workflows explicit ownership of effect composition. Their permitted calls are related listed High procedures, pure Mid procedures and reviewed Low operations. Other High procedures still call pure Mid only. All Mid procedures remain transitively pure and call pure Low helpers only. Low cannot call upward or make application policy decisions.
 
-Retain the existing requirements under review:
+The canonical call matrix, eligible High procedure list and permitted Low dependencies are in [the engineering standard](../engineering/coding-standard.md#phase-1-e1-effect-composition). This qualification changes High's original Mid-only restriction in that bounded scope; it neither adds a fourth architectural level nor changes procedure layering into a security boundary.
 
-- **High:** coordinate the prescribed workflow; call Mid procedures only.
-- **Mid:** apply rules to supplied values, remain pure, and call only permitted Low helpers.
-- **Low:** implement narrowly scoped technical operations and primitives, without calling upward or making policy decisions.
+## Scope and implementation
 
-Do not silently reclassify a High procedure as an entrypoint exception, label effectful I/O as pure, rename a call to hide the same dependency, or weaken the rule to make the current code compliant. These constraints also do not create new runtime privileges or trust boundaries.
+The eligible programs are `cmd/warband/main.odin`, `scripts/check_docs.py` and `scripts/build_manifest.py`. Only the listed directly related acquisition/publication subflows are included. Permitted effects are process input/exit and stdout/stderr, project documentation observations, and the existing artifact/provenance inspection and manifest output. Fixed inspection commands remain at Low. No generic command dispatch, callback, dependency-injection framework or effect interpreter is introduced.
 
-The literal rules expose an **unresolved effect-composition problem**: an executable must acquire input and produce output, yet a strictly pure Mid procedure cannot perform I/O, High cannot directly call Low, and Low cannot coordinate upward. Record a concrete legal call graph before claiming compliance. If no compliant arrangement is possible under the existing rules, report that incompatibility for owner review rather than inventing a fourth level or introducing unapproved exceptions.
+CLI command parsing and presentation selection are pure decisions over supplied values. Low presentation receives the already selected stream, representation, bytes/text and status; it cannot choose a command or grant execution authority. Documentation status/message selection is pure; reporting only displays the selected result. Pure inventory and manifest coordinators are reused. Manifest acquisition is split into genuine High subflows invoking narrow technical operations; format/machine validation precedes linkage, and complete validation precedes publication.
 
-This records the chosen direction, **not** a formal acceptance of ADR-0007 or a solution to the remaining call-graph conflict.
+Module startup only invokes the program's High main. External input/root-path acquisition and output are explicit in the reviewed graph, not hidden in module initialization or lifecycle hooks. Immutable constants and record definitions are not effect composition.
 
-## Options and tradeoffs considered
+## Benefits and tradeoffs
 
-| Option | Benefit | Cost or constraint | Disposition |
-|---|---|---|---|
-| **A. Preserve strict High/Mid/Low** | Consistent abstraction contract; predictable direction of dependencies; less opportunity for an exception to spread into security authority code | Can require extra, potentially mechanical wrappers; effect composition is currently underspecified; review and implementation may take longer | **Selected by project owner** |
-| **B. General effectful entrypoint adapter** | Small, readable glue code; matches the verified PR #3 candidate with minimal change | Creates an additional classification that can weaken the literal hierarchy or expand to runtime coordinators if interpreted broadly | Not selected |
-| **C. Tightly constrained entrypoint exception** | Limits effectful composition more than B; potentially reduces wrapper overhead | Still changes the three-level contract; requires new scope and enforcement rules; extra design without advancing the harness's first authority proof | Not selected |
+High owns effect ordering visibly, Mid decisions stay independently testable, and existing pure coordinators remain reusable. The cost is qualified High dependencies, a few necessary observation/publication subflows and ongoing review of the exact scope. A new effect or eligible procedure requires an explicit engineering/decision update and review; a procedure name alone never grants eligibility.
 
-Option A's consistency benefit is real, but so is its potential for unnecessary ceremony. The objective is a reviewable, working harness, **not** maximizing the number of layers, helpers, tests, or documents. Do not introduce generic dispatchers, dependency-injection frameworks, extra abstractions, or broad architectural reform solely to satisfy this Phase 1 correction.
+E2 was considered and is not selected. It would permit effectful Mid application composition and Mid-to-Mid calls. E1 instead preserves universal transitive Mid purity. The earlier fourth-level entrypoint proposal and bootstrap/callback workarounds remain rejected. The [comparison](../engineering/phase1-effect-semantics-options.md) is historical decision context, not an operative alternative.
 
-## Existing findings and PR #3 impact
+## Verification and limitations
 
-Three published baseline findings remain open:
+The [actual hierarchy review](../engineering/phase1-effect-composition-review.md) identifies every project procedure and its direct/transitive effects for these programs. One bounded Python dependency control checks pure-module dependencies, Mid's pure-Low calls, raw technical APIs in High and Low upward calls; deliberately invalid examples must fail. Human review remains necessary, including the Odin graph and the meaning of technical representation branches.
 
-1. `cmd/warband/main.odin`: executable argument acquisition and parsing were coupled.
-2. `scripts/check_docs.py`: `main()` sequences inventory, validation, and reporting across technical and decision work.
-3. `scripts/build_manifest.py`: `main()` mixed inspection, JSON parsing, hashing, validation, and manifest construction.
+Required behavior evidence is unchanged CLI bytes/streams/statuses, phase/document/manifest negative controls, all 21 existing Python tests, both Odin packages/five names, independent same-input manifest byte parity, rejected invocations preserving valid evidence, both executable architectures, applicable lint/diff checks and final hosted checks. The structural control is one additional useful test, not a replacement for those regressions or a general analysis framework.
 
-Draft [PR #3](https://github.com/progentic/Warband/pull/3) has useful candidate improvements: supplied-value Odin parsing, pure manifest rules, independent manifest I/O, four additional Python controls, and successful hosted verification. These changes may be retained **only where they comply with the selected hierarchy**. The PR's proposed fourth-level entrypoint wording in `docs/engineering/coding-standard.md`, and any findings closed solely through that wording, are **not approved**.
+Procedure hierarchy is code organization and reviewability. It does not grant runtime authority, prove a sandbox or replace OS isolation. Runtime policy, capabilities, evaluation, authoritative state, recovery, replay and model adapters are outside this qualification and remain unimplemented in Phase 1.
 
-This ADR revision changes no application code or procedure classifications. PR #3 stays draft; no merge, finding closure, ADR acceptance, or Phase 2 implementation is authorized by this note.
+## Current status
 
-## Required next review, strictly within Phase 1
-
-Before advancing the entrypoint correction, require a focused proposal that:
-
-1. Maps actual calls and side effects for the **three named entrypoints only**, using High/Mid/Low classifications and the unchanged allowed-call rules.
-2. Explains how input acquisition, pure decisions, and output occur without hidden upward calls or falsely pure wrappers. If the requirements cannot all hold, explicitly state the contradiction and the smallest decision needed; stop rather than widen scope.
-3. Reuses existing procedures where valid. Adds only necessary code to correct a demonstrated mismatch. Does not implement a generic orchestration framework.
-4. Preserves CLI output and exit statuses, documentation findings, manifest fields and byte parity, artifact verification order, exact compiler and dependency pins, and the current negative controls.
-5. Reruns the complete applicable governance and hosted verification gates on the revised candidate. Passing tests do not by themselves prove structural compliance.
-
-The scope is **Phase 1 foundation composition**. This record does not alter the runtime constitution, accepted ADRs, capability/policy/evidence/state boundaries, event encoding, execution recovery, or replay. ADR-0004 ownership, dependency retention, and ADR-0006 hosted-runner compatibility remain independent review items.
-
-## Effect-semantics decision comparison
-
-The [Phase 1 comparison](../engineering/phase1-effect-semantics-options.md) presents two review-only ways to compose effects within the three named levels. E1 qualifies High's permitted calls while retaining transitive Mid purity. E2 explicitly qualifies Mid purity and same-level composition while retaining High -> Mid only. Each requires an owner-selected rule change; neither follows automatically from selecting Option A. No semantics alternative is selected or authorized by that comparison.
-
-## Status
-
-**Option A is selected as the owner's direction. ADR-0007 remains Proposed.** The legal entrypoint/effect call graph is unresolved; all three architecture findings remain open pending evidence and formal review. Earlier hosted PR #3 checks support only the tested candidate's behavior, not compliance with this selected rule.
+**E1 implementation is owner-authorized; formal ADR acceptance is not.** PR #3 remains draft. Tests and reviewed implementation evidence support evaluation of the three findings but do not themselves close them, merge the PR or formally accept Phase 1. ADR-0004 ownership, dependency recovery, ADR-0006 compatibility and production architecture remain separate decisions.

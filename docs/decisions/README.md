@@ -22,4 +22,4 @@ Do not rewrite accepted history. Add a new record that supersedes the old decisi
 - [ADR-0004](0004-reproducible-odin-toolchain-and-ci.md) covers the locally verified toolchain and still requires ownership, review and formal acceptance.
 - [ADR-0005](0005-event-integrity-acceptance-and-recovery.md) proposes the event, evidence, acceptance and recovery boundary. It is design-only and does not authorize Phase 2 code.
 - [ADR-0006](0006-hosted-linux-runner-compatibility.md) tracks the announced hosted Linux migration, retained exact-version guard and options requiring review before the rollout.
-- [ADR-0007](0007-phase1-entrypoint-boundaries.md) records the owner's Option A direction: retain strict High/Mid/Low. The legal effect-composition graph remains unresolved; the fourth-level entrypoint proposal is not selected.
+- [ADR-0007](0007-phase1-entrypoint-boundaries.md) records the owner's Option A direction and authorized E1 implementation: retain High/Mid/Low with narrowly listed High effect composition and universal Mid purity. Formal acceptance remains pending; the fourth-level proposal is not selected.

@@ -1,39 +1,38 @@
 """Acquire build observations and publish evidence at the technical boundary."""
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 
-from manifest_rules import ArtifactObservation, BuildManifest, BuildObservation, RunnerObservation
+from manifest_rules import BuildManifest, RunnerObservation
 
 LINUX_PLATFORM = 'linux_amd64'
 LINK_COMMANDS = {LINUX_PLATFORM: 'ldd', 'darwin_arm64': 'otool'}
+LLVM_KEY = 'LLVM_CONFIG'
+CXX_KEY = 'CXX'
 
 
-def inspect_artifact(root: Path, platform: str) -> ArtifactObservation:
-    binary = root / 'out' / platform / 'warband'
-    return ArtifactObservation(platform, capture(['file', '-b', str(binary)]),
-                               inspect_elf_header(platform, binary))
+@dataclass(frozen=True)
+class InspectionPaths:
+    platform: str
+    binary: Path
+    odin: Path
+    lock: Path
+    manifest: Path
 
 
-def inspect_build(root: Path, artifact: ArtifactObservation) -> BuildObservation:
-    binary = root / 'out' / artifact.platform / 'warband'
-    source = root / '.local/toolchains' / ('odin-' + artifact.platform)
-    lock = parse_json(read_text(root / 'toolchain/odin.lock.json'))
-    return BuildObservation(
-        artifact, inspect_linkage(artifact.platform, binary),
-        lock['commit'], capture([str(source / 'odin'), 'version']),
-        capture([os.environ['LLVM_CONFIG'], '--version']),
-        capture([os.environ['CXX'], '--version']), hash_bytes(read_bytes(binary)), inspect_runner(),
-    )
+def inspection_paths(root: Path, platform: str) -> InspectionPaths:
+    output = root / 'out' / platform
+    source = root / '.local/toolchains' / ('odin-' + platform)
+    return InspectionPaths(platform, output / 'warband', source / 'odin',
+                           root / 'toolchain/odin.lock.json', output / 'build-manifest.json')
 
 
-def publish_manifest(root: Path, platform: str, manifest: BuildManifest) -> None:
-    destination = root / 'out' / platform / 'build-manifest.json'
-    write_text(destination, serialize_json(manifest_record(manifest)))
-    write_line('Artifact architecture verified: ' + manifest.architecture)
+def executable_identity(binary: Path) -> str:
+    return capture(['file', '-b', str(binary)])
 
 
 def inspect_elf_header(platform: str, binary: Path) -> str:
@@ -52,6 +51,14 @@ def inspect_linkage(platform: str, binary: Path) -> str:
 def inspect_runner() -> RunnerObservation:
     return RunnerObservation(os.environ.get('GITHUB_ACTIONS') == 'true',
                              os.environ.get('ImageOS'), os.environ.get('ImageVersion'))
+
+
+def capture_version(executable) -> str:
+    return capture([str(executable), '--version'])
+
+
+def capture_odin_version(executable: Path) -> str:
+    return capture([str(executable), 'version'])
 
 
 def parse_json(text: str) -> dict:
@@ -88,3 +95,15 @@ def write_text(path: Path, text: str) -> None:
 
 def write_line(text: str) -> None:
     print(text)
+
+
+def verified_message(identity: str) -> str:
+    return 'Artifact architecture verified: ' + identity
+
+
+def read_environment(name: str) -> str:
+    return os.environ[name]
+
+
+def read_platform_argument() -> str:
+    return sys.argv[1]

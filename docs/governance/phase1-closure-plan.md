@@ -32,9 +32,7 @@ Technical test passes do not resolve every literal procedure-layering requiremen
 
 These are concrete instances of the already recorded effect-dispatch/layering question. A review must choose a compliant boundary arrangement or explicitly approve revised guidance before claiming complete structural compliance. Do not label I/O wrappers pure domain functions or silently accept an exception through ADR-0004. Publication of the current foundation does not resolve these findings or claim structural approval.
 
-On 2026-10-11 the owner selected Option A in [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md): preserve strict High/Mid/Low. The fourth-level entrypoint proposal is not selected and its engineering wording is removed. The [focused review](../engineering/phase1-effect-composition-review.md) maps the actual three entrypoint graphs and records the transitive-purity contradiction. No legal complete composition is established; application-code correction stops there. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) remains behavioral evidence only. PR #3 stays draft, no finding closes, and runtime authority rules are unchanged.
-
-The [effect-semantics comparison](../engineering/phase1-effect-semantics-options.md) provides two technically viable proposed qualifications within the three named levels: High-owned composition or explicitly effectful Mid application composition. Exact matrices and affected procedures are recorded for owner selection. Neither is selected, neither preserves every inconsistent restriction unchanged, and no application code changes before authorization.
+The owner selected Option A and then authorized E1 in [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md). The [actual call/effect review](../engineering/phase1-effect-composition-review.md) maps the scoped High qualification and pure decisions. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) records implementation verification separately from formal acceptance. PR #3 stays draft; no finding is automatically closed and runtime authority rules are unchanged. The options document is historical comparison; E2 is not selected.
 
 ## Gate 2 Select and connect the hosted repository
 
@@ -93,7 +91,7 @@ No general agent orchestration, provider integration, new execution surface, dis
 | Runner migration | ADR-0006 Proposed; owner/option/review pending before 2026-10-19 rollout |
 | Required checks | Configured with no reviewer requirement; readback and blocked failing-PR evidence recorded |
 | Owner assignment and ADR acceptance | Pending user input/review; ADR-0004 remains Proposed |
-| Procedure hierarchy | Option A selected; legal effect composition unresolved; all three findings open; PR #3 draft |
+| Procedure hierarchy | E1 implementation authorized and candidate reviewed; formal finding closure pending; PR #3 draft |
 | ADR-0005 design | Proposed draft only |
 | Phase 2 implementation | Not authorized |
 

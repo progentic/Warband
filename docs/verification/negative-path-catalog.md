@@ -26,6 +26,6 @@ WB-NEG-001 through WB-NEG-012 remain deferred runtime obligations. These additio
 - **WB-NEG-017:** Unsupported platforms, wrong executable formats/architectures, and wrong ELF machine observations cannot produce a verified build manifest.
 - **WB-NEG-018:** Missing hosted runner image/version fails manifest construction instead of falling back to a local identity or overwriting the last valid manifest.
 
-WB-NEG-017/018 are exercised by the entrypoint-refactor candidate's manifest controls and the recorded real missing-runner invocation. The [candidate evidence](phase1-entrypoint-evidence.md) distinguishes functional verification from pending procedure-rule approval.
+WB-NEG-017/018 are exercised by the manifest controls and actual rejected platform/format/missing-runner invocations preserving prior evidence. The [candidate evidence](phase1-entrypoint-evidence.md) separates behavior from E1 structural review and formal acceptance. One bounded dependency control additionally injects impure Mid, raw High and upward Low calls; it does not claim runtime authority enforcement.
 
 Verification lives in `tests/governance/`, `tests/odin/negative/`, and the manifest runner. No capability, approval, persistence, worker, or audit acceptance exists in this phase.
