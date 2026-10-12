@@ -34,6 +34,8 @@ These are concrete instances of the already recorded effect-dispatch/layering qu
 
 On 2026-10-11 the owner selected Option A in [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md): preserve strict High/Mid/Low. The fourth-level entrypoint proposal is not selected and its engineering wording is removed. The [focused review](../engineering/phase1-effect-composition-review.md) maps the actual three entrypoint graphs and records the transitive-purity contradiction. No legal complete composition is established; application-code correction stops there. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) remains behavioral evidence only. PR #3 stays draft, no finding closes, and runtime authority rules are unchanged.
 
+The [effect-semantics comparison](../engineering/phase1-effect-semantics-options.md) provides two technically viable proposed qualifications within the three named levels: High-owned composition or explicitly effectful Mid application composition. Exact matrices and affected procedures are recorded for owner selection. Neither is selected, neither preserves every inconsistent restriction unchanged, and no application code changes before authorization.
+
 ## Gate 2 Select and connect the hosted repository
 
 Repository selection and remote configuration are complete: `origin` is `https://github.com/progentic/Warband.git`, the repository is public, and its default branch is `main`. Existing authentication is unchanged. Commit/push and required-check protection are separately authorized. Apply subsequent changes through the protected path; do not infer ADR ownership from the GitHub account.

@@ -43,3 +43,5 @@ Keep orchestration, pure domain decisions, and technical operations separate und
 The fixture format is portable verification data, not an accepted event-store format. Ticks and identifiers are explicitly supplied; encoding reads no wall clock or random identity.
 
 [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) records the owner's Option A direction on 2026-10-11. The previous fourth-level entrypoint proposal is not selected. The [focused effect-composition review](phase1-effect-composition-review.md) maps the three existing entrypoints and records why their required I/O cannot currently compose with pure application decisions under all of the unchanged rules. The three findings remain open. Passing behavior tests do not establish a legal call graph, and the contradiction does not authorize an exception or additional framework.
+
+The [effect-semantics comparison](phase1-effect-semantics-options.md) offers two nonoperative rule qualifications within these levels. Until the owner selects and authorizes one, the rules above remain unchanged and implementation remains blocked.

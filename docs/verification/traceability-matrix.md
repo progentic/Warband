@@ -58,3 +58,5 @@ The initial evidence is historical. Local platform pins, manifests, transport li
 `docs/decisions/0006-hosted-linux-runner-compatibility.md` tracks the WB-P1-001/WB-P1-006 build-environment risk and required future compatibility evidence. It selects no replacement profile and leaves exact version/OS rejection unchanged.
 
 `docs/decisions/0007-phase1-entrypoint-boundaries.md` remains Proposed and records the owner's strict three-level direction. The candidate's 21 Python controls and original five Odin tests demonstrate behavior, not compliance. `docs/engineering/phase1-effect-composition-review.md` records the blocked legal graph; no hierarchy finding closes. Runtime requirements remain planned/deferred.
+
+`docs/engineering/phase1-effect-semantics-options.md` provides the WB-P1-008 owner decision comparison: two explicit qualifications, complete proposed procedure/effect maps and structural/behavioral regression requirements. It authorizes no implementation and changes no runtime requirement status.

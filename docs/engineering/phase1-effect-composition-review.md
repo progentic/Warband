@@ -66,6 +66,8 @@ The CLI requires argument acquisition and observable stdout/stderr/exit behavior
 
 **No legal complete call graph is proposed.** The smallest outstanding owner decision is the precise permitted location and semantics of effect composition within the existing three levels. With transitive Mid purity, High -> Mid only, Low's no-upward/no-policy restrictions, and the current entrypoint roles all unchanged, there is no compliant composition. At least one premise needs explicit clarification or qualification, or this correction must remain suspended. This review selects neither an amendment nor Options B/C.
 
+The subsequent [two-option decision comparison](phase1-effect-semantics-options.md) identifies exact possible qualifications, complete proposed paths, permitted-call matrices, minimum changes and verification. Neither option creates a fourth level, but both change an original restriction. Owner selection is required before application-code changes.
+
 ## Disposition and verification
 
 Stop application-code correction at this point. PR #3 stays draft; behavior-tested candidate parts are not promoted or declared compliant. Reuse of the supplied-value parser and pure manifest procedures remains subject to a legal complete graph and review. No generic framework or artificial forwarding layer is introduced.

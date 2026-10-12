@@ -59,6 +59,10 @@ Before advancing the entrypoint correction, require a focused proposal that:
 
 The scope is **Phase 1 foundation composition**. This record does not alter the runtime constitution, accepted ADRs, capability/policy/evidence/state boundaries, event encoding, execution recovery, or replay. ADR-0004 ownership, dependency retention, and ADR-0006 hosted-runner compatibility remain independent review items.
 
+## Effect-semantics decision comparison
+
+The [Phase 1 comparison](../engineering/phase1-effect-semantics-options.md) presents two review-only ways to compose effects within the three named levels. E1 qualifies High's permitted calls while retaining transitive Mid purity. E2 explicitly qualifies Mid purity and same-level composition while retaining High -> Mid only. Each requires an owner-selected rule change; neither follows automatically from selecting Option A. No semantics alternative is selected or authorized by that comparison.
+
 ## Status
 
 **Option A is selected as the owner's direction. ADR-0007 remains Proposed.** The legal entrypoint/effect call graph is unresolved; all three architecture findings remain open pending evidence and formal review. Earlier hosted PR #3 checks support only the tested candidate's behavior, not compliance with this selected rule.
