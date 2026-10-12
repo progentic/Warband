@@ -81,4 +81,4 @@ The golden bytes are literal and documented in [the fixture specification](../ve
 
 ## Candidate entrypoint separation
 
-[ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) records owner-authorized E1: explicit, bounded High effect composition with universal Mid purity. The [actual hierarchy review](phase1-effect-composition-review.md) maps the implemented candidate, including all external effects. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) separates source review from behavior/platform results. PR #3 stays draft; formal acceptance and finding closure remain review decisions.
+[ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) records owner-accepted E1 at v0.0.0: explicit, bounded High effect composition with universal Mid purity. The [actual hierarchy review](phase1-effect-composition-review.md) maps the implemented candidate, including all external effects. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) separates source review from behavior/platform results. PR #3 merged at 8afe351; ADR-0007 is Accepted. Finding closure and formal Phase 1 acceptance remain separate decisions.

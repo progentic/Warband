@@ -1,6 +1,6 @@
 # Phase 1 entrypoint candidate evidence
 
-**Disposition: E1 candidate implemented under explicit owner authorization; formal closure remains pending.** [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) remains Proposed. The [actual effect review](../engineering/phase1-effect-composition-review.md) lists the qualified High graph and every pure/effectful procedure. The older results below belong to their cited pre-E1 heads. They do not certify the new candidate.
+**Disposition: E1 published at v0.0.0 / 8afe351; ADR-0007 Accepted by the project owner.** Formal finding closure and overall Phase 1 acceptance remain separate. The [actual effect review](../engineering/phase1-effect-composition-review.md) lists the qualified High graph and every pure/effectful procedure. The results below remain tied to their cited heads.
 
 ## Baseline recheck
 
@@ -50,7 +50,7 @@ These outcomes are specifically tied to the cited candidate head/test merge. A l
 
 ## Remaining approval and governance
 
-The owner selected E1 and authorized the candidate implementation and draft-branch publication. E1's qualified High calls resolve the original pure-only reachability contradiction within the listed scope. PR #3 remains draft; all three findings await formal review. Formal ADR acceptance, merge and Phase 1 closure are not inferred from implementation or tests.
+The owner selected E1 and authorized the candidate implementation and draft-branch publication. E1's qualified High calls resolve the original pure-only reachability contradiction within the listed scope. PR #3 merged at 8afe351 and the owner separately accepted ADR-0007. All three findings remain open for separate closure; overall Phase 1 acceptance is not inferred from implementation or tests.
 
 Accepted ADRs 0001–0003, constitutional requirements, existing invariant identifiers and WB-NEG-001 through WB-NEG-016 semantics remain unchanged. WB-NEG-017/018 extend foundation build verification only. ADR-0004 ownership/formal acceptance, dependency recovery and ADR-0006 compatibility selection/review remain pending. No Phase 2 code or production architecture is selected.
 
@@ -93,4 +93,4 @@ All three downloaded archive digests matched GitHub artifact metadata. Binary SH
 
 Exact hosted inspection commands included `gh run view 38203043711 --repo progentic/Warband --log`, `gh api repos/progentic/Warband/actions/runs/38203043711/artifacts` and `gh api repos/progentic/Warband/actions/artifacts/<id>/zip`. The read-only main/protection readback still showed main `06afd20`, strict three required checks, administrator enforcement, no approval requirement and no force pushes/deletion. Those settings were not changed.
 
-This evidence-record revision requires fresh hosted checks at its own final draft head. The results above certify the implementation head explicitly, not an untested later commit.
+The results above certify their cited implementation head. The v0.0.0 main baseline 8afe351 subsequently passed [Linux/macOS](https://github.com/progentic/Warband/actions/runs/38281369380) and [documentation](https://github.com/progentic/Warband/actions/runs/38281369653) checks. Acceptance is recorded separately in ADR-0007; it adds no application behavior or verification claim.

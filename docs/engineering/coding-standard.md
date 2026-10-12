@@ -54,7 +54,7 @@ Keep orchestration, pure domain decisions and technical operations separate unde
 
 The fixture format is portable verification data, not an accepted event-store format. Ticks and identifiers are explicitly supplied; encoding reads no wall clock or random identity.
 
-[ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) remains Proposed for formal acceptance and records the owner-authorized E1 implementation direction. The [actual call/effect review](phase1-effect-composition-review.md) maps the implementation. Structural review and behavioral verification are separate; passing tests alone close no finding.
+[ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) is Accepted by the project owner against v0.0.0 / 8afe351 and records the bounded E1 direction. The [actual call/effect review](phase1-effect-composition-review.md) maps the implementation. Structural review and behavioral verification are separate; passing tests alone close no finding.
 
 ### Phase 1 E1 effect composition
 

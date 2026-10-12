@@ -1,8 +1,8 @@
 # Phase 1 closure plan
 
-Warband's foundation is technically verified locally on Linux x64 and macOS ARM64. Formal Phase 1 acceptance and hosted enforcement remain pending. This plan records the remaining work; it does not authorize commits, remotes, account selection, pushes, infrastructure creation, workflow changes, or ADR acceptance.
+Warband's foundation is technically verified locally on Linux x64 and macOS ARM64. Hosted enforcement is demonstrated; formal Phase 1 acceptance remains pending. This plan records the remaining work; it does not authorize commits, remotes, account selection, pushes, infrastructure creation, workflow changes, or ADR acceptance.
 
-On 2026-10-10 the user selected [progentic/Warband](https://github.com/progentic/Warband) and subsequently authorized committing and pushing the current Phase 1 status to `main`. Its HTTPS URL is configured as this folder's `origin`. Existing authentication is used; no account was switched. ADR ownership and formal approval remain pending. [Local evidence](../verification/phase1-review-evidence.md) remains the source for actual command results. [ADR-0004](../decisions/0004-reproducible-odin-toolchain-and-ci.md) stays Proposed. ADR-0005 design may proceed as Proposed, independently of Phase 2 implementation authorization.
+On 2026-10-10 the user selected [progentic/Warband](https://github.com/progentic/Warband) and subsequently authorized committing and pushing the current Phase 1 status to `main`. Its HTTPS URL is configured as this folder's `origin`. Existing authentication is used; no account was switched. ADR-0004 ownership and formal approval remain pending. [Local evidence](../verification/phase1-review-evidence.md) remains the source for actual command results. [ADR-0004](../decisions/0004-reproducible-odin-toolchain-and-ci.md) stays Proposed. ADR-0005 design may proceed as Proposed, independently of Phase 2 implementation authorization.
 
 ## Gate 1 Review the source baseline
 
@@ -32,7 +32,7 @@ Technical test passes do not resolve every literal procedure-layering requiremen
 
 These baseline findings exposed the effect-composition contradiction. The owner explicitly selected the E1 qualification below. Do not label I/O wrappers pure or infer an exception through ADR-0004; the scoped implementation and its evidence still require formal finding review.
 
-The owner selected Option A and then authorized E1 in [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md). The [actual call/effect review](../engineering/phase1-effect-composition-review.md) maps the scoped High qualification and pure decisions. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) records implementation verification separately from formal acceptance. PR #3 stays draft; no finding is automatically closed and runtime authority rules are unchanged. The options document is historical comparison; E2 is not selected.
+The owner selected Option A and then authorized E1 in [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md). The [actual call/effect review](../engineering/phase1-effect-composition-review.md) maps the scoped High qualification and pure decisions. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) records implementation verification separately from formal acceptance. PR #3 merged at v0.0.0 / 8afe351, and the owner accepted ADR-0007. No finding is automatically closed and runtime authority rules are unchanged. The options document is historical comparison; E2 is not selected.
 
 ## Gate 2 Select and connect the hosted repository
 
@@ -91,7 +91,7 @@ No general agent orchestration, provider integration, new execution surface, dis
 | Runner migration | ADR-0006 Proposed; owner/option/review pending before 2026-10-19 rollout |
 | Required checks | Configured with no reviewer requirement; readback and blocked failing-PR evidence recorded |
 | Owner assignment and ADR acceptance | Pending user input/review; ADR-0004 remains Proposed |
-| Procedure hierarchy | E1 implementation authorized and candidate reviewed; formal finding closure pending; PR #3 draft |
+| Procedure hierarchy | ADR-0007 Accepted against v0.0.0; PR #3 merged; formal finding closure pending |
 | ADR-0005 design | Proposed draft only |
 | Phase 2 implementation | Not authorized |
 
