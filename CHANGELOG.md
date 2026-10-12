@@ -8,6 +8,13 @@ Record changes under explicit dated version headings, newest first. Start at
 `0.0.0`; Git tags use the `v` prefix. Subsequent version links compare the previous
 and current tags. Only include categories that contain notable changes.
 
+## [0.0.1] - 2026-10-12
+
+### Changed
+
+- Recorded project-owner acceptance of ADR-0007 for scoped Phase 1 E1 composition against the v0.0.0 implementation baseline.
+- Aligned decision, engineering, verification and closure references with acceptance and the merged PR #3. Finding closure and overall Phase 1 acceptance remain separate; no application code or tests changed.
+
 ## [0.0.0] - 2026-10-12
 
 ### Added
@@ -41,4 +48,5 @@ Phase 1 acceptance, dependency recovery and runner compatibility remain separate
 governance gates. Phase 2 authority, execution, persistence and production
 services are not implemented.
 
+[0.0.1]: https://github.com/progentic/Warband/compare/v0.0.0...v0.0.1
 [0.0.0]: https://github.com/progentic/Warband/tree/v0.0.0

@@ -1,6 +1,6 @@
 # Phase 1 effect-composition review
 
-**E1 candidate implemented; formal finding closure remains a review decision.** The owner authorized E1 for the three Phase 1 programs. [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) remains Proposed. The [engineering standard](coding-standard.md#phase-1-e1-effect-composition) is the canonical permitted-call matrix and exact effectful High allowlist.
+**E1 implementation published at v0.0.0; formal finding closure remains separate.** The owner accepted E1 for the three Phase 1 programs in [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md). The [engineering standard](coding-standard.md#phase-1-e1-effect-composition) is the canonical permitted-call matrix and exact effectful High allowlist.
 
 ## Evidence-based original mismatches and corrected paths
 

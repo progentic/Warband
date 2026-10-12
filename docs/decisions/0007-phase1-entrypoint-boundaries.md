@@ -1,42 +1,92 @@
 # ADR-0007: Phase 1 entrypoint boundaries
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-10
-- **Recorded owner direction:** Option A preserves High/Mid/Low; E1 selected and Phase 1 implementation explicitly authorized by the project owner
-- **Implementation record:** 2026-10-12
-- **Decision owner:** Unassigned for formal review and acceptance
-- **Scope:** Existing Phase 1 CLI, documentation validator and build manifest, including explicitly listed related helpers
+- **Acceptance date:** 2026-10-12
+- **Decision:** E1, scoped High effect composition
+- **Decision authority:** Project owner, by the supplied acceptance decision
+- **Implementation baseline:** [v0.0.0](https://github.com/progentic/Warband/tree/v0.0.0), commit `8afe3512da88fe55e6ca1b919a1bd5d0b931baab`, merged through [PR #3](https://github.com/progentic/Warband/pull/3)
+- **Scope:** Phase 1 foundation only
 - **Supersedes:** None
-- **Related:** ADR-0004 (Proposed); accepted ADR-0001 through ADR-0003 unchanged
+- **Related:** ADR-0004, ADR-0005 and ADR-0006 remain Proposed; accepted ADR-0001 through ADR-0003 unchanged
 
-## Selected effect semantics
+## Decision
 
-E1 gives the three listed Phase 1 High workflows explicit ownership of effect composition. Their permitted calls are related listed High procedures, pure Mid procedures and reviewed Low operations. Other High procedures still call pure Mid only. All Mid procedures remain transitively pure and call pure Low helpers only. Low cannot call upward or make application policy decisions.
+Warband adopts E1 for the three existing Phase 1 programs. It preserves High/Mid/Low while permitting narrowly enumerated High procedures to coordinate necessary external effects. It resolves the original effect-composition contradiction without adding a fourth level or changing the meaning of Mid.
 
-The canonical call matrix, eligible High procedure list and permitted Low dependencies are in [the engineering standard](../engineering/coding-standard.md#phase-1-e1-effect-composition). This qualification changes High's original Mid-only restriction in that bounded scope; it neither adds a fourth architectural level nor changes procedure layering into a security boundary.
+1. High coordinates workflows. Only the enumerated Phase 1 High procedures may call related High procedures, pure Mid decisions and reviewed Low technical operations. Other High procedures call pure Mid only.
+2. Mid makes decisions using supplied values and calls pure Low helpers only. Every Mid procedure remains transitively pure, including every reachable helper.
+3. Low performs narrow technical operations through Low helpers and technical APIs. Low must not call upward, make application policy decisions or independently authorize application behavior.
 
-## Scope and implementation
+The [engineering standard](../engineering/coding-standard.md#phase-1-e1-effect-composition) defines the permitted High procedures and dependencies. This is an enumerated exception, not a general change to High authority. The [call/effect review](../engineering/phase1-effect-composition-review.md) maps the reviewed implementation.
 
-The eligible programs are `cmd/warband/main.odin`, `scripts/check_docs.py` and `scripts/build_manifest.py`. Only the listed directly related acquisition/publication subflows are included. Permitted effects are process input/exit and stdout/stderr, project documentation observations, and the existing artifact/provenance inspection and manifest output. Fixed inspection commands remain at Low. No generic command dispatch, callback, dependency-injection framework or effect interpreter is introduced.
+## Authorized scope
 
-CLI command parsing and presentation selection are pure decisions over supplied values. Low presentation receives the already selected stream, representation, bytes/text and status; it cannot choose a command or grant execution authority. Documentation status/message selection is pure; reporting only displays the selected result. Pure inventory and manifest coordinators are reused. Manifest acquisition is split into genuine High subflows invoking narrow technical operations; format/machine validation precedes linkage, and complete validation precedes publication.
+- `cmd/warband/main.odin`: existing command input, presentation and process termination.
+- `scripts/check_docs.py`: documentation acquisition, validation coordination, reporting and exit status.
+- `scripts/build_manifest.py`: artifact inspection, build provenance acquisition, validation coordination and publication.
 
-Module startup only invokes the program's High main. External input/root-path acquisition and output are explicit in the reviewed graph, not hidden in module initialization or lifecycle hooks. Immutable constants and record definitions are not effect composition.
+The directly related High subflows listed in the engineering standard are included. New programs, procedures, effects or external dependencies are not automatically covered. Any expansion requires explicit architectural review and project owner authorization before implementation.
 
-## Benefits and tradeoffs
+## Benefits
 
-High owns effect ordering visibly, Mid decisions stay independently testable, and existing pure coordinators remain reusable. The cost is qualified High dependencies, a few necessary observation/publication subflows and ongoing review of the exact scope. A new effect or eligible procedure requires an explicit engineering/decision update and review; a procedure name alone never grants eligibility.
+E1 separates effect coordination, pure decisions and technical operations. It preserves reusable pure validators, exposes external operations in the reviewed High graph and avoids unnecessary dispatch frameworks or abstraction layers. The implementation retains established CLI behavior, documentation governance, build provenance and architecture validation.
 
-E2 was considered and is not selected. It would permit effectful Mid application composition and Mid-to-Mid calls. E1 instead preserves universal transitive Mid purity. The earlier fourth-level entrypoint proposal and bootstrap/callback workarounds remain rejected. The [comparison](../engineering/phase1-effect-semantics-options.md) is historical decision context, not an operative alternative.
+## Tradeoffs
 
-## Verification and limitations
+E1 qualifies the original High-to-Mid-only restriction. Eligible High procedures also reach reviewed Low operations, so changes to their graphs or effects require additional review. Maintaining the approved effect list is an ongoing obligation.
 
-The [actual hierarchy review](../engineering/phase1-effect-composition-review.md) identifies every project procedure and its direct/transitive effects for these programs. One bounded Python dependency control checks pure-module dependencies, Mid's pure-Low calls, raw technical APIs in High and Low upward calls; deliberately invalid examples must fail. Human review remains necessary, including the Odin graph and the meaning of technical representation branches.
+Additional High subflows increase code and review volume. They are justified only when they expose a meaningful responsibility or sequence that would otherwise be obscured.
 
-Required behavior evidence is unchanged CLI bytes/streams/statuses, phase/document/manifest negative controls, all 21 existing Python tests, both Odin packages/five names, independent same-input manifest byte parity, rejected invocations preserving valid evidence, both executable architectures, applicable lint/diff checks and final hosted checks. The structural control is one additional useful test, not a replacement for those regressions or a general analysis framework.
+E2 was considered but not selected because it would change Mid purity and permit explicitly effectful Mid compositions. The three-level hierarchy and universal Mid purity remain preferred. The [options comparison](../engineering/phase1-effect-semantics-options.md) is historical context, not additional permission.
 
-Procedure hierarchy is code organization and reviewability. It does not grant runtime authority, prove a sandbox or replace OS isolation. Runtime policy, capabilities, evaluation, authoritative state, recovery, replay and model adapters are outside this qualification and remain unimplemented in Phase 1.
+## Documented limitations
 
-## Current status
+### 1. Phase 1 only
 
-**E1 implementation is owner-authorized; formal ADR acceptance is not.** PR #3 remains draft. Tests and reviewed implementation evidence support evaluation of the three findings but do not themselves close them, merge the PR or formally accept Phase 1. ADR-0004 ownership, dependency recovery, ADR-0006 compatibility and production architecture remain separate decisions.
+The exception does not extend to runtime coordination, policy, capabilities, evaluation, state writing, event journals, recovery, replay, model adapters or future execution tools. Those components require independently reviewed authority and effect boundaries. No component inherits E1 permissions merely through procedure names or classifications.
+
+### 2. Bounded structural enforcement
+
+The structural test checks known Python dependencies and representative forbidden patterns. It is not a complete static analyzer and cannot establish whole-program purity or identify every indirect dependency. The Odin graph and technical helper classifications require source review. Passing the test does not replace examining actual dependencies and direct/transitive effects.
+
+### 3. Layering is not a security boundary
+
+High/Mid/Low improves clarity and reviewability. It does not enforce OS permissions, isolate untrusted execution or prevent a compromised native process from accessing resources. Runtime security requires independent authorization, process isolation, resource restrictions, evidence validation and authoritative state ownership.
+
+### 4. Limited build-evidence durability
+
+Invalid inputs are rejected before publication; tested rejection cases preserve the previous manifest. Publication does not guarantee atomic replacement or preservation during interrupted writes, filesystem failures or power loss. No such durability guarantee is claimed. The precise [publication limits](../engineering/phase1-build-and-verification.md#manifest-publication-limits) remain applicable.
+
+### 5. Toolchain paths and provenance
+
+Compiler paths come from the controlled build environment through `LLVM_CONFIG` and `CXX`, not universally hardcoded paths. Existing version, provenance, architecture and dependency validation remains authoritative for supported Phase 1 builds. The manifest collector does not independently establish the supplied executables' provenance; see [toolchain controls](../engineering/phase1-build-and-verification.md#pinned-toolchain).
+
+### 6. Verification must demonstrate value
+
+Additional tests require prior owner review of a concrete failure mode, supporting evidence, existing coverage gap, expected confidence improvement and maintenance cost, as defined in [the test necessity standard](../engineering/coding-standard.md#test-necessity). Passing existing tests does not justify speculative expansion. No new test is required solely to formalize this decision.
+
+## Verification basis
+
+The implementation was merged through PR #3 and published as v0.0.0 at `8afe351`. The [entrypoint evidence](../verification/phase1-entrypoint-evidence.md) records:
+
+- Linux x64 and macOS ARM64 builds.
+- 22 Python controls, including bounded structural rejection checks.
+- Two Odin test packages and five named tests.
+- Deterministic fixtures and CLI smoke checks.
+- Manifest parity and pre-publication rejection preservation.
+- Documentation governance and required hosted checks.
+
+The baseline's post-merge [Linux/macOS run](https://github.com/progentic/Warband/actions/runs/38281369380) and [documentation run](https://github.com/progentic/Warband/actions/runs/38281369653) passed. These results support implemented Phase 1 behavior and the reviewed procedure graph. They do not establish subsequent runtime security guarantees.
+
+## Acceptance boundaries
+
+Acceptance authorizes no additional implementation. It does not accept ADR-0004, approve ADR-0005 or Phase 2 code, resolve ADR-0006, complete dependency recovery, select production architecture or formally accept the entire Phase 1 milestone.
+
+The three original abstraction findings may be closed separately with references to the reviewed E1 implementation and this formal owner decision. This record does not close them automatically.
+
+## Final disposition
+
+**Accepted:** E1, bounded High effect composition, for the three enumerated Phase 1 programs and approved supporting procedures. Formal acceptance is recorded by applying the project owner's approved governance record.
+
+Future modification requires a specific demonstrated need, impact analysis and project owner authorization. No general exception is implied.

@@ -28,7 +28,7 @@ The constitutional rows above remain planned. Foundation tests do not establish 
 | WB-P1-005: VM preparation | `vm/lima.yaml`, `vm/selection.json` | Explicit development architecture; no mounts/forwarded application ports; image gate | original ARM profile pending; reviewed x64 verification VM provisioned |
 | WB-P1-006: hosted CI | `.github/workflows/docs.yml`, `.github/workflows/phase1.yml` | actionlint, pinned actions, read-only token, credential-free checkout; `docs/verification/phase1-publication-evidence.md`; `docs/governance/phase1-protection-proposal.md` | Linux/macOS/docs passed at d6448e1; artifacts inspected; strict required checks applied; blocked negative probe and failure uploads verified |
 | WB-P1-007: deterministic data | `src/domain/`, `src/fixture/` | Golden bytes, supplied IDs/tick, round trip, distinct types, WB-NEG-015 | verified locally on macOS and Linux |
-| WB-P1-008: explicit entrypoint boundaries | `cmd/warband/main.odin`, `scripts/check_docs.py`, `scripts/build_manifest.py`, `scripts/manifest_rules.py`, `scripts/manifest_io.py` | `tests/governance/test_manifest_rules.py`, `tests/governance/test_e1_structure.py`, existing CLI smoke, manifest parity and WB-NEG-017/018; `docs/verification/phase1-entrypoint-evidence.md`; `docs/engineering/phase1-effect-composition-review.md` | E1 implementation at c7052b4 passed Linux/macOS/docs; pure dependencies and behavior verified separately; finding closure pending |
+| WB-P1-008: explicit entrypoint boundaries | `cmd/warband/main.odin`, `scripts/check_docs.py`, `scripts/build_manifest.py`, `scripts/manifest_rules.py`, `scripts/manifest_io.py` | `tests/governance/test_manifest_rules.py`, `tests/governance/test_e1_structure.py`, existing CLI smoke, manifest parity and WB-NEG-017/018; `docs/verification/phase1-entrypoint-evidence.md`; `docs/engineering/phase1-effect-composition-review.md` | E1 published at v0.0.0 / 8afe351; ADR-0007 Accepted; pure dependencies and behavior verified separately; finding closure pending |
 
 ## Invariant coverage status
 
@@ -47,7 +47,7 @@ The constitutional rows above remain planned. Foundation tests do not establish 
 
 Commands, platform separation, blocked gates, and review findings are recorded in `docs/verification/phase1-evidence.md`. ADR-0004 remains Proposed; ownership and formal approval are outstanding.
 
-The initial evidence is historical. Local platform pins, manifests, transport limits, and gate results are in `docs/verification/phase1-review-evidence.md`. Subsequent publication and hosted results are in `docs/verification/phase1-publication-evidence.md`. Formal ADR acceptance remains pending.
+The initial evidence is historical. Local platform pins, manifests, transport limits, and gate results are in `docs/verification/phase1-review-evidence.md`. Subsequent publication and hosted results are in `docs/verification/phase1-publication-evidence.md`. ADR-0004 formal acceptance remains pending.
 
 ## Proposed closure and Phase 2 design
 
@@ -57,6 +57,6 @@ The initial evidence is historical. Local platform pins, manifests, transport li
 
 `docs/decisions/0006-hosted-linux-runner-compatibility.md` tracks the WB-P1-001/WB-P1-006 build-environment risk and required future compatibility evidence. It selects no replacement profile and leaves exact version/OS rejection unchanged.
 
-`docs/decisions/0007-phase1-entrypoint-boundaries.md` remains Proposed and records owner-authorized E1 within the three levels. The candidate retains 21 Python controls and adds one bounded dependency control; the original five Odin tests remain. `docs/engineering/phase1-effect-composition-review.md` records the actual call/effect graph. Behavioral passes and structural review are separate; formal finding closure remains pending. Runtime requirements remain planned/deferred.
+`docs/decisions/0007-phase1-entrypoint-boundaries.md` is Accepted by the project owner against v0.0.0 / 8afe351 and records bounded E1 within the three levels. The candidate retains 21 Python controls and adds one bounded dependency control; the original five Odin tests remain. `docs/engineering/phase1-effect-composition-review.md` records the actual call/effect graph. Behavioral passes and structural review are separate; formal finding closure remains pending. Runtime requirements remain planned/deferred.
 
 `docs/engineering/phase1-effect-semantics-options.md` preserves the historical WB-P1-008 owner decision comparison: two explicit qualifications, complete proposed procedure/effect maps and structural/behavioral regression requirements. It authorizes no implementation and changes no runtime requirement status.
