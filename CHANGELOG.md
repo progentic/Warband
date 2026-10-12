@@ -1,26 +1,44 @@
 # Changelog
 
-This file records user-visible and architecture-visible changes to Warband.
+All notable changes to Warband are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+Record changes under explicit dated version headings, newest first. Start at
+`0.0.0`; Git tags use the `v` prefix. Subsequent version links compare the previous
+and current tags. Only include categories that contain notable changes.
+
+## [0.0.0] - 2026-10-12
 
 ### Added
 
-- Locally authorized Phase 1 CLI and deterministic fixtures.
-- Phase-aware governance and explicit Odin test inventory with negative controls.
-- Pinned source/LLVM inputs, executable architecture checks, and secure CI definitions.
-- Project-scoped Lima recipes, including a provisioned x64 verification guest with a reviewed image digest; production architecture remains unset.
-- Proposed ADR-0005 design and a Phase 1 closure plan.
+- Runtime constitution, accepted initial ADRs, and architecture, contract, engineering, security and verification baselines.
+- Repository-scoped agent guidance, governance review skill and ChatGPT project-source instructions.
+- Phase 1 Odin CLI with `version` and deterministic 25-byte fixture presentation; no execution authority.
+- Phase-aware documentation validation and explicit discovery of two Odin test packages and five named tests, with negative controls.
+- Reviewed, pinned Odin source and exact Linux/macOS LLVM profiles, executable architecture checks and build provenance manifests.
+- Linux x64 and macOS ARM64 GitHub Actions verification, retained evidence artifacts and protected main with three required checks.
+- Project-scoped Lima profiles, including a reviewed x64 verification guest; production architecture remains unset.
+- Proposed Phase 1 foundation, hosted-runner compatibility and entrypoint decisions, plus Phase 2 event-integrity design and a closure plan.
 
-The foundation is published on the selected repository's `main` and technically verified locally on Linux x64 and macOS ARM64. See [runner evidence](docs/verification/phase1-publication-evidence.md) for actual hosted results. Workflows retain stage logs, source identities, manifests and test reports after success or failure. ADR-0004 remains Proposed with an unassigned owner; formal completion is not claimed.
+### Changed
 
-- Initial documentation-only repository bootstrap.
-- Runtime constitution.
-- Architecture, engineering, security, and verification baselines.
-- Architecture decision record templates and initial decisions.
-- Root and documentation-scoped `AGENTS.md` guidance.
-- ChatGPT Project setup, instructions, and project-source governance.
-- Repo-scoped Warband governance review skill.
-- Documentation governance validator and GitHub Actions workflow.
+- The three Phase 1 programs use owner-authorized E1 composition: explicitly scoped High procedures own effects, Mid remains transitively pure and Low cannot call upward or make policy decisions.
+- Documentation distinguishes environment-supplied compiler paths from fixed version-query arguments, and validation rejection from interrupted-write preservation. Manifest publication does not establish atomic or crash-safe replacement.
+- The engineering standard requires a concrete problem, supporting evidence, coverage gap, expected value and cost for owner review before adding a proposed test.
 
-No authoritative execution runtime or production release is included.
+### Fixed
+
+- CLI argument acquisition and command parsing were coupled; presentation decisions now precede output and process exit.
+- Documentation reporting selected validation status; pure decisions now select the result before technical reporting and termination.
+- Manifest orchestration mixed JSON parsing, hashing and inspection with decisions; narrow technical helpers and explicit subflows preserve architecture validation before linkage and complete validation before publication.
+
+This initial development version records the foundation verified locally and on
+hosted runners. See [entrypoint evidence](docs/verification/phase1-entrypoint-evidence.md)
+and [publication evidence](docs/verification/phase1-publication-evidence.md).
+ADR-0004 and ADR-0007 remain Proposed with formal ownership and approval pending.
+Phase 1 acceptance, dependency recovery and runner compatibility remain separate
+governance gates. Phase 2 authority, execution, persistence and production
+services are not implemented.
+
+[0.0.0]: https://github.com/progentic/Warband/tree/v0.0.0
