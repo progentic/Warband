@@ -28,6 +28,18 @@ Fallible operations must return typed errors with stable codes. Errors shown to 
 
 Code that depends on time, random identifiers, or replay behavior should receive those services explicitly so tests can control them.
 
+## Test necessity
+
+Tests must reduce a specific, demonstrable uncertainty. Before implementing a proposed new test, present the following reasoning for owner review:
+
+1. Problem: the concrete failure or regression.
+2. Evidence: the supporting code path, defect, changed behavior or requirement.
+3. Coverage gap: why existing tests do not address it.
+4. Expected value: the uncertainty the test would eliminate.
+5. Cost: additional code, runtime, dependencies and maintenance.
+
+If no meaningful coverage gap exists, add no test. A modified file or a test-count target is not justification. Avoid speculative edge-case expansion, repetitive permutations and tests of generated tests that do not improve confidence in Warband's behavior.
+
 ## Boundary rule
 
 Raw model output must not cross the proposal-normalization boundary. Raw tool output must not become evidence until an evaluator processes it.
@@ -66,6 +78,6 @@ The following is the complete eligible effectful High list. Pure High coordinato
 | `scripts/build_manifest.py:acquire_compiler_provenance` | `read_text`, `parse_json`, `capture_odin_version`, `capture_version`, `read_environment` | `describe_compiler` | Locked configuration and fixed compiler-version queries |
 | `scripts/build_manifest.py:publish_verified_manifest` | `manifest_record`, `serialize_json`, `write_text`, `verified_message`, `write_line` | None | Existing manifest destination and status output |
 
-Low dependencies expand only through the technical helpers in the actual review. `capture` never selects application behavior; its callers supply the fixed inspection/version commands. Output helpers use the already selected data representation/stream/status. No callable input, registry, general dispatcher or lifecycle path is permitted. Startup only invokes `main`; root/input acquisition occurs explicitly inside the listed flow.
+Low dependencies expand only through the technical helpers in the actual review. `capture` never selects application behavior; its callers supply reviewed inspection/version arguments. Compiler executable paths come from the controlled build environment as described in [the build documentation](phase1-build-and-verification.md#pinned-toolchain). Output helpers use the already selected data representation/stream/status. No callable input, registry, general dispatcher or lifecycle path is permitted. Startup only invokes `main`; root/input acquisition occurs explicitly inside the listed flow.
 
 Runtime coordinator, policy engine, capability gateway, evaluator, state writer, recovery and model adapters are not eligible. Adding an effect/procedure requires a scoped review update; this matrix is not general High-to-Low authority. Layering does not enforce a sandbox or authorize a runtime transition.

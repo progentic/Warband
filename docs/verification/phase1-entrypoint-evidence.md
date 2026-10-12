@@ -62,6 +62,8 @@ The native build used unchanged source-built Odin SHA `8b35c86efb78e9ab5223673a0
 
 Application sources at reviewed `79c2fdf` and starting `028dba1` were identical (the intervening changes were documentation). The saved baseline manifest program and E1 program inspected the same executable/environment independently; complete serialized JSON bytes matched. Documentation CLI success and invalid-phase streams/statuses matched the saved baseline. Real missing hosted ImageOS, unsupported platform and incorrect executable-format invocations failed nonzero without changing existing manifest bytes. Reports, baseline sources, parity JSON and rejection logs are retained under `.local/closure-review/e1/`. A source-only copy, with only an empty `.local` scratch directory for existing tests, passed documentation governance and all 22 controls. actionlint, shellcheck and `git diff --check` passed. These ignored local records are not hosted evidence.
 
+Those preservation results concern rejection before publication. They do not establish preservation during an interrupted or failed write; the precise [publication limits](../engineering/phase1-build-and-verification.md#manifest-publication-limits) are documented separately.
+
 Exact commands:
 
 ```sh

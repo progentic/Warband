@@ -18,6 +18,14 @@ Linux uses Ubuntu's signed repositories, explicit `clang++-19` and `llvm-config-
 
 Local macOS uses the checksum-pinned Homebrew LLVM 19 bottle extracted under `.local/toolchains/`. `scripts/prepare_macos_llvm.py` verifies its digest before extraction, relocates LLVM's zstd dependency to the already installed Homebrew zstd, and applies ad-hoc signatures to changed local binaries. No global package is installed or changed. The source-build manifest records the actual C++ compiler. CI's disposable macOS runner obtains `llvm@19` through Homebrew and still enforces LLVM/clang version checks.
 
+Manifest collection obtains the LLVM configuration executable and C++ compiler paths from the controlled build environment through `LLVM_CONFIG` and `CXX`. `scripts/manifest_io.py` does not hardcode those executable paths; its version-query arguments are fixed. Existing build controls enforce the exact platform versions and verify or record the dependency provenance described above. The manifest collector records the supplied executables' version output; it does not independently establish their provenance or make an uncontrolled environment trusted.
+
+## Manifest publication limits
+
+Inputs rejected by platform, executable format/machine or manifest validation do not reach publication. The existing rejection evidence demonstrates that these failures preserve the prior manifest bytes.
+
+After successful validation, publication writes directly to the destination using `Path.write_text()`. Atomic replacement and preservation of an existing manifest during interrupted writes, storage failures or process termination are not established. A write can truncate or partially replace the previous contents. Crash-safe replacement is a bounded engineering consideration, not an implemented Phase 1 security or durability guarantee. The validation-negative evidence does not prove write-failure recovery.
+
 ## Linux commands
 
 Run only on Linux x86-64; macOS is not a substitute.
