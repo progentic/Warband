@@ -24,15 +24,15 @@ The user authorized publishing the current foundation, then separately selected 
 
 ### Structural findings for the approval review
 
-Technical test passes do not resolve every literal procedure-layering requirement. The documentation-only pass records these existing mismatches without changing application code:
+Technical test passes do not resolve every literal procedure-layering requirement. The following findings were recorded against the published baseline through 06afd20:
 
 - [High] `cmd/warband/main.odin` `main()` L21 calls `read_command()` directly -> orchestration reaches argument parsing rather than calling only Mid decisions.
 - [High] `scripts/check_docs.py` `main()` L13 and L15 calls inventory loading and presentation -> orchestration crosses directly into filesystem/parsing/reporting boundaries.
 - [High] `scripts/build_manifest.py` `main()` L18 reads/parses JSON and L28 hashes executable bytes alongside architecture validation -> the entry function mixes technical operations with decisions and exceeds the High size limit.
 
-These are concrete instances of the already recorded effect-dispatch/layering question. A review must choose a compliant boundary arrangement or explicitly approve revised guidance before claiming complete structural compliance. Do not label I/O wrappers pure domain functions or silently accept an exception through ADR-0004. Publication of the current foundation does not resolve these findings or claim structural approval.
+These baseline findings exposed the effect-composition contradiction. The owner explicitly selected the E1 qualification below. Do not label I/O wrappers pure or infer an exception through ADR-0004; the scoped implementation and its evidence still require formal finding review.
 
-The user has been asked whether to permit a narrowly scoped effectful entrypoint adapter. The literal supplied rules require every function to be High/Mid/Low, prohibit I/O in High/Mid and prohibit upward calls from Low; those rules leave an executable entrypoint without a legal connection between policy and effects. That clarification remains pending. A refactor must preserve pure decisions and explicit technical wrappers rather than hide the same violation in a renamed helper or lifecycle hook.
+The owner selected Option A and then authorized E1 in [ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md). The [actual call/effect review](../engineering/phase1-effect-composition-review.md) maps the scoped High qualification and pure decisions. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) records implementation verification separately from formal acceptance. PR #3 stays draft; no finding is automatically closed and runtime authority rules are unchanged. The options document is historical comparison; E2 is not selected.
 
 ## Gate 2 Select and connect the hosted repository
 
@@ -91,6 +91,7 @@ No general agent orchestration, provider integration, new execution surface, dis
 | Runner migration | ADR-0006 Proposed; owner/option/review pending before 2026-10-19 rollout |
 | Required checks | Configured with no reviewer requirement; readback and blocked failing-PR evidence recorded |
 | Owner assignment and ADR acceptance | Pending user input/review; ADR-0004 remains Proposed |
+| Procedure hierarchy | E1 implementation authorized and candidate reviewed; formal finding closure pending; PR #3 draft |
 | ADR-0005 design | Proposed draft only |
 | Phase 2 implementation | Not authorized |
 

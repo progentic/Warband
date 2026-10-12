@@ -36,6 +36,10 @@ GUIDANCE_LIMIT = 32 * 1024
 SKILL_PATH = '.agents/skills/warband-governance-review/SKILL.md'
 CONSTITUTION_PATH = 'docs/foundation/runtime-constitution.md'
 MATRIX_PATH = 'docs/verification/traceability-matrix.md'
+SUCCESS_STATUS = 0
+FAILURE_STATUS = 1
+SUCCESS_MESSAGE = 'Warband documentation governance checks passed.'
+EMPTY_MESSAGE = ''
 
 
 class FindingCode(StrEnum):
@@ -88,11 +92,37 @@ class Inventory:
     symlinks: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class FileCatalog:
+    files: frozenset[str]
+    directories: frozenset[str]
+    overrides: tuple[str, ...]
+    symlinks: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class DocumentationResult:
+    findings: tuple[Finding, ...]
+    message: str
+    status: int
+
+
 def validate_inventory(inventory: Inventory) -> tuple[Finding, ...]:
     return (required_findings(inventory) + phase_findings(inventory)
             + guidance_findings(inventory) + contract_findings(inventory)
             + link_findings(inventory) + traceability_findings(inventory)
             + symlink_findings(inventory))
+
+
+def assemble_inventory(catalog: FileCatalog, documents, links, phase) -> Inventory:
+    return Inventory(catalog.files, catalog.directories, documents, links, phase,
+                     catalog.overrides, catalog.symlinks)
+
+
+def describe_validation(findings: tuple[Finding, ...]) -> DocumentationResult:
+    if findings:
+        return DocumentationResult(findings, EMPTY_MESSAGE, FAILURE_STATUS)
+    return DocumentationResult(findings, SUCCESS_MESSAGE, SUCCESS_STATUS)
 
 
 def required_findings(inventory: Inventory) -> tuple[Finding, ...]:

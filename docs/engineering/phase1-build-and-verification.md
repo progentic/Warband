@@ -18,6 +18,14 @@ Linux uses Ubuntu's signed repositories, explicit `clang++-19` and `llvm-config-
 
 Local macOS uses the checksum-pinned Homebrew LLVM 19 bottle extracted under `.local/toolchains/`. `scripts/prepare_macos_llvm.py` verifies its digest before extraction, relocates LLVM's zstd dependency to the already installed Homebrew zstd, and applies ad-hoc signatures to changed local binaries. No global package is installed or changed. The source-build manifest records the actual C++ compiler. CI's disposable macOS runner obtains `llvm@19` through Homebrew and still enforces LLVM/clang version checks.
 
+Manifest collection obtains the LLVM configuration executable and C++ compiler paths from the controlled build environment through `LLVM_CONFIG` and `CXX`. `scripts/manifest_io.py` does not hardcode those executable paths; its version-query arguments are fixed. Existing build controls enforce the exact platform versions and verify or record the dependency provenance described above. The manifest collector records the supplied executables' version output; it does not independently establish their provenance or make an uncontrolled environment trusted.
+
+## Manifest publication limits
+
+Inputs rejected by platform, executable format/machine or manifest validation do not reach publication. The existing rejection evidence demonstrates that these failures preserve the prior manifest bytes.
+
+After successful validation, publication writes directly to the destination using `Path.write_text()`. Atomic replacement and preservation of an existing manifest during interrupted writes, storage failures or process termination are not established. A write can truncate or partially replace the previous contents. Crash-safe replacement is a bounded engineering consideration, not an implemented Phase 1 security or durability guarantee. The validation-negative evidence does not prove write-failure recovery.
+
 ## Linux commands
 
 Run only on Linux x86-64; macOS is not a substitute.
@@ -63,10 +71,14 @@ The governance unit tests mutate real document fixtures. The test-inventory cont
 
 ## CI and VM status
 
-`.github/workflows/phase1.yml` keeps the complete Linux compiler/build/governance/test/smoke sequence on `ubuntu-latest`. A separate macOS ARM portability job builds the same source pin. The retained documentation job keeps its `validate` identifier. Actions are pinned to full reviewed SHAs, checkout does not persist credentials, token permissions are read-only, and only normal pull_request/push triggers are used. Stage logs and platform evidence are retained with `if: always()` and 30-day artifact retention. Explicit bash pipefail preserves producer failures through logging pipelines. Artifacts are untrusted build evidence; they are not deployed or executed by a privileged follow-up. Hosted results are recorded in [publication evidence](../verification/phase1-publication-evidence.md); branch enforcement remains unconfigured.
+`.github/workflows/phase1.yml` keeps the complete Linux compiler/build/governance/test/smoke sequence on `ubuntu-latest`. A separate macOS ARM portability job builds the same source pin. The retained documentation job keeps its `validate` identifier. Actions are pinned to full reviewed SHAs, checkout does not persist credentials, token permissions are read-only, and only normal pull_request/push triggers are used. Stage logs and platform evidence are retained with `if: always()` and 30-day artifact retention. Explicit bash pipefail preserves producer failures through logging pipelines. Artifacts are untrusted build evidence; they are not deployed or executed by a privileged follow-up. Hosted results are recorded in [publication evidence](../verification/phase1-publication-evidence.md); branch enforcement is recorded in [protection evidence](../governance/phase1-protection-proposal.md).
 
 `vm/lima.yaml` remains an unprovisioned ARM64 VZ development profile with no image selected. `vm/x64-review.yaml` is a separate checksum-reviewed Ubuntu 24.04 x64 QEMU verification profile. Source copies use SSH without host mounts; SSH management binds only to loopback, and application forwarding is disabled. Production architecture remains unset. See [VM preparation](../../vm/README.md) and [current review evidence](../verification/phase1-review-evidence.md). Linux runtime sandbox, recovery, and integrity decisions remain deferred.
 
 ## Independent fixture specification
 
 The golden bytes are literal and documented in [the fixture specification](../verification/phase1-fixture-specification.md). A separate Python struct reference cross-checks the static sequence without importing the Odin encoder. Governance fixtures now use tracked documents rather than the ignored bootstrap directory, so the controls work in a fresh checkout.
+
+## Candidate entrypoint separation
+
+[ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) records owner-authorized E1: explicit, bounded High effect composition with universal Mid purity. The [actual hierarchy review](phase1-effect-composition-review.md) maps the implemented candidate, including all external effects. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) separates source review from behavior/platform results. PR #3 stays draft; formal acceptance and finding closure remain review decisions.
