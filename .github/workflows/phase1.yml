@@ -176,6 +176,36 @@ jobs:
         run: |
           bash scripts/build_warband.sh linux_amd64 2>&1 | tee out/linux_amd64/build.log
           readelf -n out/linux_amd64/warband > out/linux_amd64/executable-notes.txt
+      - name: Inspect native ISA declaration inputs
+        run: |
+          clang="$("$LLVM_CONFIG" --bindir)/clang"
+          printf 'ODIN_CLANG_PATH=%s\n' "${ODIN_CLANG_PATH-<unset>}" > out/linux_amd64/isa-driver.txt
+          for selection in default gcc14; do
+            flags=()
+            if [[ "$selection" == gcc14 ]]; then flags=("$CXXFLAGS"); fi
+            {
+              printf 'Driver selection: %s\n' "$selection"
+              "$clang" "${flags[@]}" -### -x c /dev/null -pie -o out/linux_amd64/not-produced
+            } >> out/linux_amd64/isa-driver.txt 2>&1
+            for object in Scrt1.o crt1.o crti.o crtn.o crtbeginS.o crtendS.o; do
+              path="$("$clang" "${flags[@]}" -print-file-name="$object")"
+              resolved="$(readlink -f "$path")"
+              {
+                printf '%s: %s -> %s\n' "$selection" "$object" "$resolved"
+                dpkg-query -S "$resolved"
+                sha256sum "$resolved"
+                readelf -n "$resolved"
+              } >> out/linux_amd64/isa-inputs.txt
+            done
+          done
+          for library in /usr/lib/x86_64-linux-gnu/libc.so.6 /usr/lib/x86_64-linux-gnu/libm.so.6 /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2; do
+            {
+              printf 'Runtime library: %s\n' "$library"
+              dpkg-query -S "$library"
+              sha256sum "$library"
+              readelf -n "$library"
+            } >> out/linux_amd64/isa-inputs.txt
+          done
       - name: Verify governance and existing negative controls
         run: |
           python3 scripts/check_docs.py 2>&1 | tee out/linux_amd64/governance.log
