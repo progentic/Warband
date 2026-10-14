@@ -9,7 +9,7 @@ test "$(git rev-parse --show-toplevel)" = "$project_root"
 platform="${1:?usage: build_odin.sh linux_amd64|darwin_arm64}"
 case "$platform:$(uname -s):$(uname -m)" in
   linux_amd64:Linux:x86_64)
-    lock_profile="${WARBAND_TOOLCHAIN_PROFILE:-linux}"
+    lock_profile="${WARBAND_TOOLCHAIN_PROFILE-linux}"
     case "$lock_profile" in
       linux|linux_ubuntu2604) ;;
       *) printf '%s\n' 'ERROR: unsupported Linux toolchain profile' >&2; exit 1 ;;

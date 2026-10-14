@@ -47,7 +47,7 @@ def equal_values(first: str, second: str) -> bool:
 
 
 def select_profile(lock: dict, platform: str, selected: str | None = None) -> Versions:
-    key = selected or PROFILE_KEYS[platform]
+    key = PROFILE_KEYS[platform] if selected is None else selected
     if key not in PLATFORM_PROFILES[platform]:
         raise ValueError(INVALID_PROFILE)
     profile = lock[key]
@@ -85,9 +85,9 @@ if __name__ == '__main__':
     parser.add_argument('--llvm-config', required=True, type=Path)
     parser.add_argument('--cxx', required=True, type=Path)
     arguments = parser.parse_args()
-    observed = Versions(read_version(arguments.llvm_config),
-                        parse_clang_version(read_version(arguments.cxx)))
     expected = select_profile(parse_json(read_text(ROOT / 'toolchain/odin.lock.json')),
                               arguments.platform, arguments.profile)
+    observed = Versions(read_version(arguments.llvm_config),
+                        parse_clang_version(read_version(arguments.cxx)))
     verify_versions(observed, expected)
     write_line(str(observed))

@@ -5,7 +5,7 @@ project_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$project_root"
 test "$(git rev-parse --show-toplevel)" = "$project_root"
 test "$(uname -s):$(uname -m)" = Linux:x86_64
-lock_profile="${WARBAND_TOOLCHAIN_PROFILE:-linux}"
+lock_profile="${WARBAND_TOOLCHAIN_PROFILE-linux}"
 case "$lock_profile" in
   linux|linux_ubuntu2604) ;;
   *) printf '%s\n' 'ERROR: unsupported Linux toolchain profile' >&2; exit 1 ;;
