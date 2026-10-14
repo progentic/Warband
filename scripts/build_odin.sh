@@ -8,14 +8,24 @@ test "$(git rev-parse --show-toplevel)" = "$project_root"
 : "${CXX:?Set CXX to an explicit compatible clang++ executable}"
 platform="${1:?usage: build_odin.sh linux_amd64|darwin_arm64}"
 case "$platform:$(uname -s):$(uname -m)" in
-  linux_amd64:Linux:x86_64) lock_profile=linux ;;
+  linux_amd64:Linux:x86_64)
+    lock_profile="${WARBAND_TOOLCHAIN_PROFILE:-linux}"
+    case "$lock_profile" in
+      linux|linux_ubuntu2604) ;;
+      *) printf '%s\n' 'ERROR: unsupported Linux toolchain profile' >&2; exit 1 ;;
+    esac
+    expected_release="$(python3 -c 'import json,sys; print(json.load(open("toolchain/odin.lock.json"))[sys.argv[1]]["ubuntu_release"])' "$lock_profile")"
+    # shellcheck source=/dev/null
+    . /etc/os-release
+    test "$ID:$VERSION_ID" = "ubuntu:$expected_release"
+    ;;
   darwin_arm64:Darwin:arm64) lock_profile=macos ;;
   *) printf '%s\n' 'ERROR: build platform does not match host architecture' >&2; exit 1 ;;
 esac
 source_sha="$(python3 -c 'import json; print(json.load(open("toolchain/odin.lock.json"))["commit"])')"
 source_url="$(python3 -c 'import json; print(json.load(open("toolchain/odin.lock.json"))["upstream"])')"
 llvm_version="$(python3 -c 'import json,sys; print(json.load(open("toolchain/odin.lock.json"))[sys.argv[1]]["llvm_version"])' "$lock_profile")"
-python3 scripts/toolchain_versions.py --platform "$platform" --llvm-config "$LLVM_CONFIG" --cxx "$CXX"
+python3 scripts/toolchain_versions.py --platform "$platform" --profile "$lock_profile" --llvm-config "$LLVM_CONFIG" --cxx "$CXX"
 source_dir="$project_root/.local/toolchains/odin-$platform"
 mkdir -p "$source_dir" "$project_root/out/$platform"
 if [[ ! -d "$source_dir/.git" ]]; then

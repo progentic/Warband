@@ -9,6 +9,8 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE_KEYS = {'linux_amd64': 'linux', 'darwin_arm64': 'macos'}
+PLATFORM_PROFILES = {'linux_amd64': ('linux', 'linux_ubuntu2604'), 'darwin_arm64': ('macos',)}
+INVALID_PROFILE = 'toolchain profile does not match platform'
 CLANG_VERSION = re.compile(r'\bclang version (\d+\.\d+\.\d+)\b')
 LLVM_MISMATCH = 'llvm_version_mismatch'
 CLANG_MISMATCH = 'clang_version_mismatch'
@@ -44,8 +46,11 @@ def equal_values(first: str, second: str) -> bool:
     return first == second
 
 
-def select_profile(lock: dict, platform: str) -> Versions:
-    profile = lock[PROFILE_KEYS[platform]]
+def select_profile(lock: dict, platform: str, selected: str | None = None) -> Versions:
+    key = selected or PROFILE_KEYS[platform]
+    if key not in PLATFORM_PROFILES[platform]:
+        raise ValueError(INVALID_PROFILE)
+    profile = lock[key]
     return Versions(profile['llvm_version'], profile['clang_version'])
 
 
@@ -76,12 +81,13 @@ def write_line(text: str) -> None:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--platform', required=True, choices=PROFILE_KEYS)
+    parser.add_argument('--profile', choices=('linux', 'linux_ubuntu2604', 'macos'))
     parser.add_argument('--llvm-config', required=True, type=Path)
     parser.add_argument('--cxx', required=True, type=Path)
     arguments = parser.parse_args()
     observed = Versions(read_version(arguments.llvm_config),
                         parse_clang_version(read_version(arguments.cxx)))
     expected = select_profile(parse_json(read_text(ROOT / 'toolchain/odin.lock.json')),
-                              arguments.platform)
+                              arguments.platform, arguments.profile)
     verify_versions(observed, expected)
     write_line(str(observed))
