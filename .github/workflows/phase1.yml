@@ -118,3 +118,117 @@ jobs:
           if-no-files-found: error
           include-hidden-files: false
           retention-days: 30
+
+  phase1-ubuntu2604:
+    name: Phase 1 Ubuntu 26.04 Compatibility
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      WARBAND_TOOLCHAIN_PROFILE: linux_ubuntu2604
+      LLVM_CONFIG: /usr/bin/llvm-config-19
+      CXX: /usr/bin/clang++-19
+      CXXFLAGS: --gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Inspect native compatibility inputs
+        run: |
+          mkdir -p out/linux_amd64
+          printf '%s\n' "$GITHUB_SHA" > out/linux_amd64/source-commit.txt
+          . /etc/os-release
+          test "$ID:$VERSION_ID:$(uname -m)" = ubuntu:26.04:x86_64
+          cat /etc/os-release | tee out/linux_amd64/os-release.txt
+          uname -a | tee out/linux_amd64/kernel.txt
+          dpkg --print-architecture > out/linux_amd64/package-architecture.txt
+          printf '%s\n' "$ImageOS" "$ImageVersion" > out/linux_amd64/runner-image.txt
+          find /etc/apt -type f \( -name '*.sources' -o -name '*.list' \) -print -exec cat {} \; > out/linux_amd64/apt-sources.txt
+          for mirrors in /etc/apt/*mirrors*.txt; do
+            if [[ -f "$mirrors" ]]; then
+              cat "$mirrors" >> out/linux_amd64/apt-sources.txt
+            fi
+          done
+          gpg --show-keys --with-fingerprint /usr/share/keyrings/ubuntu-archive-keyring.gpg > out/linux_amd64/ubuntu-signing-keys.txt
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+      - name: Install exact Ubuntu 26.04 dependencies
+        run: |
+          bash scripts/install_linux_toolchain.sh 2>&1 | tee out/linux_amd64/dependencies.log
+          apt-cache policy clang-19 llvm-19-dev lld-19 libstdc++-14-dev make binutils > out/linux_amd64/package-policy.txt
+          mapfile -t requested < out/linux_amd64/package-inputs.txt
+          apt-cache show "${requested[@]}" > out/linux_amd64/package-metadata.txt
+      - name: Build and verify pinned Odin from clean source
+        run: |
+          test ! -e .local/toolchains/odin-linux_amd64
+          bash scripts/build_odin.sh linux_amd64 2>&1 | tee out/linux_amd64/compiler.log
+          file -b .local/toolchains/odin-linux_amd64/odin > out/linux_amd64/compiler-architecture.txt
+          readelf -h .local/toolchains/odin-linux_amd64/odin > out/linux_amd64/compiler-elf-header.txt
+          sha256sum .local/toolchains/odin-linux_amd64/odin > out/linux_amd64/compiler-sha256.txt
+          ldd .local/toolchains/odin-linux_amd64/odin > out/linux_amd64/compiler-linkage.txt
+          ld --version > out/linux_amd64/linker-version.txt
+          ld.lld-19 --version >> out/linux_amd64/linker-version.txt
+          "$CXX" -print-prog-name=ld >> out/linux_amd64/linker-version.txt
+          "$CXX" "$CXXFLAGS" -E -v -x c++ /dev/null > out/linux_amd64/cxx-headers.txt 2>&1
+      - name: Build Warband and verify ELF x86-64
+        run: |
+          bash scripts/build_warband.sh linux_amd64 2>&1 | tee out/linux_amd64/build.log
+          readelf -n out/linux_amd64/warband > out/linux_amd64/executable-notes.txt
+      - name: Inspect native ISA declaration inputs
+        run: |
+          clang="$("$LLVM_CONFIG" --bindir)/clang"
+          printf 'ODIN_CLANG_PATH=%s\n' "${ODIN_CLANG_PATH-<unset>}" > out/linux_amd64/isa-driver.txt
+          for selection in default gcc14; do
+            flags=()
+            if [[ "$selection" == gcc14 ]]; then flags=("$CXXFLAGS"); fi
+            {
+              printf 'Driver selection: %s\n' "$selection"
+              "$clang" "${flags[@]}" -### -x c /dev/null -pie -o out/linux_amd64/not-produced
+            } >> out/linux_amd64/isa-driver.txt 2>&1
+            for object in Scrt1.o crt1.o crti.o crtn.o crtbeginS.o crtendS.o; do
+              path="$("$clang" "${flags[@]}" -print-file-name="$object")"
+              resolved="$(readlink -f "$path")"
+              {
+                printf '%s: %s -> %s\n' "$selection" "$object" "$resolved"
+                dpkg-query -S "$resolved"
+                sha256sum "$resolved"
+                readelf -n "$resolved"
+              } >> out/linux_amd64/isa-inputs.txt
+            done
+          done
+          for library in /usr/lib/x86_64-linux-gnu/libc.so.6 /usr/lib/x86_64-linux-gnu/libm.so.6 /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2; do
+            {
+              printf 'Runtime library: %s\n' "$library"
+              dpkg-query -S "$library"
+              sha256sum "$library"
+              readelf -n "$library"
+            } >> out/linux_amd64/isa-inputs.txt
+          done
+      - name: Verify governance and existing negative controls
+        run: |
+          python3 scripts/check_docs.py 2>&1 | tee out/linux_amd64/governance.log
+          python3 -m unittest discover -s tests/governance -v 2>&1 | tee out/linux_amd64/negative-controls.log
+      - name: Verify every declared Odin test
+        run: python3 scripts/run_odin_tests.py --odin .local/toolchains/odin-linux_amd64/odin --output out/linux_amd64/tests 2>&1 | tee out/linux_amd64/odin-tests.log
+      - name: Verify CLI behavior and fixed fixture bytes
+        run: python3 scripts/verify_cli.py out/linux_amd64/warband 2>&1 | tee out/linux_amd64/smoke.log
+      - name: Summarize compatibility evidence
+        if: always()
+        run: |
+          printf 'Ubuntu 26.04 compatibility result: %s\n' "$JOB_STATUS" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f out/linux_amd64/build-manifest.json ]]; then
+            cat out/linux_amd64/build-manifest.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+        env:
+          JOB_STATUS: ${{ job.status }}
+      - name: Retain compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: phase1-ubuntu2604-${{ github.sha }}-${{ github.run_attempt }}
+          path: out/linux_amd64/
+          if-no-files-found: error
+          include-hidden-files: false
+          retention-days: 30

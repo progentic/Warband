@@ -7,6 +7,8 @@ All notable changes to Warband are recorded here. The format follows
 Record changes under explicit dated version headings, newest first. Start at
 `0.0.0`; Git tags use the `v` prefix. Subsequent version links compare the previous
 and current tags. Only include categories that contain notable changes.
+Add a version entry when publication is authorized, using the actual publication
+date. Draft candidates are documented in their PR and evidence record until then.
 
 ## [0.0.1] - 2026-10-12
 
