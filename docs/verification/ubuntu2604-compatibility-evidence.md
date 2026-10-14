@@ -2,7 +2,7 @@
 
 ## Scope and baseline
 
-Owner-selected ADR-0006 Option A is compatibility evaluation only. ADR-0006 remains Proposed; no merge, promotion, production architecture or Phase 2 implementation is authorized. Draft [PR #5](https://github.com/progentic/Warband/pull/5) uses branch `ubuntu-2604-compatibility`, based on v0.0.1 / `3675dca25fd68c867cfb4ed5d9bbcddd545d57aa`. Main and the baseline tag remain unchanged.
+Owner-selected ADR-0006 Option A is compatibility evaluation only. ADR-0006 remains Proposed; no merge, promotion, production architecture or Phase 2 implementation is authorized. Draft [PR #5](https://github.com/progentic/Warband/pull/5) uses branch `ubuntu-2604-compatibility`, based on v0.0.1 / `3675dca25fd68c867cfb4ed5d9bbcddd545d57aa`. Main and the baseline tag remain unchanged. Reviewers can use the [repository evidence record](https://github.com/progentic/Warband/blob/ubuntu-2604-compatibility/docs/verification/ubuntu2604-compatibility-evidence.md) and the linked hosted runs without a local checkout.
 
 The primary Linux job remains `Phase 1 Linux Foundation` on `ubuntu-latest`, with the default Ubuntu 24.04 `linux` profile. `validate` and `Phase 1 macOS Portability` retain their names. The new compatibility job is separate, read-only, credential-free, bounded to 30 minutes and retains only `out/` evidence for 30 days, including on failure. All external action SHAs are unchanged.
 
@@ -52,7 +52,34 @@ The job requires a fresh compiler directory and uses no compiler cache. It recor
 
 No tests or fixtures were added. Existing exact-version controls, governance controls, two Odin packages/five named tests and static CLI/golden expectations are reused. Profile keys are explicitly enumerated; installer/build compare exact OS identity, and version selection rejects incompatible profile/platform pairs before querying tools. There is no retry under a different dependency profile.
 
-Local documentation governance, all 22 Python controls, shellcheck and diff validation passed. Local actionlint's label inventory predates `ubuntu-26.04`: the full run reports that one unknown-label diagnostic. `actionlint -ignore 'label "ubuntu-26\.04" is unknown'` passes all remaining checks; no repository lint configuration, action pin or runtime check was weakened. Actual native execution establishes runner-label support independently.
+Local documentation governance, all 22 Python controls, shellcheck and diff validation passed. Local **actionlint 1.7.12**, installed from Homebrew (built with Go 1.26.3 for darwin/arm64), does not recognize `ubuntu-26.04`: the full run reports that one unknown-label diagnostic. `actionlint -ignore 'label "ubuntu-26\.04" is unknown'` passes all remaining checks; no repository lint configuration, action pin or runtime check was weakened. Actual native execution establishes runner-label support independently.
+
+## Rejecting-control coverage limits
+
+No new rejecting tests were added for `linux_ubuntu2604`. Existing suite success and source review must be reported separately from native-profile fault injection.
+
+| Evidence | Status | Scope |
+|---|---|---|
+| Existing 22 Python controls | PASS in cited runs | Includes existing default Linux/macOS wrong-patch and malformed-version cases |
+| Native 26.04 selected-profile build/version checks | PASS in cited runs | Correct input/profile path only |
+| Wrong package/tool version under `linux_ubuntu2604` | NOT RUN | No candidate-specific rejecting case was added |
+| Selected profile versus OS mismatch | NOT RUN | Exact OS guard reviewed in source; no new mismatch case executed |
+| Unknown/empty explicit profile and cross-platform profile mismatch | SOURCE REVIEW ONLY | Rejecting guards exist; no new fault-injection cases executed |
+
+The native-profile rejecting cases remain an explicit review qualification. They do not inherit PASS from the older default-profile tests. Any proposed additional test requires the owner's five-part necessity review before implementation.
+
+## Release gating
+
+This draft has no release version or publication date assigned. The provisional dated `0.0.2` entry and its nonexistent-tag comparison link were removed from CHANGELOG. Its newest published entry remains `0.0.1` dated 2026-10-12. Candidate work lives in PR #5 and this record. If publication is authorized later, select the next version and actual publication date then; a draft sitting open does not acquire a release date or tag. No `v0.0.2` tag or release has been published.
+
+## Run-to-commit binding for the reviewed report
+
+The report's [foundation run 38505539773](https://github.com/progentic/Warband/actions/runs/38505539773) and [documentation run 38505539866](https://github.com/progentic/Warband/actions/runs/38505539866) both ran at head **`d00b82d78bb3f01622aec8b6a11eaebce929331b`**. Their PR merge source was `4aec10720c02de05f96fbc42f15d67aef2de3d8a`, with parents baseline main `3675dca25fd68c867cfb4ed5d9bbcddd545d57aa` and that exact head. This was a test merge, not publication to main.
+
+| Artifact from those exact runs | Ubuntu 24.04 | Ubuntu 26.04 |
+|---|---|---|
+| Warband SHA-256 | `5c81a378fe0a2dc7fd41783156834defa496ee539aaa5e1b4fad82a95a971df5` | `3ffdb9d81113101fdd2f06d7e0db17e84ad6b37b52ab790104793d436c545573` |
+| Archive SHA-256 | `381323b51bf5399038e92a391e3b25e0a23c657c6a4316cc29c4be61a58688ac` | `f5c420eb8a55e0c323f8afcfb80e032239c1dc8795d3bef66832225882777045` |
 
 ## Candidate result
 
@@ -77,9 +104,30 @@ The candidate's compiler identity/source guard passed; its report identifies LLV
 
 The candidate's actual ELF GNU property declares x86-64-v3 requirements (ISA-needed mask 7), while both the original v0.0.1 and fresh Ubuntu 24.04 binaries declare baseline only (mask 1). Ubuntu 26.04's selected package filenames also carry `amd64v3`, although dpkg reports architecture `amd64`. This difference was found by inspecting existing artifacts, not by adding tests or changing compiler flags. Native runner success does not establish execution on older generic-x64 hosts. No note stripping, replacement CRT/sysroot, alternate compiler source or production architecture choice is introduced to hide the difference.
 
+### Identified v3 input source
+
+The [native input inspection run 38507090193](https://github.com/progentic/Warband/actions/runs/38507090193) ran at head **`213f4d4f53ea76c2590adedbc9da78b0636ca033`**, using PR merge source `138aef22493299820d2a4cb7dede940eee67c4c4`. Its [compatibility artifact](https://github.com/progentic/Warband/actions/runs/38507090193/artifacts/11868306785) has SHA-256 `f884f3455b673b0046954235492caba1ff0fc5895ffd0c8e23230faf44bee16c`, independently matched after download. Files `isa-inputs.txt` and `isa-driver.txt` retain object ownership, hashes, GNU notes and dry-run driver selections; `installed-packages.txt` supplies owner-package versions.
+
+| Observed input | Owner/version | ISA-needed declaration |
+|---|---|---|
+| `/usr/lib/x86_64-linux-gnu/Scrt1.o` (PIE startup) | `libc6-dev:amd64` / `2.43-2ubuntu2.4` | baseline/v2/v3 |
+| `/usr/lib/x86_64-linux-gnu/crt1.o` (non-PIE startup) | Same glibc development package | baseline/v2/v3 |
+| `crti.o`, `crtn.o` | Same glibc development package | ISA-needed property absent; IBT/SHSTK feature notes present |
+| GCC 15 `crtbeginS.o`, `crtendS.o` (default driver selection) | `libgcc-15-dev:amd64` / `15.2.0-16ubuntu1` | ISA-needed property absent |
+| GCC 14 `crtbeginS.o`, `crtendS.o` (explicit GCC 14 selection) | `libgcc-14-dev:amd64` / `14.3.0-14ubuntu1` | ISA-needed property absent |
+| `/usr/lib/x86_64-linux-gnu/libc.so.6`, `libm.so.6` | `libc6:amd64` / `2.43-2ubuntu2.4` | baseline/v2/v3 |
+
+`Scrt1.o` SHA-256 is `19924e503b1bcb8302a0f34e92ee4b146bec57ba6efa444e017f854c7450a8fe`; `crt1.o` is `d6327b9ec9d9ceb6159e86f42225612cc951800fd8ab38f7e25e986a4e4a825b`.
+
+The Clang 19.1.7 dry-run trace shows `-target-cpu x86-64`, generic tuning and a PIE link using `Scrt1.o`. Default selection uses GCC 15's GCC-owned CRT objects; explicitly selecting GCC 14 changes those objects but resolves the **same glibc startup files**, with the same v3 notes. `ODIN_CLANG_PATH` was unset. The [pinned Odin linker](https://github.com/odin-lang/Odin/blob/8b35c86efb78e9ab5223673a07e02fc2a6884191/src/linker.cpp) uses Clang for the native Linux link. The configured GCC 14 C++ headers apply to building Odin; they do not replace the glibc startup/runtime inputs used by Warband's link.
+
+A concrete source of the executable's v3 declaration is therefore the packaged glibc startup input, independently of GCC 14 header selection. The same native libc/libm also declare a v3 requirement. The driver inspection does not establish that every Odin-generated instruction or other object was audited. It does establish that changing header selection alone cannot remove the selected startup/runtime dependency's floor. This exact native userspace profile carries the constraint; avoiding it would require separately reviewed CRT/runtime inputs or another profile. No alternate userspace, note stripping or build-flag workaround was tested or implemented.
+
+These are read-only input inspections: `clang -###` prints commands without compiling/linking, and `readelf`, ownership queries and hashing inspect existing files. They are not new rejecting tests and do not close the negative-coverage qualifications above.
+
 ### Disposition for owner review
 
-Native Ubuntu 26.04 evaluation passes the requested build, existing behavior and evidence gates. It is ready for owner review as a native CI candidate, with the x86-64-v3 artifact floor explicitly included in the promotion decision. If generic-x64 deployment compatibility is required, this candidate does not establish it. No broader architecture or additional verification is authorized by this result.
+Native Ubuntu 26.04 evaluation passes the positive build and existing behavior checks in the cited runs. Owner review must also consider the x86-64-v3 source and the explicitly unexecuted candidate-specific rejecting cases above; this is not a blanket PASS for new-profile negative coverage. If generic-x64 deployment compatibility is required, this candidate does not establish it. No broader architecture or additional verification is authorized by this result.
 
 Promotion, merge and ADR-0006 acceptance remain blocked on separate owner authorization. The required job still defaults to Ubuntu 24.04 and fails on an unreviewed OS migration. Package retention/recovery and formal ADR ownership remain independent gates. This evidence-only follow-up changes no compiler/profile logic; its own final PR head still requires the existing hosted checks before handoff.
 
