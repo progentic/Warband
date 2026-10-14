@@ -118,3 +118,36 @@ jobs:
           if-no-files-found: error
           include-hidden-files: false
           retention-days: 30
+
+  phase1-ubuntu2604:
+    name: Phase 1 Ubuntu 26.04 Compatibility
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Inspect native compatibility inputs
+        run: |
+          mkdir -p out/linux_amd64
+          printf '%s\n' "$GITHUB_SHA" > out/linux_amd64/source-commit.txt
+          . /etc/os-release
+          test "$ID:$VERSION_ID:$(uname -m)" = ubuntu:26.04:x86_64
+          cat /etc/os-release | tee out/linux_amd64/os-release.txt
+          uname -a | tee out/linux_amd64/kernel.txt
+          printf '%s\n' "$ImageOS" "$ImageVersion" > out/linux_amd64/runner-image.txt
+          sudo apt-get -o APT::Update::Error-Mode=any update 2>&1 | tee out/linux_amd64/dependencies.log
+          apt-cache policy clang-19 llvm-19-dev lld-19 clang-20 llvm-20-dev lld-20 clang-21 llvm-21-dev lld-21 clang-22 llvm-22-dev lld-22 libstdc++-14-dev libstdc++-15-dev libstdc++-16-dev make binutils | tee out/linux_amd64/package-policy.txt
+          dpkg-query -W > out/linux_amd64/installed-packages.txt
+          find /etc/apt -type f \( -name '*.sources' -o -name '*.list' \) -print -exec cat {} \; > out/linux_amd64/apt-sources.txt
+          gpg --show-keys --with-fingerprint /usr/share/keyrings/ubuntu-archive-keyring.gpg > out/linux_amd64/ubuntu-signing-keys.txt
+      - name: Retain compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: phase1-ubuntu2604-${{ github.sha }}-${{ github.run_attempt }}
+          path: out/linux_amd64/
+          if-no-files-found: error
+          include-hidden-files: false
+          retention-days: 30
