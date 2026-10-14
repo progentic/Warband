@@ -26,6 +26,14 @@ Inputs rejected by platform, executable format/machine or manifest validation do
 
 After successful validation, publication writes directly to the destination using `Path.write_text()`. Atomic replacement and preservation of an existing manifest during interrupted writes, storage failures or process termination are not established. A write can truncate or partially replace the previous contents. Crash-safe replacement is a bounded engineering consideration, not an implemented Phase 1 security or durability guarantee. The validation-negative evidence does not prove write-failure recovery.
 
+## Ubuntu 26.04 compatibility candidate
+
+The required Linux job still uses `ubuntu-latest` with the original Ubuntu 24.04 `linux` profile. The separate native `ubuntu-26.04` job explicitly sets `WARBAND_TOOLCHAIN_PROFILE=linux_ubuntu2604`; unset selection retains the baseline, while an empty/unknown selection fails. No OS detection selects a replacement automatically.
+
+The candidate keeps Odin SHA `8b35c86efb78e9ab5223673a07e02fc2a6884191` and LLVM major 19. Its exact LLVM/Clang/LLD revision is `1:19.1.7-20ubuntu4` (19.1.7); GCC 14 headers, Make and GNU binutils have separate exact revisions in the new lock profile. Installer and compiler build validate the selected Ubuntu release before work. Version checks receive the explicit profile and remain exact; installed package receipts are checked against the requested revisions.
+
+Use the existing Linux commands below with that explicit profile only on Ubuntu 26.04. No profile is promoted, no required check is renamed and no production architecture is selected. [ADR-0006](../decisions/0006-hosted-linux-runner-compatibility.md) remains Proposed. See [candidate evidence](../verification/ubuntu2604-compatibility-evidence.md) for commands, package provenance, actual results and limits.
+
 ## Linux commands
 
 Run only on Linux x86-64; macOS is not a substitute.
