@@ -2,7 +2,7 @@
 
 ## Scope and baseline
 
-Owner-selected ADR-0006 Option A is compatibility evaluation only. ADR-0006 remains Proposed; no merge, promotion, production architecture or Phase 2 implementation is authorized. Draft [PR #5](https://github.com/progentic/Warband/pull/5) uses branch `ubuntu-2604-compatibility`, based on v0.0.1 / `3675dca25fd68c867cfb4ed5d9bbcddd545d57aa`. Main and the baseline tag remain unchanged. Reviewers can use the [repository evidence record](https://github.com/progentic/Warband/blob/ubuntu-2604-compatibility/docs/verification/ubuntu2604-compatibility-evidence.md) and the linked hosted runs without a local checkout.
+Owner-selected ADR-0006 Option A is compatibility evaluation only. ADR-0006 remains Proposed; promotion, production architecture and Phase 2 implementation are not authorized. On 2026-10-18 the owner authorized closing out the evaluation PR through publication. [PR #5](https://github.com/progentic/Warband/pull/5) uses branch `ubuntu-2604-compatibility`, based on v0.0.1 / `3675dca25fd68c867cfb4ed5d9bbcddd545d57aa`. The v0.0.1 baseline tag and default Ubuntu 24.04 profile remain unchanged; publishing this evaluation does not promote the candidate. Reviewers can use the [repository evidence record](https://github.com/progentic/Warband/blob/ubuntu-2604-compatibility/docs/verification/ubuntu2604-compatibility-evidence.md) and the linked hosted runs without a local checkout.
 
 The primary Linux job remains `Phase 1 Linux Foundation` on `ubuntu-latest`, with the default Ubuntu 24.04 `linux` profile. `validate` and `Phase 1 macOS Portability` retain their names. The new compatibility job is separate, read-only, credential-free, bounded to 30 minutes and retains only `out/` evidence for 30 days, including on failure. All external action SHAs are unchanged.
 
@@ -70,7 +70,7 @@ The native-profile rejecting cases remain an explicit review qualification. They
 
 ## Release gating
 
-This draft has no release version or publication date assigned. The provisional dated `0.0.2` entry and its nonexistent-tag comparison link were removed from CHANGELOG. Its newest published entry remains `0.0.1` dated 2026-10-12. Candidate work lives in PR #5 and this record. If publication is authorized later, select the next version and actual publication date then; a draft sitting open does not acquire a release date or tag. No `v0.0.2` tag or release has been published.
+The provisional `0.0.2` entry dated 2026-10-13 was removed during draft review and was not published. On 2026-10-18 the owner authorized closing out PR #5. CHANGELOG now assigns `0.0.2` to publication of the evaluation on 2026-10-18; its version tag is created only after the protected merge succeeds. If publication moves to another date, update the entry to that actual date before merging. This publication authorization does not promote the Ubuntu 26.04 profile or accept ADR-0006.
 
 ## Run-to-commit binding for the reviewed report
 
@@ -129,6 +129,6 @@ These are read-only input inspections: `clang -###` prints commands without comp
 
 Native Ubuntu 26.04 evaluation passes the positive build and existing behavior checks in the cited runs. Owner review must also consider the x86-64-v3 source and the explicitly unexecuted candidate-specific rejecting cases above; this is not a blanket PASS for new-profile negative coverage. If generic-x64 deployment compatibility is required, this candidate does not establish it. No broader architecture or additional verification is authorized by this result.
 
-Promotion, merge and ADR-0006 acceptance remain blocked on separate owner authorization. The required job still defaults to Ubuntu 24.04 and fails on an unreviewed OS migration. Package retention/recovery and formal ADR ownership remain independent gates. This evidence-only follow-up changes no compiler/profile logic; its own final PR head still requires the existing hosted checks before handoff.
+The owner has authorized publishing this evaluation. Promotion and ADR-0006 acceptance remain blocked on separate owner authorization. The required job still defaults to Ubuntu 24.04 and fails on an unreviewed OS migration. Package retention/recovery and formal ADR ownership remain independent gates. This evidence-only follow-up changes no compiler/profile logic; its own final PR head still requires the existing hosted checks before handoff.
 
 Raw baseline, discovery, failure and successful artifact reviews are retained under `.local/closure-review/ubuntu2604/`; hosted artifacts remain available through the cited runs.

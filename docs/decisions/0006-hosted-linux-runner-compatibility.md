@@ -4,6 +4,7 @@
 - **Date:** 2026-10-10
 - **Decision owner:** Unassigned for formal acceptance
 - **Recorded owner direction:** 2026-10-13: Option A, native Ubuntu 26.04 compatibility evaluation only
+- **Publication direction:** 2026-10-18: close out and publish the compatibility evaluation; promotion and formal ADR acceptance remain separate
 - **Verified baseline:** v0.0.1, commit `3675dca25fd68c867cfb4ed5d9bbcddd545d57aa`
 - **Review deadline:** 2026-10-18, before the announced rollout begins
 - **Scope:** Phase 1 build environment; no production architecture or Phase 2 authorization
