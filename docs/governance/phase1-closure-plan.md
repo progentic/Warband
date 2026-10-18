@@ -88,7 +88,7 @@ No general agent orchestration, provider integration, new execution surface, dis
 | Hosted runs | All six workflow runs across 53415e7, d6448e1 and 8da731e passed |
 | Runner evidence | Success artifacts inspected at d6448e1; all three failure uploads demonstrated and inspected in protection probe |
 | Dependency recovery | Durable archive and clean restore test pending |
-| Runner migration | ADR-0006 Proposed; owner/option/review pending before 2026-10-19 rollout |
+| Runner migration | ADR-0006 Proposed; native 26.04 evaluation verified; v3 floor and unexecuted candidate-specific rejecting cases recorded; promotion pending; required job retains 24.04 |
 | Required checks | Configured with no reviewer requirement; readback and blocked failing-PR evidence recorded |
 | Owner assignment and ADR acceptance | Pending user input/review; ADR-0004 remains Proposed |
 | Procedure hierarchy | ADR-0007 Accepted against v0.0.0; PR #3 merged; formal finding closure pending |

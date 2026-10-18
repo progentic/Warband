@@ -2,7 +2,10 @@
 
 - **Status:** Proposed
 - **Date:** 2026-10-10
-- **Decision owner:** Unassigned
+- **Decision owner:** Unassigned for formal acceptance
+- **Recorded owner direction:** 2026-10-13: Option A, native Ubuntu 26.04 compatibility evaluation only
+- **Publication direction:** 2026-10-18: close out and publish the compatibility evaluation; promotion and formal ADR acceptance remain separate
+- **Verified baseline:** v0.0.1, commit `3675dca25fd68c867cfb4ed5d9bbcddd545d57aa`
 - **Review deadline:** 2026-10-18, before the announced rollout begins
 - **Scope:** Phase 1 build environment; no production architecture or Phase 2 authorization
 - **Supersedes:** None
@@ -12,7 +15,7 @@
 
 The passing Linux job currently runs on Ubuntu 24.04 through `ubuntu-latest`. GitHub's [runner announcement](https://github.com/actions/runner-images/issues/14748), checked on 2026-10-10, schedules a rolling transition to Ubuntu 26.04 from October 19 through November 19. Different jobs may receive different host images during that period.
 
-Warband rejects any OS other than Ubuntu 24.04 and requires LLVM/clang 19.1.1 at exact signed Ubuntu package revisions. The rejection is intentional. A runner upgrade is not evidence that a replacement toolchain is compatible. The existing job should fail rather than install a guessed version.
+The required Linux job retains the Ubuntu 24.04-only profile and LLVM/clang 19.1.1 at exact signed Ubuntu package revisions. The rejection is intentional. A runner upgrade is not evidence that a replacement toolchain is compatible. The existing job should fail rather than install a guessed version.
 
 ## Constraints retained
 
@@ -26,7 +29,7 @@ Warband rejects any OS other than Ubuntu 24.04 and requires LLVM/clang 19.1.1 at
 
 | Option | Benefit | Required evidence and limits |
 |---|---|---|
-| Review a native Ubuntu 26.04 dependency profile | Keeps the build directly on the moving hosted VM | Inspect real package revisions and Odin compatibility; review an explicit new lock profile; complete clean source builds, architecture, all tests and negative controls before promotion. No compatible profile has been verified yet. |
+| Option A: native Ubuntu 26.04 dependency profile | Keeps the build directly on the moving hosted VM | Inspect real package revisions and Odin compatibility; review an explicit new lock profile; complete clean source builds, architecture, all tests and negative controls before promotion. Owner-selected Option A for evaluation; promotion still requires successful native evidence and separate owner approval. |
 | Use a reviewed Ubuntu 24.04 build container on `ubuntu-latest` | Separates the tested build userspace from the changing host OS | Review the official image's x64 digest and provenance, dependency closure and Actions compatibility; preserve explicit bash/pipefail and receipts; record host image, container digest and guest OS separately. This proves a container build, not the future VM sandbox. No digest is selected or container configured yet. |
 | Temporarily use an explicit Ubuntu 24.04 runner | Retains the current direct VM build | Requires a user-approved exception to the `ubuntu-latest` constraint. It is not selected by this proposal. |
 | Keep the current guard and pause hosted builds after migration | Avoids accepting unreviewed inputs | CI may become unavailable. Keep that failure visible; local verification does not replace the hosted gate. |
@@ -35,13 +38,13 @@ GitHub [supports job containers](https://docs.github.com/en/actions/how-tos/writ
 
 ## Proposed sequence
 
-1. Assign an owner and choose one option before the review deadline. Until then, leave the current guard unchanged.
+1. The owner selected Option A for evaluation. Assign formal ownership and review the resulting evidence before promotion; keep the primary Ubuntu 24.04 guard until separate owner approval.
 2. Prepare the selected profile on an isolated review branch. Use a separately named compatibility check while preserving the required baseline checks.
 3. Record the actual host/userspace versions, image digest if applicable, exact package receipts, compiler inputs, source SHA, binary identity and test reports. Compare these with the verified baseline and explain differences.
 4. Prove malformed/unknown profiles, unsupported OS versions and wrong LLVM patches still fail. Verify clean builds without inherited compiler caches and the independently specified golden bytes.
 5. Promote only the reviewed profile after its hosted checks pass. Preserve old inputs and define rollback without an automatic fallback.
 
-A candidate job on `ubuntu-26.04` may be useful for review, as GitHub's announcement suggests, but it does not replace the primary `ubuntu-latest` job or approve its dependency profile. No compatibility job is added by this record.
+A separately named `Phase 1 Ubuntu 26.04 Compatibility` job now evaluates the explicit `linux_ubuntu2604` profile on `ubuntu-26.04`. It does not replace the required `ubuntu-latest` job, change its default `linux` profile or approve promotion. The [candidate evidence](../verification/ubuntu2604-compatibility-evidence.md) records actual inputs and outcomes.
 
 ## Acceptance evidence
 
@@ -51,4 +54,4 @@ The Node 20 action-runtime warnings are a separate maintenance task. New action 
 
 ## Current disposition
 
-Proposed only. The current Ubuntu 24.04 guard and lock remain unchanged. The six published workflow runs through `8da731e` passed, but none demonstrates an Ubuntu 26.04 build or a reviewed container profile. Dependency archive/recovery and ADR-0004 acceptance remain open.
+Proposed only. Option A evaluation is authorized on the separate review branch; acceptance and promotion are not. The required Ubuntu 24.04 job, original profile and exact compiler checks remain. The Ubuntu 26.04 profile uses the same reviewed Odin SHA and an independently observed exact Ubuntu dependency set. Its native build and existing controls passed at 7402fae, but the produced artifact declares x86-64-v3 rather than the baseline-only ISA property of the Ubuntu 24.04 binary. Input inspection traces that floor to the native glibc startup/runtime packages; selecting GCC 14 headers alone does not remove it. That CPU-floor difference and the unexecuted candidate-specific rejecting cases must remain explicit in owner promotion review; no generic-x64 deployment claim is established. No fallback or container is introduced. Dependency archive/recovery, formal ownership and ADR-0004 acceptance remain open.

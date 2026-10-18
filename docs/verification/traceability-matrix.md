@@ -55,7 +55,7 @@ The initial evidence is historical. Local platform pins, manifests, transport li
 
 `docs/decisions/0005-event-integrity-acceptance-and-recovery.md` maps proposed mechanisms and required future verification to the existing WB-CON, WB-INV and WB-NEG identifiers. The runtime rows above remain planned/deferred. No event store, protected head, capability consumption, observation/evaluation boundary, recovery process or replay implementation is added by this design draft.
 
-`docs/decisions/0006-hosted-linux-runner-compatibility.md` tracks the WB-P1-001/WB-P1-006 build-environment risk and required future compatibility evidence. It selects no replacement profile and leaves exact version/OS rejection unchanged.
+`docs/decisions/0006-hosted-linux-runner-compatibility.md` tracks the WB-P1-001/WB-P1-006 build-environment risk and required future compatibility evidence. The owner selected native Ubuntu 26.04 evaluation; the unpromoted candidate is recorded in `docs/verification/ubuntu2604-compatibility-evidence.md`. The required Ubuntu 24.04 profile and exact version/OS rejection remain in force.
 
 `docs/decisions/0007-phase1-entrypoint-boundaries.md` is Accepted by the project owner against v0.0.0 / 8afe351 and records bounded E1 within the three levels. The candidate retains 21 Python controls and adds one bounded dependency control; the original five Odin tests remain. `docs/engineering/phase1-effect-composition-review.md` records the actual call/effect graph. Behavioral passes and structural review are separate; formal finding closure remains pending. Runtime requirements remain planned/deferred.
 

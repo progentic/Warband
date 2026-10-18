@@ -7,6 +7,19 @@ All notable changes to Warband are recorded here. The format follows
 Record changes under explicit dated version headings, newest first. Start at
 `0.0.0`; Git tags use the `v` prefix. Subsequent version links compare the previous
 and current tags. Only include categories that contain notable changes.
+Add a version entry when publication is authorized, using the actual publication
+date. Draft candidates are documented in their PR and evidence record until then.
+
+## [0.0.2] - 2026-10-18
+
+### Added
+
+- Unpromoted native Ubuntu 26.04 compatibility profile with exact LLVM/Clang/LLD 19.1.7 dependencies, a separately named hosted job and inspectable build/input evidence.
+
+### Changed
+
+- Existing Linux toolchain scripts support explicit profile selection with exact OS, package and compiler-version checks; the original Ubuntu 24.04 and macOS profiles remain unchanged.
+- Recorded the candidate's glibc CRT/runtime x86-64-v3 floor and the unexecuted native-profile rejecting cases. Publication of this evaluation does not promote the profile, accept ADR-0006 or select production architecture.
 
 ## [0.0.1] - 2026-10-12
 
@@ -48,5 +61,6 @@ Phase 1 acceptance, dependency recovery and runner compatibility remain separate
 governance gates. Phase 2 authority, execution, persistence and production
 services are not implemented.
 
+[0.0.2]: https://github.com/progentic/Warband/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/progentic/Warband/compare/v0.0.0...v0.0.1
 [0.0.0]: https://github.com/progentic/Warband/tree/v0.0.0
