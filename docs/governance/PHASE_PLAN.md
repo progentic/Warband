@@ -1,7 +1,7 @@
 # Warband phase plan to v1.0.0
 
 - **Status:** Proposed release roadmap
-- **Planning baseline:** `main` at `75af4a65482e722b4e567ade12292a2ba800fe92`, published through `v0.0.2`
+- **Planning baseline:** `main` at `7ff7e18dfdf6247bbfa5f3f003cf44f1981120d4`, published through `v0.0.2`
 - **Current implementation:** Phase 1 foundation complete
 - **Target:** A narrow, evidence-backed production release tagged `v1.0.0`
 - **Authority:** This document sequences work. It does not accept an ADR, select a production architecture, authorize a phase implementation, or declare a control verified.
@@ -47,21 +47,22 @@ Option A does not select an operating system version, CPU floor, store, sandbox 
 8. Unknown, malformed, stale, duplicate, unauthorized, expired, tampered, or unverifiable input fails closed.
 9. Phase evidence is retained as reviewable data. Untrusted CI artifacts are not executed in a privileged environment.
 10. Release tags are created only after the protected merge and release authorization.
+11. A change to an accepted store, checkpoint custodian, execution boundary, production target, or evidence-producing trust boundary invalidates the affected phase evidence. The governing ADR and every dependent verification gate must be rerun before the change can be accepted.
 
-## Foundation obligations before Phase 2 implementation
+## Foundation obligations carried to production
 
 Phase 1 implementation is complete. The following open records do not require reopening its delivered code, but they block a production claim and must be resolved on the path to v1.0.0:
 
-| Obligation | Current state | Required disposition |
-|---|---|---|
-| ADR-0004 ownership and status | Proposed; owner unassigned | Assign an owner and accept, revise, supersede, or reject it with evidence |
-| Dependency retention and recovery | Durable archive and clean restore test pending | Select custody, preserve verified inputs, and pass a clean recovery build |
-| Ubuntu 26.04 rejection evidence | Checks A and B authorized but not implemented | Implement only the authorized checks and retain their separate negative evidence |
-| Ubuntu 26.04 promotion | Directed after rollout completion; not implemented | Use a separate PR with defined rollback, no automatic fallback, and unchanged required check names |
-| ADR-0006 status | Proposed; owner recorded | Review post-rollout evidence and explicitly accept, revise, supersede, or reject it |
-| Phase 1 structural findings | ADR-0007 accepted; formal finding closure remains separate | Record explicit closure against the reviewed E1 implementation or retain the findings as release debt |
+| Obligation | Current state | Accountable owner | Blocking gate | Required disposition |
+|---|---|---|---|---|
+| ADR-0004 ownership and status | Proposed; owner unassigned | Must be assigned before Phase 5 entry | Phase 5 entry | Accept, revise, supersede, or reject it with evidence |
+| Dependency retention and recovery | Durable archive and clean restore test pending | Must be assigned before Phase 5 entry | Phase 5 exit | Select custody, preserve verified inputs, and pass a clean recovery build |
+| Ubuntu 26.04 rejection evidence | Checks A and B authorized but not implemented | ADR-0006 decision owner | Phase 5 entry | Implement only the authorized checks and retain their separate negative evidence |
+| Ubuntu 26.04 promotion | Directed after rollout completion; not implemented | ADR-0006 decision owner | Phase 5 entry | Use a separate PR with defined rollback, no automatic fallback, and unchanged required check names |
+| ADR-0006 status | Proposed; owner recorded | ADR-0006 decision owner | Phase 5 entry | Review post-rollout evidence and explicitly accept, revise, supersede, or reject it |
+| Phase 1 structural findings | ADR-0007 accepted; formal finding closure remains separate | Project owner | Phase 2 entry | Record explicit closure against the reviewed E1 implementation or retain each finding as named release debt with an owner and blocking release disposition |
 
-These obligations may proceed in parallel with Phase 2 design. Phase 2 runtime code must not begin until ADR-0005 and its blocking choices are resolved.
+These obligations may proceed in parallel with Phase 2 design. The named blocking gate is authoritative. Unresolved release debt must still satisfy the v1.0.0 release gates; a label does not waive the underlying control.
 
 ## Release sequence
 
@@ -76,6 +77,20 @@ These obligations may proceed in parallel with Phase 2 design. Phase 2 runtime c
 
 Version numbers are planning targets. The actual release entry and date are added only when publication is authorized.
 
+## Constitutional closure map
+
+This map identifies the first phase that must produce evidence for each constitutional rule. A scoped pass does not replace later integrated or production-target verification.
+
+| Phase | Required constitutional evidence |
+|---|---|
+| 2 | WB-CON-001 through WB-CON-009 on the deterministic no-op authority path |
+| 3 | WB-CON-004 through WB-CON-009 on the bounded state-changing execution path; integrated regression of WB-CON-001 through WB-CON-003 |
+| 4 | WB-CON-002 through WB-CON-005, WB-CON-007, and WB-CON-010 through the live provider and operator path; integrated regression of the remaining rules |
+| 5 | WB-CON-001 through WB-CON-010 on the selected production target and deployment profile |
+| 6 | WB-CON-001 through WB-CON-010 on the exact release candidate |
+
+The traceability matrix must record the scoped status and evidence from each phase. A rule remains open for v1.0.0 until its Phase 5 and Phase 6 evidence exists.
+
 ## Phase 2: Deterministic authority core
 
 ### Outcome
@@ -85,7 +100,9 @@ Implement the smallest complete authority path using one deterministic no-op act
 ### Entry gates
 
 - Assign an owner to [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md).
-- Resolve and accept its event schema, payload registry, store durability, protected-head custody, crash-window behavior, task/control version rules, observer/evaluator trust, and transaction boundaries.
+- Resolve and accept its event schema, payload registry, concrete storage backend, store durability, concrete protected-head custodian, crash-window behavior, task/control version rules, observer/evaluator trust, producer identity, and transaction boundaries.
+- Treat the accepted storage backend and checkpoint custodian as part of the Phase 2 evidence identity. Changing either requires a new or amended ADR and invalidates the dependent Phase 2 fault, integrity, recovery, and replay evidence.
+- Close the Phase 1 structural findings or record each one as named release debt under the foundation obligations table.
 - Update the affected contracts, threat model, package boundaries, negative paths, and traceability before implementation.
 - Record explicit Phase 2 implementation authorization.
 
@@ -107,7 +124,7 @@ Implement the smallest complete authority path using one deterministic no-op act
 ### Required verification
 
 - Unit tests for pure encoders, decisions, transition rules, and projections.
-- Golden encoding and hash vectors on Linux x64 and macOS ARM64.
+- Golden encoding and hash vectors on Linux x64, macOS ARM64, and every additional architecture selected for Phase 2 acceptance. If the later production CPU architecture was not covered, Phase 5 must rerun the vectors and all target-dependent Phase 2 verification on that production target.
 - Invariant tests for WB-INV-001 through WB-INV-009 within the no-op path.
 - Applicable rejection tests from WB-NEG-001 and WB-NEG-003 through WB-NEG-010 and WB-NEG-012.
 - Concurrent acceptance tests proving two acceptors cannot commit two valid transitions.
@@ -117,7 +134,7 @@ Implement the smallest complete authority path using one deterministic no-op act
 
 ### Exit gate
 
-Phase 2 exits only when the no-op path can be interrupted at every durable boundary, restarted, reconciled, and replayed without duplicate execution, duplicate transition, fabricated completion, or loss of an acknowledged security event. The traceability rows for the exercised scope must change from `planned` to evidence-backed status. No external provider or state-changing tool is included.
+Phase 2 exits only when the no-op path can be interrupted at every durable boundary, restarted, reconciled, and replayed against the accepted store and checkpoint custodian without duplicate execution, duplicate transition, fabricated completion, or loss of an acknowledged security event. The traceability rows for WB-CON-001 through WB-CON-009 and the exercised invariants and negative paths must change from `planned` to a scoped evidence-backed status. No external provider or state-changing tool is included.
 
 ## Phase 3: Controlled local execution
 
@@ -131,11 +148,13 @@ Replace the no-op with one owner-selected, bounded, reversible local action. Pro
 - Select the production operating system and CPU architecture for this phase's evidence, or explicitly classify the target as preproduction only.
 - Define the tool contract, target scope, expected effect, observation source, resource limits, approval rule, idempotency rule, and recovery disposition.
 - Define which sandbox controls are security requirements and how each is tested on the matching kernel.
+- Select a minimal local CLI approval path for Phase 3. It must create a runtime-recorded approval bound to the exact normalized proposal and accepted Phase 2 identities. A deterministic test harness may exercise failure cases, but it cannot substitute for the CLI integration proof.
 
 ### Required implementation
 
 - A worker boundary with explicit identity and authenticated runtime-to-worker requests.
 - Default-deny tool registration. No arbitrary shell interface.
+- Network access denied by default inside the worker. The Phase 3 action receives no network capability.
 - Capability checks bound to action, target, arguments, task/run, attempt, expiry, use count, policy version, and expected state.
 - Process, time, memory, output, and filesystem limits.
 - Exact normalized-proposal binding for any human approval.
@@ -148,6 +167,7 @@ Replace the no-op with one owner-selected, bounded, reversible local action. Pro
 
 - WB-NEG-002 through WB-NEG-006, WB-NEG-008, WB-NEG-010, and WB-NEG-011 on the actual execution path.
 - Escape and privilege tests for every selected sandbox control.
+- A rejecting test proving that the worker cannot open an outbound network connection or reach a disallowed local network endpoint.
 - Resource exhaustion, oversized output, forced termination, worker crash, runtime crash, and response-loss tests.
 - Duplicate dispatch and delayed-result tests proving no second authoritative transition.
 - Approval mutation tests proving any payload or binding change invalidates approval.
@@ -155,7 +175,7 @@ Replace the no-op with one owner-selected, bounded, reversible local action. Pro
 
 ### Exit gate
 
-The selected action completes only from accepted evidence, never from executor output or a model claim. Every tested failure leaves an auditable disposition and a safe authoritative state. Linux-specific claims must pass on the selected Linux target. macOS portability results cannot substitute for those claims.
+The selected action completes only from accepted evidence, never from executor output or a model claim. Every tested failure leaves an auditable disposition and a safe authoritative state. The local CLI approval and deterministic harness must use the same proposal-binding and acceptance semantics. Phase 4 may change presentation, but it may not weaken or reinterpret those semantics without invalidating Phase 3 approval evidence. Linux-specific claims must pass on the selected Linux target. macOS portability results cannot substitute for those claims.
 
 ## Phase 4: Model and operator workflow
 
@@ -168,7 +188,8 @@ Connect one reviewed model provider adapter and the operator approval workflow w
 - Define the model input projection, data classification, retention rule, credential boundary, and provider failure policy.
 - Define the supported typed proposal schema and size limits.
 - Decide whether approval is local CLI only for v1.0.0. Any remote approval surface requires its own identity and transport review.
-- Record the evaluator's independence and producer identity rules.
+- Extend the accepted Phase 2 evaluator-independence, observer-trust, and producer-identity rules to the live provider path. Phase 4 must not define weaker replacement rules.
+- Define provider egress as a separate, narrowly scoped adapter capability outside the execution worker. Record allowed destinations, protocols, credential use, time and response limits, and denial behavior. The Phase 3 worker remains network denied.
 
 ### Required implementation
 
@@ -178,6 +199,7 @@ Connect one reviewed model provider adapter and the operator approval workflow w
 - Operator inspection and approve/reject flow bound to the exact normalized proposal.
 - Independent evaluator using runtime-owned success criteria and registered evidence sources.
 - Provider timeout, cancellation, rate-limit, malformed-response, and retry controls.
+- Provider egress restricted to the accepted destination and protocol set. Provider credentials never enter the execution worker.
 - Audit events for proposal, normalization, policy, approval, execution, observation, evaluation, rejection, and transition.
 
 ### Required verification
@@ -185,6 +207,7 @@ Connect one reviewed model provider adapter and the operator approval workflow w
 - Adversarial proposal fixtures for malformed, unknown, oversized, stale, duplicate, and unauthorized requests.
 - A model success claim without evidence cannot alter state.
 - Provider changes or provider failure cannot change policy, capability, acceptance, or replay rules.
+- Unexpected provider destinations and every network attempt from the execution worker are rejected and recorded.
 - Approval cannot be reused for another task, run, attempt, target, payload, policy version, or expired request.
 - Secret-bearing inputs and tool outputs are absent from provider requests, logs, audit payloads, errors, and user output unless a reviewed field policy explicitly permits them.
 - All WB-NEG-001 through WB-NEG-012 have an implemented path and evidence by this phase's exit.
@@ -201,9 +224,11 @@ Turn the verified runtime into an operable, recoverable deployment without widen
 
 ### Entry gates
 
-- Select and document the production host, CPU floor, service boundary, storage backend, checkpoint custodian, installation method, and credential source.
+- Select and document the production host, CPU floor, service boundary, installation method, and credential source.
+- Confirm the Phase 2 storage backend and checkpoint custodian for production. A proposed change requires a new or amended ADR and reruns of all dependent Phase 2 evidence before Phase 5 work may rely on it.
 - Resolve ADR-0004 and ADR-0006 or supersede them with accepted production decisions.
-- Complete dependency retention and the clean restore proof.
+- Complete every foundation obligation whose blocking gate is Phase 5 entry. Confirm the dependency-retention owner, custody, inputs, and clean-restore procedure; the executed restore proof remains a Phase 5 exit requirement.
+- Assign a release security triage owner and an independent reviewer for critical and high-severity findings.
 - Define measurable availability, latency, resource, retention, backup, recovery, and audit-export requirements.
 
 ### Required implementation
@@ -222,23 +247,44 @@ Turn the verified runtime into an operable, recoverable deployment without widen
 ### Required verification
 
 - Clean installation on the selected production target.
+- Rerun the Phase 3 sandbox escape, privilege, resource, forced-termination, network-denial, uncertain-outcome, and applicable WB-NEG real-path suites on the exact production host and kernel. This is mandatory when Phase 3 used a preproduction target; the earlier evidence remains historical and cannot substitute.
+- Rerun Phase 2 golden vectors and every target-dependent integrity, fault, recovery, and replay test when the production CPU, operating system, store, checkpoint custodian, or other evidence-producing trust boundary differs from the accepted Phase 2 environment.
 - Backup and restore into an empty host with the same authoritative projection and verified head.
-- Upgrade from the latest supported prerelease and rollback after an injected migration failure.
+- Rebuild from retained dependencies in a clean environment and complete the foundation recovery obligation.
+- Upgrade from the immediately preceding published prerelease in the current release line and roll back after an injected migration failure. No older prerelease is supported for v1.0.0 unless a separate support policy explicitly names it. If no preceding prerelease exists, record that fact and use a clean-install migration baseline.
 - Restart and power-loss tests around each durable boundary.
 - Load and resource-limit tests against the declared operating envelope.
 - Log, artifact, crash, and audit redaction review.
 - Release artifact architecture, linkage, provenance, checksum, signature, and smoke verification.
-- Threat-model review with every control linked to implementation and evidence.
+- Independent threat-model and security review with every control linked to implementation and evidence.
 
 ### Exit gate
 
 An operator can install, configure, start, stop, inspect, back up, restore, upgrade, and roll back Warband using reviewed procedures. The selected production artifact is built and tested on its declared target. No unresolved critical or high-severity security finding remains. Accepted residual risks are named, owned, and documented.
+
+## Release finding severity and review
+
+| Severity | Release meaning |
+|---|---|
+| Critical | A credible path to unauthorized execution or authoritative state change, secret compromise, audit-history trust loss, or release artifact compromise |
+| High | A realistic bypass or material weakening of policy, capability, sandbox, approval, evidence, replay, recovery, or production-target enforcement |
+| Medium | A bounded correctness, reliability, or operational defect without a demonstrated authority-boundary bypass |
+| Low | A minor defect, usability issue, or documentation gap with no material control impact |
+
+The assigned security triage owner records severity and release impact. The author of a finding or fix cannot be the only person to close a critical or high finding; the assigned independent reviewer must confirm the evidence and disposition. Critical and high findings block Phase 5 exit and v1.0.0. Medium and low residual risks require a named owner and explicit project-owner acceptance or a scheduled corrective disposition.
 
 ## Phase 6: Release candidate and v1.0.0
 
 ### Outcome
 
 Freeze one exact candidate and prove that the released source, artifact, documentation, and operational procedures describe the same system.
+
+### Entry gates
+
+- Record Phase 5 exit with the exact production target, artifact identity, evidence package, accepted residual risks, and independent security review.
+- Resolve every foundation obligation at its named blocking gate. No unowned release debt may enter the candidate.
+- Confirm that no critical or high finding is open and every medium or low residual risk has the required owner and disposition.
+- Obtain project-owner authorization to freeze one exact source commit as `v1.0.0-rc.1`.
 
 ### Release candidate rules
 
@@ -249,24 +295,33 @@ Freeze one exact candidate and prove that the released source, artifact, documen
 - Rehearse installation, one successful task, each principal rejection class, backup, restore, upgrade, rollback, and audit export.
 - Review the final diff from the last prerelease, including generated release metadata and dependency changes.
 
+### Required verification
+
+The release candidate rules above define the Phase 6 verification procedure. Execute them against the exact frozen commit and selected production target, then satisfy every v1.0.0 release gate below. Evidence from a different commit, compatibility profile, operating system, CPU, store, checkpoint custodian, worker boundary, or provider path cannot be silently attributed to the candidate.
+
 ### v1.0.0 release gates
 
 All of the following must be true:
 
 1. WB-CON-001 through WB-CON-010 have accepted contracts, implemented controls, passing evidence, and current traceability rows.
 2. WB-INV-001 through WB-INV-010 pass against the release candidate.
-3. WB-NEG-001 through WB-NEG-012 pass on their applicable real paths. Phase 1 controls WB-NEG-013 through WB-NEG-018 remain passing.
+3. WB-NEG-001 through WB-NEG-012 pass on their applicable real paths on the selected production target. Phase 1 controls WB-NEG-013 through WB-NEG-018 remain passing on the exact release commit.
 4. No required test is missing, skipped, unexpectedly absent, or replaced by a weaker substitute.
 5. Replay from the accepted event history reproduces the authoritative projection without live I/O or policy reinterpretation.
 6. Crash and uncertain-outcome tests show no unauthorized redispatch or duplicate transition.
 7. The selected production architecture, dependency recovery path, release artifact, and rollback procedure are verified.
 8. Required branch checks pass on the exact release commit and branch protection remains effective.
 9. The security, threat, trust, architecture, contracts, operator guidance, negative paths, and traceability records agree with the implementation.
-10. Every accepted ADR and release exception has an owner. No blocking Proposed decision is being treated as accepted.
-11. Durable release evidence identifies source, toolchain, dependencies, target, artifact, tests, and approvals.
-12. The project owner explicitly authorizes the changelog entry, protected merge, annotated `v1.0.0` tag, and publication.
+10. Every foundation obligation is resolved at its named gate, including the Ubuntu 26.04 rejecting checks, promotion disposition, and Phase 1 structural findings. No unowned release debt remains.
+11. Every accepted ADR and release exception has an owner. No blocking Proposed decision is being treated as accepted.
+12. Durable release evidence identifies source, toolchain, dependencies, target, artifact, tests, and approvals.
+13. The project owner explicitly authorizes the changelog entry, protected merge, annotated `v1.0.0` tag, and publication.
 
 Passing CI alone does not satisfy this gate. A release decision must cite the exact evidence and accepted residual risks.
+
+### Exit gate
+
+Phase 6 exits only after all thirteen release gates pass against the exact candidate, the independent release review is recorded, and the project owner authorizes publication. The protected merge commit must be the source of the annotated `v1.0.0` tag. Any post-review code, dependency, configuration, target, or trust-boundary change creates a new candidate and requires the affected verification to run again.
 
 ## Required evidence package for each phase
 
@@ -301,8 +356,8 @@ The first production release does not include:
 
 These items require later plans and separate authority. They must not enter v1.0.0 as incidental implementation details.
 
-## Governance review disposition
+## Governance review provenance
 
-**Verdict: conditionally aligned.** The sequence preserves the constitution and accepted ADRs, keeps the model outside the trusted authority core, and requires evidence before state change. Production readiness remains blocked until the foundation obligations are closed, ADR-0005 is accepted, each later phase receives explicit authorization, and the v1.0.0 release gates have exact evidence.
+The initial **conditionally aligned** disposition is recorded in [PR #7](https://github.com/progentic/Warband/pull/7). This link provides review provenance; this plan does not approve itself. The reviewed sequence preserves the constitution and accepted ADRs, keeps the model outside the trusted authority core, and requires evidence before state change. Production readiness remains blocked until the foundation obligations are closed, ADR-0005 is accepted, each later phase receives explicit authorization, and the v1.0.0 release gates have exact evidence.
 
 No constitutional identifier is changed by this plan. The plan adds no implementation claim, so the current `planned` runtime rows in the [traceability matrix](../verification/traceability-matrix.md) remain correct until code and verification exist.
