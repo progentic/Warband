@@ -24,7 +24,7 @@ The governance review is **conditionally aligned**: preparation can proceed, but
 | Phase 1 structural findings | E1 implementation and ADR-0007 acceptance exist; formal finding closure remains separate | Close each finding with evidence or name its release-debt owner and blocking disposition, as the phase plan requires |
 | Implementation entry | ADR-0005 remains Proposed; affected contracts and traceability still describe planned controls | Accept the resolved design, align affected documents, and record bounded Phase 2 implementation authorization |
 
-The owner selected Option 1: same VM, separate checkpoint custodian. [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#owner-selected-storage-and-custody-direction) records the direction and its trust limits. The selection does not accept the complete ADR. A file beside the journal under the same writable identity does not establish independent custody; the interface and crash behavior still require review.
+The owner selected Option 1: same VM, separate checkpoint custodian. [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#owner-selected-storage-and-custody-direction) records the direction and its trust limits. The selection does not accept the complete ADR. A file beside the journal under the same writable identity does not establish independent custody; the amended interface and crash behavior are now concrete candidates awaiting operator review.
 
 The revised [custodian protocol and recovery table](../decisions/0005-event-integrity-acceptance-and-recovery.md#custodian-operations-and-identities) replaces the earlier commit-then-advance proposal. A valid unattested chain is never sufficient for automatic attestation. Only the exact pre-pledged event can proceed to automatic confirmation after restart. This is a specification awaiting the owner's crash-point review, not new implementation evidence.
 
@@ -65,9 +65,9 @@ After design authorization, evidence must bind the accepted store and checkpoint
 | Inspect merged phase plan and ADR-0005 | PASS at the reviewed baseline above |
 | Assign ADR-0005 owner | PASS: Proto, explicit owner direction on 2026-10-18 |
 | Select storage and custody direction | PASS: owner selected SQLite and separate same-VM custodian; implementation details remain unverified |
-| Resolve and accept ADR-0005 | BLOCKED: decisions listed above |
+| Resolve and accept ADR-0005 | BLOCKED on explicit operator acceptance: amended decisions, formats, pin and graph are drafted |
 | Close or explicitly assign structural release debt | REVIEW PENDING: three named Proto-owned debts with Phase 5 entry/v1 blocking disposition in the verification plan; no automatic closure |
-| Align contracts and runtime effect boundaries | BLOCKED: depends on selected design |
+| Align contracts and runtime effect boundaries | REVIEW PENDING: aligned contract candidate and enumerated Phase 2 graph; no runtime permission active |
 | Begin runtime implementation | BLOCKED: design acceptance and bounded authorization still required |
 
 Foundation obligations whose blocking gate is Phase 5 remain tracked in the phase plan. They are not silently promoted to Phase 2 blockers or treated as complete here.
@@ -87,3 +87,5 @@ Tooling candidate verification: documentation governance and all 25 Python contr
 ## Verification and finding-disposition candidate
 
 The [verification plan](../verification/phase2-verification-plan.md) defines required proof groups, crash checkpoints and implementation slices. Its source-based Phase 1 findings review records the permitted named-release-debt alternative; formal owner closure remains separate. All runtime verification remains unexecuted.
+
+The [phase gate table](../governance/PHASE_PLAN.md#phase-26-review-and-exit-gate-table) stages the no-op implementation and later release boundaries. ADR-0005 acceptance, Phase 2 entry and future phase/release authorizations remain separate operator decisions.
