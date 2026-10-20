@@ -21,4 +21,4 @@ A failure at any gate must stop or safely redirect the workflow. A later step mu
 
 This execution pipeline remains deferred to Phase 2 and later. Phase 1 builds and verifies a deterministic CLI foundation. The fixture command does not submit a proposal, authorize execution, evaluate evidence, or accept task completion.
 
-Durable recording at every gate, hash-chain anchoring, transaction ordering, and crash recovery need separate proposed decisions. Phase 1 does not settle or weaken the existing guarantees.
+The Phase 2 [ADR-0005 candidate](../decisions/0005-event-integrity-acceptance-and-recovery.md#writer-ordering-and-visibility) specifies durable prepare, local event commit, custody confirmation and only then acknowledgment/dispatch. Each security-relevant stage records its own event before relying on it; audit is not a deferred final step despite its presentation as step 11 above. No-op observation/evaluation/acceptance follow separate boundaries. Unconfirmed events are not exposed as completion; restart never automatically redispatches a confirmed claim whose execution is uncertain. These are design requirements, not implemented behavior.

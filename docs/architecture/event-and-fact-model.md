@@ -20,3 +20,7 @@ All events are retained for audit. Only eligible verified facts may update autho
 ## Integrity
 
 Events must be recorded in a stable order and linked through tamper-evident hashes. The event hash must be computed by Warband from a canonical representation. It must never be accepted from the model.
+
+## Phase 2 identity and format candidate
+
+The [ADR-0005 v1 registry](../decisions/0005-event-integrity-acceptance-and-recovery.md#2-canonical-binary-v1) defines `(store, epoch, sequence)` identity and exact payload/hash domains. Existing names above are conceptual examples; numeric v1 kinds and their schemas are defined only in that registry. Custody PENDING/COMMITTED/GENESIS/EPOCH frames attest event history; they are integrity metadata, not task facts or a second authoritative ledger. Unknown schema/kind/producer fails closed. No bytes are silently migrated or reinterpreted.
