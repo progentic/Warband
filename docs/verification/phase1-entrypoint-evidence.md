@@ -94,3 +94,7 @@ All three downloaded archive digests matched GitHub artifact metadata. Binary SH
 Exact hosted inspection commands included `gh run view 38203043711 --repo progentic/Warband --log`, `gh api repos/progentic/Warband/actions/runs/38203043711/artifacts` and `gh api repos/progentic/Warband/actions/artifacts/<id>/zip`. The read-only main/protection readback still showed main `06afd20`, strict three required checks, administrator enforcement, no approval requirement and no force pushes/deletion. Those settings were not changed.
 
 The results above certify their cited implementation head. The v0.0.0 main baseline 8afe351 subsequently passed [Linux/macOS](https://github.com/progentic/Warband/actions/runs/38281369380) and [documentation](https://github.com/progentic/Warband/actions/runs/38281369653) checks. Acceptance is recorded separately in ADR-0007; it adds no application behavior or verification claim.
+
+## Subsequent finding disposition candidate
+
+The [Phase 2 verification and findings review](phase2-verification-plan.md#phase-1-findings-disposition) rechecks the three entrypoint call paths against accepted E1 and records each as named release debt owned by Proto, blocking Phase 5 entry and v1 release until explicit owner closure. It recommends closure on structural evidence without changing this historical run record or inferring overall Phase 1 acceptance.
