@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PURE_IMPORTS = {'governance.py': {'dataclasses', 'enum'}, 'manifest_rules.py': {'dataclasses'}}
 PURE_BUILTINS = {'tuple', 'frozenset', 'dict', 'set', 'sum', 'any', 'all', 'sorted', 'type', 'len'}
 PURE_LOW = {
-    'governance.py': {'matches_typed_member', 'starts_with'},
+    'governance.py': {'matches_typed_member', 'starts_with', 'prefixed_lines'},
     'manifest_rules.py': {'includes_markers', 'contains_text', 'target_flags'},
 }
 RAW_HIGH_CALLS = {'open', 'print', 'exec', 'eval', '__import__', 'getattr', 'Path'}

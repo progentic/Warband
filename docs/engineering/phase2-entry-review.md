@@ -71,3 +71,15 @@ After design authorization, evidence must bind the accepted store and checkpoint
 | Begin runtime implementation | BLOCKED: design acceptance and bounded authorization still required |
 
 Foundation obligations whose blocking gate is Phase 5 remain tracked in the phase plan. They are not silently promoted to Phase 2 blockers or treated as complete here.
+
+## Staged governance tooling
+
+The tooling candidate recognizes Phase 2 without declaring entry: project and Odin test manifest remain at Phase 1. The previous runner required phase 1 in [read_manifest, baseline lines 33–37](https://github.com/progentic/Warband/blob/3cbfd55b9157058cbd72dfcc6e14a59080925681/scripts/run_odin_tests.py#L33-L37); governance allowed only 0/1 in [baseline lines 28–31](https://github.com/progentic/Warband/blob/3cbfd55b9157058cbd72dfcc6e14a59080925681/scripts/governance.py#L28-L31).
+
+The revised pure Mid `phase_two_record_findings` requires the ADR, phase plan, entry review, coding standard, dependency rules and trust/threat records, in addition to existing contracts. ADR-0005 must have only the recognized Accepted status line; a Proposed document with an appended Accepted marker does not pass. This bounded check cannot replace operator review or prove every entry gate. Missing/symlinked documents and malformed/unknown project phases remain rejected. Test manifest phase must be a known test phase matching the exact integer project phase; duplicate JSON keys remain rejected. Package/name/count/report discovery is unchanged.
+
+`read_manifest` remains Low technical JSON representation acquisition/consistency checking, using Low `read_phase`/`unique_object`; it grants no runtime authority or ADR acceptance. The [existing procedure review](phase1-effect-composition-review.md) includes the new pure governance rule and prefix extraction helper. No Phase 1 E1 effect permission or runtime code is added.
+
+Test necessity: the changed phase decision would otherwise admit a Phase 2 declaration without its governing records, or reject every valid future Phase 2 manifest. Existing foundation controls cover neither case. Two governance controls exercise accepted/proposed/conflicting status and required-file removal; one inventory control exercises matching Phase 2, mismatched/unknown/boolean phases and duplicate keys. Cost is three small controls, standard library only. Fixture-only Accepted text does not modify or accept the real ADR. The original 22 controls remain, with unknown-phase rejection moved from the newly recognized 2 to 3; observed total is 25. New runtime verification remains a separate plan and authorization.
+
+Tooling candidate verification: documentation governance and all 25 Python controls pass. The revised runner also executed the unchanged two Odin packages/five named tests successfully with the pinned native macOS ARM64 compiler; fresh JSON reports are under `out/adr0005-tooling-tests/`. This verifies the runner regression, not Phase 2 runtime behavior.

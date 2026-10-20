@@ -47,13 +47,29 @@ class GovernanceTests(unittest.TestCase):
         self.assertEqual(self.codes(), set())
 
     def test_invalid_phase_values_fail_closed(self):
-        for value in (2, -1, True, 1.0, '1', None):
+        for value in (3, -1, True, 1.0, '1', None):
             with self.subTest(value=value):
                 self.declare_phase(value)
                 self.assertIn('invalid_phase', self.codes())
         for text in ('{', '{"phase":0,"phase":1}', '{"phase":1,"bypass":true}'):
             (self.root / 'project.json').write_text(text)
             self.assertIn('invalid_phase', self.codes())
+
+    def test_phase_two_requires_accepted_decision(self):
+        self.declare_phase(2)
+        self.assertIn('unaccepted_phase_decision', self.codes())
+        decision = self.root / 'docs/decisions/0005-event-integrity-acceptance-and-recovery.md'
+        original = decision.read_text()
+        decision.write_text(original + '\n- **Status:** Accepted\n')
+        self.assertIn('unaccepted_phase_decision', self.codes())
+        decision.write_text(original.replace(
+            '- **Status:** Proposed', '- **Status:** Accepted', 1))
+        self.assertEqual(self.codes(), set())
+
+    def test_phase_two_cannot_bypass_governing_records(self):
+        self.declare_phase(2)
+        (self.root / 'docs/governance/PHASE_PLAN.md').unlink()
+        self.assertIn('missing_required_file', self.codes())
 
     def test_missing_phase_fails(self):
         (self.root / 'project.json').unlink()
