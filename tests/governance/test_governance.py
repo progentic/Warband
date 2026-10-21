@@ -56,10 +56,16 @@ class GovernanceTests(unittest.TestCase):
             self.assertIn('invalid_phase', self.codes())
 
     def test_phase_two_requires_accepted_decision(self):
+        decision = self.root / 'docs/decisions/0005-event-integrity-acceptance-and-recovery.md'
+        # Fixture state is independent of the live ADR's future acceptance.
+        original = '\n'.join(line for line in decision.read_text().splitlines()
+                             if not line.startswith(('- **Acceptance authority:** ',
+                                                     '- **Acceptance record:** ',
+                                                     '- **Accepted source:** '))) + '\n'
+        original = original.replace('- **Status:** Accepted', '- **Status:** Proposed', 1)
+        decision.write_text(original)
         self.declare_phase(2)
         self.assertIn('unaccepted_phase_decision', self.codes())
-        decision = self.root / 'docs/decisions/0005-event-integrity-acceptance-and-recovery.md'
-        original = decision.read_text()
         decision.write_text(original + '\n- **Status:** Accepted\n')
         self.assertIn('unaccepted_phase_decision', self.codes())
         accepted = original.replace('- **Status:** Proposed', '- **Status:** Accepted', 1)
