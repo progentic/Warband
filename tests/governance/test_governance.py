@@ -62,9 +62,20 @@ class GovernanceTests(unittest.TestCase):
         original = decision.read_text()
         decision.write_text(original + '\n- **Status:** Accepted\n')
         self.assertIn('unaccepted_phase_decision', self.codes())
-        decision.write_text(original.replace(
-            '- **Status:** Proposed', '- **Status:** Accepted', 1))
+        accepted = original.replace('- **Status:** Proposed', '- **Status:** Accepted', 1)
+        decision.write_text(accepted)
+        self.assertIn('missing_acceptance_provenance', self.codes())
+        # Synthetic references exercise format checks, not real operator approval.
+        record = ('- **Acceptance authority:** Proto (project owner)\n'
+                  '- **Acceptance record:** https://github.com/progentic/Warband/commit/' + 'a' * 40 + '\n'
+                  '- **Accepted source:** ' + 'b' * 40 + '\n')
+        decision.write_text(accepted + '\n' + record)
         self.assertEqual(self.codes(), set())
+        for line in record.splitlines():
+            decision.write_text(accepted + '\n' + record.replace(line + '\n', ''))
+            self.assertIn('missing_acceptance_provenance', self.codes())
+        decision.write_text(accepted + '\n' + record.replace('a' * 40, 'pending'))
+        self.assertIn('missing_acceptance_provenance', self.codes())
 
     def test_phase_two_cannot_bypass_governing_records(self):
         self.declare_phase(2)

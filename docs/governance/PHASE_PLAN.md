@@ -60,7 +60,7 @@ Phase 1 implementation is complete. The following open records do not require re
 | Ubuntu 26.04 rejection evidence | Checks A and B authorized but not implemented | ADR-0006 decision owner | Phase 5 entry | Implement only the authorized checks and retain their separate negative evidence |
 | Ubuntu 26.04 promotion | Directed after rollout completion; not implemented | ADR-0006 decision owner | Phase 5 entry | Use a separate PR with defined rollback, no automatic fallback, and unchanged required check names |
 | ADR-0006 status | Proposed; owner recorded | ADR-0006 decision owner | Phase 5 entry | Review post-rollout evidence and explicitly accept, revise, supersede, or reject it |
-| Phase 1 structural findings | Three source-reviewed E1 corrections; [named debts](../verification/phase2-verification-plan.md#phase-1-findings-disposition), explicit closure pending | Proto | Phase 2 entry requires the recorded debt alternative; unresolved debts block Phase 5 entry and v1 release | Review CLI, documentation and manifest finding dispositions separately; no closure inferred from builds |
+| Phase 1 structural findings | Three source-reviewed E1 corrections; [named debts](../verification/phase2-verification-plan.md#phase-1-findings-disposition), explicit closure pending | Proto | Phase 2 entry requires the recorded debt alternative; binding closure deadline is Phase 5 entry; v1 remains blocked downstream | Review CLI, documentation and manifest finding dispositions separately; no closure inferred from builds |
 
 These obligations may proceed in parallel with Phase 2 design. The named blocking gate is authoritative. Unresolved release debt must still satisfy the v1.0.0 release gates; a label does not waive the underlying control.
 
