@@ -4,7 +4,7 @@
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
-- **Candidate scope:** Draft PRs #10–#14; not part of either merged baseline
+- **Design publication scope:** PRs #10–#14; these changes are later than either historical baseline and do not accept ADR-0005 or activate Phase 2
 - **Implementation phase:** `project.json` remains Phase 1
 
 ## Roles and source references
@@ -17,7 +17,7 @@ Unless explicitly labeled PR #8, immutable baseline links below use the later PR
 
 The next deliverable is a deterministic no-op authority path. A proposal receives a policy decision and bounded capability, produces independently evaluated evidence, and results in at most one accepted transition. Recovery and replay use recorded history. This is the Phase 2 outcome in the [phase plan](../governance/PHASE_PLAN.md#phase-2-deterministic-authority-core), not an implementation claim.
 
-The governance review is **conditionally aligned**: preparation can proceed, but the current Proposed [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md) has a concrete amended candidate in PR #10 awaiting review, with the denied-request audit question still unresolved. Its verification matrix already identifies the affected WB-CON-001 through WB-CON-009, WB-INV and WB-NEG requirements; this review does not duplicate or change those identifiers.
+The governance review is **conditionally aligned**: preparation can proceed, but the current Proposed [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md) has the amended design in PR #10, with Option A specified but pending Proto's Gate 1 decision and ADR acceptance pending Gate 2. Its verification matrix already identifies the affected WB-CON-001 through WB-CON-009, WB-INV and WB-NEG requirements; this review does not duplicate or change those identifiers.
 
 ## Decisions required before implementation
 
@@ -115,7 +115,7 @@ The [phase gate table](../governance/PHASE_PLAN.md#phase-26-review-and-exit-gate
 
 The operator question on custody rejection audit metadata remains open in the ADR's acceptance-issue section. This is an actual WB-CON-007 coverage question, not a request for another blanket implementation approval. Resolve it before claiming the candidate is acceptance-ready. After that, operator acceptance, protected integration and explicit Phase 2 entry remain distinct decisions. Future operations/security/release owner assignments and production-target selection are deferred to their named phase gates, not guessed here.
 
-Review order is Draft PR #10 decisions, #11 tooling, #12 contracts, #13 verification/findings, #14 roadmap. Each PR targets the preceding concern branch (the first targets main), so its diff is isolated; none is merged by this task. Local documentation governance and governance controls ran before every commit, including stack-update merges. Final hosted check results must be bound to each actual head SHA in the handoff rather than inherited from an earlier passing run.
+Design publication order is PR #10 decisions, #11 tooling, #12 contracts, #13 verification/findings, #14 roadmap. Each is retargeted to main after its predecessor lands and merges only with passing checks on its current head. This publication does not select Option A, accept ADR-0005 or authorize Phase 2 entry. Local documentation governance and governance controls ran before every commit, including stack-update merges. Final hosted check results must be bound to each actual head SHA in the handoff rather than inherited from an earlier passing run.
 
 ## Acceptance provenance gate
 
@@ -139,15 +139,15 @@ The binding closure deadline for the three named debts is **Phase 5 entry**. “
 
 ## Denied custodian requests: operator decision required
 
-WB-CON-007 requires security-relevant decisions to produce audit events ([constitution lines 31–33](https://github.com/progentic/Warband/blob/3cbfd55b9157058cbd72dfcc6e14a59080925681/docs/foundation/runtime-constitution.md#L31-L33)). The candidate custody registry lacks a denied-request record. Authentication failure must still reject; audit handling cannot grant the request or replace a checkpoint. No option is selected by this clarification.
+WB-CON-007 requires security-relevant decisions to produce audit events ([constitution lines 31–33](https://github.com/progentic/Warband/blob/3cbfd55b9157058cbd72dfcc6e14a59080925681/docs/foundation/runtime-constitution.md#L31-L33)). The ADR now specifies Option A's REJECTION frame, bounded digest, kernel-observed peer fields, durable-denial ordering and audit-only import; Proto's Gate 1 selection remains pending. Authentication failure must still reject; audit handling cannot grant the request or replace a checkpoint. No option is selected by this clarification.
 
 | Option | Benefit | Consequence / constraint | Candidate disposition |
 |---|---|---|---|
-| A. Bounded durable custody rejection receipt | Custodian retains independent evidence of its own denial; does not rely solely on the runtime identity being denied | Define frame kind, fault code, bounded request digest and kernel-observed peer identity, persistence/acknowledgment order and storage-failure behavior. No raw request/secrets, head movement or pending-pledge change. Review how receipts are represented in the single audit history/projection under ADR-0003; metadata alone must not be claimed as completed end-to-end audit coverage | Recommended for specification, pending operator selection and exact integration review |
+| A. Bounded durable custody rejection receipt | Custodian retains independent evidence of its own denial; does not rely solely on the runtime identity being denied | The pending ADR specification defines frame kind 5, an 88-byte payload, bounded request digest and kernel-observed peer identity, persistence/acknowledgment order and storage-failure behavior. No raw request/secrets, head movement or pending-pledge change. Review how receipts are represented in the single audit history/projection under ADR-0003; metadata alone must not be claimed as completed end-to-end audit coverage | Specified as pending Option A; Gate 1 selection remains with Proto |
 | B. Runtime-only RejectionRecorded handoff | Reuses the event history without a new custody frame | A down or compromised runtime could omit the custodian denial; without an independently retained receipt this does not close the identified threat-model gap | Not recommended as the sole evidence |
 | C. Defer acceptance | Preserves current authority/custody choices without pretending coverage exists | No audit-gap resolution or acceptance-ready claim; implementation entry remains blocked until a reviewed design closes WB-CON-007 | Safe pending disposition |
 
-Recommendation is A, subject to the exact frame and audit-integration review above. If audit persistence fails, do not report a durable audit receipt or permit the denied operation; preserve the fault and fail closed. This does not authorize another physical authoritative event ledger, batching, remote custody or a runtime implementation. The existing same-VM, prepare/confirm, per-event and manual-reconciliation decisions remain fixed.
+The publication task specifies A as pending, including the single-event-history handoff; Gate 1 remains Proto's decision. If audit persistence fails, do not report a durable audit receipt or permit the denied operation; preserve the fault and fail closed. This does not authorize another physical authoritative event ledger, batching, remote custody or a runtime implementation. The existing same-VM, prepare/confirm, per-event and manual-reconciliation decisions remain fixed.
 
 ## SQLite verification evidence
 
