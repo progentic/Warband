@@ -1,7 +1,7 @@
 # Warband phase plan to v1.0.0
 
 - **Status:** Proposed release roadmap
-- **Planning baseline:** `main` at `7ff7e18dfdf6247bbfa5f3f003cf44f1981120d4`, published through `v0.0.2`
+- **Planning baseline:** `main` at `3cbfd55b9157058cbd72dfcc6e14a59080925681`, published through `v0.0.2`; subsequent decision/tooling/contract/verification PRs remain candidates
 - **Current implementation:** Phase 1 foundation complete
 - **Target:** A narrow, evidence-backed production release tagged `v1.0.0`
 - **Authority:** This document sequences work. It does not accept an ADR, select a production architecture, authorize a phase implementation, or declare a control verified.
@@ -60,7 +60,7 @@ Phase 1 implementation is complete. The following open records do not require re
 | Ubuntu 26.04 rejection evidence | Checks A and B authorized but not implemented | ADR-0006 decision owner | Phase 5 entry | Implement only the authorized checks and retain their separate negative evidence |
 | Ubuntu 26.04 promotion | Directed after rollout completion; not implemented | ADR-0006 decision owner | Phase 5 entry | Use a separate PR with defined rollback, no automatic fallback, and unchanged required check names |
 | ADR-0006 status | Proposed; owner recorded | ADR-0006 decision owner | Phase 5 entry | Review post-rollout evidence and explicitly accept, revise, supersede, or reject it |
-| Phase 1 structural findings | ADR-0007 accepted; formal finding closure remains separate | Project owner | Phase 2 entry | Record explicit closure against the reviewed E1 implementation or retain each finding as named release debt with an owner and blocking release disposition |
+| Phase 1 structural findings | Three source-reviewed E1 corrections; [named debts](../verification/phase2-verification-plan.md#phase-1-findings-disposition), explicit closure pending | Proto | Phase 2 entry requires the recorded debt alternative; binding closure deadline is Phase 5 entry; v1 remains blocked downstream | Review CLI, documentation and manifest finding dispositions separately; no closure inferred from builds |
 
 These obligations may proceed in parallel with Phase 2 design. The named blocking gate is authoritative. Unresolved release debt must still satisfy the v1.0.0 release gates; a label does not waive the underlying control.
 
@@ -76,6 +76,24 @@ These obligations may proceed in parallel with Phase 2 design. The named blockin
 | 6 | `v1.0.0-rc.1` to `v1.0.0` | Exact release candidate | All constitutional, negative, recovery, security, and operational gates pass on the released source |
 
 Version numbers are planning targets. The actual release entry and date are added only when publication is authorized.
+
+## Phase 2–6 review and exit gate table
+
+This table stages the existing phase requirements; it does not authorize implementation or accept an ADR. The preceding [reviewed baseline rules and foundation obligations](https://github.com/progentic/Warband/blob/3cbfd55b9157058cbd72dfcc6e14a59080925681/docs/governance/PHASE_PLAN.md#L38-L65) already require named ownership, evidence identity and rejection tests. Detailed per-phase sections below remain authoritative. No provider, real tool, batching or remote custody work is authorized by the current documentation task.
+
+| Phase / accountable owner | Entry gate | Deliverables | Required evidence / stable IDs | Exit gate |
+|---|---|---|---|---|
+| 2 / Proto, ADR-0005 owner | Explicitly accept the amended ADR and its exact schema/store/custodian/effect graph; align contracts; record the named Phase 1 debts or explicit closure; authorize the no-op implementation | Pure rules and codecs, project-local SQLite, same-VM custodian, one no-op authority path, operator enrollment/epoch handling, recovery and replay; follow [implementation slices](../verification/phase2-verification-plan.md#implementation-sequence-after-acceptance) | WB-CON-001 through WB-CON-009; scoped WB-INV-001 through WB-INV-009; WB-NEG-001, WB-NEG-003 through WB-NEG-010 and WB-NEG-012. Independent cross-platform vectors; actual UID denial; all durable boundaries; exact pledged versus fabricated-tail recovery; competing acceptors; deterministic replay. Approval evidence is rejection-only here | Accepted source/store/custody/target identity; no duplicate transition, fabricated completion or acknowledged audit loss; uncertain execution never redispatched. Complete scoped traceability and operator handoff; no real tool/provider |
+| 3 / Proto; execution-boundary owner must be named before entry | Phase 2 exit accepted; execution ADR and one bounded reversible tool contract accepted; production host/CPU selected or target explicitly preproduction; local CLI approval semantics selected | Capability-enforced worker, network denial, bounded resources/filesystem/output, recorded CLI approval bound to exact proposal and Phase 2 identities, observation and recovery for the one selected action | WB-CON-001 through WB-CON-009 integrated; WB-INV-001 through WB-INV-009 including positive/mutated CLI approval. WB-NEG-002 through WB-NEG-006, WB-NEG-008, WB-NEG-010/011 real paths plus earlier applicable regressions. Actual worker outbound/local-network denial, escape/privilege/resource failures, crash/response-loss and no unsafe retry | Independently verified action and auditable failure/recovery on the declared kernel. CLI integration proof is mandatory, not replaced by harness tests. Preproduction evidence cannot substitute for Phase 5 production-target rerun |
+| 4 / Proto; adapter/operator-workflow owner named before entry | Phase 3 exit accepted; provider projection/credential/retention/failure policy and separate scoped adapter egress reviewed; inherit accepted evaluator/approval identities without weakening them | One future provider adapter and operator presentation, strict normalization, redaction, bounded provider egress outside the network-denied worker; no broad integration framework | WB-CON-001 through WB-CON-010; WB-INV-001 through WB-INV-010; WB-NEG-001 through WB-NEG-012. Adversarial/malformed/stale/duplicate proposals, model success without evidence, changed provider, egress/credential/redaction rejection and exact approval binding. Learned promotion remains unsupported and rejecting | Live provider can propose only; deterministic fixtures reproduce authority/state results without provider access. Full negative-path coverage and no provider credential in the worker |
+| 5 / Proto; name operations, dependency-recovery and security-triage owners plus independent reviewer before entry | Phase 4 exit accepted; exact production OS/CPU/kernel/VM/storage/service profile selected; resolve entry-blocking ADR-0004/0006, Ubuntu rejection/promotion disposition and named structural debts; retain accepted store/custodian or invalidate/rerun affected evidence | Locked production build/install/configuration, retained dependencies, backup/restore and custody reconciliation, operator epoch-change and migration/rollback runbooks, observability/redaction, release provenance and signing plan | WB-CON-001 through WB-CON-010; WB-INV-001 through WB-INV-010; real-path WB-NEG-001 through WB-NEG-012. Clean dependency rebuild; all production-target Phase 2 vectors/fault/replay and Phase 3 sandbox/network tests rerun when boundaries differ. Verify SQLite source/version/compile options/linkage on every supported target, Linux durability on the exact storage/VM profile, macOS development without durability claims. Rehearse empty-host restore with trusted head, operator epoch change and missing-pledge reconciliation, upgrade/rollback and interrupted recovery | Restore/upgrade/rollback demonstrated; independent security review; no open critical/high finding; residual risks owned and approved; dependency recovery proof complete. Record exact production artifact and evidence package |
+| 6 / Proto as release decision authority; release executor and independent reviewer named before entry | Accepted Phase 5 exit and evidence; all foundation debt resolved at its gate; no unowned risks; explicit authorization to freeze exact RC commit | Frozen event/config/CLI/tool schemas, complete release manifest and durable evidence, operator procedures and exact RC build from retained inputs | WB-CON-001 through WB-CON-010, WB-INV-001 through WB-INV-010, WB-NEG-001 through WB-NEG-018 on the exact candidate as applicable. Complete workflow, target identity, independent review, install/task/rejection/backup/restore/epoch/reconciliation/rollback rehearsal; no skipped or substituted required test | All thirteen release gates below pass; explicit owner authorization for changelog, protected merge, annotated tag and publication. Any changed source/dependency/target/trust boundary creates a new candidate and affected reruns |
+
+Every phase retains foundation WB-NEG-013 through WB-NEG-018 and required branch checks. Role names above are accountability/gates, not claims that independent people or future decisions are assigned. Proto must record the actual operations/security/release owners and independent reviewer before their entry gates. Current phase remains 1; version targets remain planning values. The current task creates no tag, release entry, service or production architecture.
+
+### Operator acceptance handoff for Phase 2
+
+Review the ADR amendment, static vectors, exact SQLite pin, enumerated effect graph, aligned contracts and [verification/finding plan](../verification/phase2-verification-plan.md) together. The operator must explicitly record acceptance or requested changes; neither merging documentation nor green foundation checks accepts ADR-0005. Then separately record Phase 2 entry against the exact approved source and authorize each implementation slice. A supported phase value in tooling is not an entry decision.
 
 ## Constitutional closure map
 
@@ -225,6 +243,7 @@ Turn the verified runtime into an operable, recoverable deployment without widen
 ### Entry gates
 
 - Select and document the production host, CPU floor, service boundary, installation method, and credential source.
+- Close the named Proto-owned Phase 1 structural debts explicitly before Phase 5 entry.
 - Confirm the Phase 2 storage backend and checkpoint custodian for production. A proposed change requires a new or amended ADR and reruns of all dependent Phase 2 evidence before Phase 5 work may rely on it.
 - Resolve ADR-0004 and ADR-0006 or supersede them with accepted production decisions.
 - Complete every foundation obligation whose blocking gate is Phase 5 entry. Confirm the dependency-retention owner, custody, inputs, and clean-restore procedure; the executed restore proof remains a Phase 5 exit requirement.
@@ -238,7 +257,7 @@ Turn the verified runtime into an operable, recoverable deployment without widen
 - Secret loading without command-line, log, crash-report, or artifact exposure.
 - Schema migration with preflight, backup, failure recovery, and downgrade policy.
 - Health, readiness, structured audit, metrics, and bounded diagnostic logging.
-- Backup, restore, checkpoint reconciliation, and integrity verification procedures.
+- Backup, restore, checkpoint reconciliation, and integrity verification procedures, including separately authorized epoch changes and operator-only missing-pledge reconciliation.
 - Install, upgrade, rollback, and uninstall procedures.
 - Resource and concurrency limits with operator-visible saturation behavior.
 - Release manifest, software bill of materials, source and dependency provenance, checksums, and artifact signing.
@@ -250,6 +269,8 @@ Turn the verified runtime into an operable, recoverable deployment without widen
 - Rerun the Phase 3 sandbox escape, privilege, resource, forced-termination, network-denial, uncertain-outcome, and applicable WB-NEG real-path suites on the exact production host and kernel. This is mandatory when Phase 3 used a preproduction target; the earlier evidence remains historical and cannot substitute.
 - Rerun Phase 2 golden vectors and every target-dependent integrity, fault, recovery, and replay test when the production CPU, operating system, store, checkpoint custodian, or other evidence-producing trust boundary differs from the accepted Phase 2 environment.
 - Backup and restore into an empty host with the same authoritative projection and verified head.
+- Rehearse operator epoch changes and missing-pledge reconciliation, including interrupted installation, preserved prior evidence, rejected runtime-identity administration and no fabricated completion.
+- Verify the exact SQLite source ID, compile options, connection settings and executable linkage on every supported target platform. Native macOS development validates functional behavior only; all Linux durability/permission claims require the matching Linux target.
 - Rebuild from retained dependencies in a clean environment and complete the foundation recovery obligation.
 - Upgrade from the immediately preceding published prerelease in the current release line and roll back after an injected migration failure. No older prerelease is supported for v1.0.0 unless a separate support policy explicitly names it. If no preceding prerelease exists, record that fact and use a clean-install migration baseline.
 - Restart and power-loss tests around each durable boundary.
