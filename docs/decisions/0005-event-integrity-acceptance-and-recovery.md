@@ -2,7 +2,7 @@
 
 - **Status:** Proposed
 - **Decision owner:** Proto, project owner (assigned 2026-10-18)
-- **Review status:** Draft; not approved for implementation
+- **Review status:** Amended decision candidate; operator acceptance pending
 - **Scope:** Proposed Phase 2 deterministic no-op authority boundary
 - **Supersedes:** None
 - **Related decisions:** Accepted ADR-0001 through ADR-0003; Proposed ADR-0004
@@ -38,7 +38,7 @@ No provider, arbitrary shell, filesystem write tool, broad network adapter, gene
 
 ## Proposed canonical event envelope
 
-Use a versioned deterministic binary encoding with a distinct runtime format, not the 25-byte Phase 1 fixture. Primitive widths/order and a kind-specific payload registry must be frozen before implementation.
+Use a versioned deterministic binary encoding with a distinct runtime format, not the 25-byte Phase 1 fixture. The amendment below specifies the v1 widths/order and kind-specific payload registry for operator review before implementation.
 
 Proposed envelope fields, in this order:
 
@@ -48,7 +48,7 @@ Proposed envelope fields, in this order:
 | Store identity | Fixed-width identity separating histories and identifier namespaces |
 | Custody epoch | Explicit epoch identity binding this history segment to its checkpoint authority; stale-epoch requests rejected |
 | Audit sequence | Unsigned fixed-width integer; strict monotonic order, no reuse/wrap |
-| Event identity | Store identity plus sequence, represented as a distinct domain type |
+| Event identity | Full `(store, epoch, sequence)` tuple, represented as a distinct domain type |
 | Kind | Registered enum with a schema-defined payload; unknown kind rejected |
 | Recorded timestamp | Fixed-width integer under an explicitly defined epoch/unit; no native struct layout |
 | Task/run/proposal/attempt references | Distinct identifiers with explicit presence encoding and required bindings per kind |
@@ -56,9 +56,9 @@ Proposed envelope fields, in this order:
 | Payload length and bytes | Bounded, schema-specific canonical encoding; no generic arbitrary map order |
 | Previous event hash | Fixed-width hash linking the immediately preceding event |
 
-The proposed link calculation has two domain-separated stages: an event digest over the canonical envelope fields other than the previous-head field, followed by a head hash binding that digest to the custody epoch, store identity, sequence and previous head. The previous head is bound by the link stage, not silently omitted from integrity coverage. The custodian independently recomputes the link from supplied digest and binding fields. The runtime verifies the supplied digest against the exact persisted canonical event. Exact encodings and domain separators remain to be frozen with independent vectors. The runtime supplies ordering, identities and producer metadata; a model-supplied hash or verification flag is never authority. Custodian link checking detects inconsistent calculations, not fabricated content from a compromised authorized runtime.
+The proposed link calculation has two domain-separated stages: an event digest over the canonical envelope fields other than the previous-head field, followed by a head hash binding that digest to the custody epoch, store identity, sequence and previous head. The previous head is bound by the link stage, not silently omitted from integrity coverage. The custodian independently recomputes the link from supplied digest and binding fields. The runtime verifies the supplied digest against the exact persisted canonical event. Exact encodings, domain separators and independent vectors are specified in the amendment below. The runtime supplies ordering, identities and producer metadata; a model-supplied hash or verification flag is never authority. Custodian link checking detects inconsistent calculations, not fabricated content from a compromised authorized runtime.
 
-Integer endianness, identifier widths, epoch/unit, string rules, size limits, genesis bytes, hash algorithm, and complete payload schemas remain review decisions. Proposed defaults are fixed-width little-endian integers, exact bounded UTF-8 bytes without silent normalization, and SHA-256. Reject malformed, ambiguous, duplicate-field, oversized, unknown, or noncanonical representations. A payload codec registry and independent golden vectors are acceptance prerequisites; no implementation may guess omitted fields.
+The amendment selects fixed-width little-endian integers, bounded exact UTF-8 without normalization, SHA-256 and explicit v1 payloads; these are candidate decisions awaiting operator acceptance. Reject malformed, ambiguous, duplicate-field, oversized, unknown, or noncanonical representations. A payload codec registry and independent golden vectors are acceptance prerequisites; no implementation may guess omitted fields.
 
 Proposal fingerprints use a separate domain/schema from event hashes. Bind the normalized tool, arguments, target, expected effect, task/run, policy version, approval requirements, and recovery disposition. The runtime owns allowed effect criteria; a proposal cannot weaken its own success test.
 
@@ -81,7 +81,7 @@ Use per-event attestation and at most one outstanding PENDING pledge per store. 
 | `prepare` | Authenticate the runtime; match the current epoch/store and committed predecessor; recompute the proposed link; durably append PENDING before replying. An exact replay of the outstanding pledge returns its existing receipt. A different request cannot replace a pending pledge. |
 | `confirm` | Authenticate the runtime and match the entire pending tuple. Append and fsync COMMITTED, publish the head durably, then return success. An exact replay of the latest committed tuple returns its original success only after head publication/recovery is complete; it creates no new record. Other predecessor or tuple mismatches never overwrite state. |
 | `verify` | Return the epoch, store identity, committed sequence/head, any pending tuple and current fault/readiness state from validated custodian metadata. A committed history record awaiting head publication is not reported as ready. |
-| `epoch_change` | Authenticate a separately authorized local operator; bind the exact old epoch/head, proposed new epoch/sequence/head, reason and authorization identity. Preserve the old history and any unresolved pledge. No runtime-accessible reset or automatic cancellation exists. Exact transition and enrollment formats require owner review. |
+| `epoch_change` | Authenticate a separately authorized local operator; bind the exact old epoch/head, proposed new epoch/sequence/head, reason and authorization identity. Preserve the old history and any unresolved pledge. No runtime-accessible reset or automatic cancellation exists. The amendment specifies candidate transition and enrollment formats for owner review. |
 
 The old single-step `advance` operation is replaced by prepare/confirm; retaining a bypass would defeat the pledge. Lost prepare and confirm replies are handled by exact replay. Arbitrary older requests, stale epochs and changed tuples are rejected, not treated as idempotent success.
 
@@ -91,11 +91,11 @@ Custodian storage is owned by its separate identity and inaccessible to runtime 
 
 ### Durable custody records and publication
 
-The append-only custodian history is the recovery source for checkpoint metadata; the current head file is its materialized committed head. Each bounded frame includes its type, epoch/store, full request tuple, previous custody-record hash, length and checksum. PENDING and COMMITTED frames are distinct. Epoch transitions retain their authorization metadata. Hash chaining detects mid-file edits relative to retained trusted records; it does not survive an attacker controlling custodian storage.
+The append-only custodian history is the recovery source for checkpoint metadata; the current head file is its materialized committed head. Each bounded frame includes its type, epoch/store, full request tuple, previous custody-record hash, length and checksum. PENDING and COMMITTED frames are distinct. Epoch transitions retain their authorization metadata. Option A below proposes a REJECTION metadata frame, explicitly pending Gate 1; it does not change the event head or pledge. Hash chaining detects mid-file edits relative to retained trusted records; it does not survive an attacker controlling custodian storage.
 
 For prepare, append the complete PENDING frame and fsync history before replying. For confirm, append the corresponding COMMITTED frame and fsync history first. Then create a new head file exclusively inside the custodian directory, write it completely, fsync it, rename it over the old head on the same filesystem and fsync the directory. Return success only after all required steps complete. Initial creation also requires durable directory entries. Check every write, short write and synchronization result. Head rename and history append are not one atomic transaction.
 
-On restart, a structurally truncated final frame alone may be removed back to the last complete valid frame, durably, before new writes. Never remove a complete frame with a bad checksum or chain link, an earlier damaged record, or a truncated suffix needed to explain the published head. Those are attestation-history faults. Recover a stale head from complete valid COMMITTED custody records only; never regenerate custody history from SQLite. An unmatched final PENDING remains a live pledge after repair. The exact frame layout and hash inputs still require review.
+On restart, a structurally truncated final frame alone may be removed back to the last complete valid frame, durably, before new writes. Never remove a complete frame with a bad checksum or chain link, an earlier damaged record, or a truncated suffix needed to explain the published head. Those are attestation-history faults. Recover a stale head from complete valid COMMITTED custody records only; never regenerate custody history from SQLite. An unmatched final PENDING remains a live pledge after repair. The amendment defines the candidate frame layout and hash inputs.
 
 ### Writer ordering and visibility
 
@@ -132,11 +132,11 @@ Automatic means only the specified metadata reconciliation or exact confirmation
 | Store identity differs or epoch is unsupported/stale | `STORE_IDENTITY_MISMATCH` / `EPOCH_MISMATCH` | Operator-only for persisted mismatch | Reject requests without mutation; investigate persisted disagreement. Do not relabel a store. |
 | Custodian unreachable or request outcome unknown | `ATTESTATION_UNCERTAIN` | Automatic exact replay after recovery | Block protected progress; no timeout-based assumption that a write failed. |
 | Disk full, write error or fsync failure | `CHECKPOINT_STORAGE_FAULT` | Operator-only before resumption | No success; preserve current files and pending state. Restore storage health, then reconcile actual records. |
-| Peer outside the operation's UID allowlist | `CUSTODIAN_AUTH_FAULT` | Terminal for request | Reject without mutation; no fallback authentication. |
+| Peer outside the operation's UID allowlist | `CUSTODIAN_AUTH_FAULT` | Terminal for request | Reject without checkpoint/pledge mutation; pending Option A records denial metadata only; no fallback authentication. |
 | Different predecessor/request conflicts with committed or pending tuple | `CHECKPOINT_CONFLICT` | Terminal for request; operator review if persisted divergence | No overwrite. Exact latest committed replay is the narrowly defined exception, not a conflict. |
 | Unsafe custody ownership, permissions, ACLs or parent path | `CUSTODY_BOUNDARY_FAULT` | Operator-only | Refuse startup or further protected operations until boundary is restored and reviewed. |
 
-An operator recovery action records a disposition; it is not evidence that missing work succeeded. No epoch change suppresses the original fault or creates an authoritative completion. The remaining epoch-transition/genesis specification is a blocker before implementation.
+An operator recovery action records a disposition; it is not evidence that missing work succeeded. No epoch change suppresses the original fault or creates an authoritative completion. Operator acceptance of the amendment remains required before implementation.
 
 ## Authority and evidence
 
@@ -209,3 +209,177 @@ There is no runtime event history to migrate. Preserve the Phase 1 fixture forma
 Before acceptance, freeze the complete wire/payload and transition registries; complete review of storage durability and the selected same-VM checkpoint custody; resolve journal/head crash windows and task/control version rules; define the observer/evaluator trust boundary; and reconcile procedure-layering/effect dispatch without placing I/O in pure domain rules. Proto is assigned as decision owner. High orchestration, pure decisions and technical adapters must be reviewed against repository guidance; no exception is silently accepted here.
 
 On acceptance, align authoritative-state, model-proposal, independent-evaluation and event-integrity contracts, security/trust/threat documents, execution pipeline, package/dependency ownership, negative paths and traceability. Preserve existing identifiers; add new cases for newly specified failures. Authorize Phase 2 implementation separately, beginning with the deterministic no-op and the required rejection/crash/replay proofs.
+
+
+## Amendment: resolved Phase 2 decision candidate
+
+This amendment is a design specification, not implementation or ADR acceptance. The operator requested these decisions and separate review PRs. Existing unresolved fields are visible in the [reviewed baseline, lines 39–63](https://github.com/progentic/Warband/blob/3cbfd55b9157058cbd72dfcc6e14a59080925681/docs/decisions/0005-event-integrity-acceptance-and-recovery.md#L39-L63); the fixed custody direction and fault dispositions are retained above. The Phase 2 entry requirements remain in [the phase plan, lines 100–107](https://github.com/progentic/Warband/blob/3cbfd55b9157058cbd72dfcc6e14a59080925681/docs/governance/PHASE_PLAN.md#L100-L107).
+
+### 1. Event identity
+
+**Decision:** Event identity and every event reference are `(store_id, epoch, sequence)`. Store IDs are 16 opaque bytes, epochs and sequences are unsigned 64-bit integers. Store IDs are nonzero; epochs start at 1, ordinary event sequences at 1. Sequence 0 is the epoch's custody genesis, not an event. Epoch increases exactly by one under operator authorization; sequence may restart at 1 in that new epoch. Overflow is a fault, never wraparound.
+
+Every event primary key, foreign reference, replay index and uniqueness constraint includes all three fields. Task, run, proposal, capability, attempt, evidence, transition, command and authorization IDs are distinct nonzero 16-byte types, scoped to store and epoch; their lookup keys include that scope. An event reference never resolves in an implicit current store/epoch. Cross-epoch task/evidence references are rejected in v1.
+
+**Alternative:** Keep `(store, sequence)` and forbid sequence reuse forever. **Consequence:** Including epoch preserves the selected epoch recovery mechanism without identity collisions; references occupy 32 bytes and require explicit scope checks.
+
+### 2. Canonical binary v1
+
+**Decision:** All integers are unsigned little-endian, with exact widths below. No native struct layout, padding, floats, varints, maps, duplicate fields or trailing bytes. Text is exact well-formed UTF-8 without normalization or NUL, encoded as `u16 byte_count || bytes`, maximum 1024 bytes. Missing text is length zero only when the schema explicitly permits it. Hashes are 32 raw bytes. `Ref` is `store[16] || epoch:u64 || sequence:u64`; `OptionalRef` is tag `u8` (0 absent, 1 followed by Ref); any other tag is invalid. Absent IDs in conditional payload fields are exactly 16 zero bytes; zero is otherwise invalid. Unknown schema, kind, producer, enum or reserved flag fails closed.
+
+| Event body field, in order | Bytes / rule |
+|---|---|
+| Magic / version / kind | ASCII `WBEV`, u16=1, u16 from registry below |
+| Store / epoch / sequence | 16 / u64 / u64; the full event identity |
+| Recorded time | u64 microseconds since 1970-01-01T00:00:00Z; runtime observation, never a replay clock |
+| Producer / producer version | u16 / u16, exact registry below; version=1 |
+| Payload length / payload | u32 / exact kind schema; maximum payload 65536 bytes |
+
+The body header is 56 bytes. An encoded event is `body || previous_head[32]`; total maximum 65624 bytes. All payload schemas concatenate their fields in listed order. No optional references exist except where explicitly stated.
+
+| Kind / producer | Exact payload fields in order |
+|---|---|
+| 1 TaskCreated / 1 | task ID, run ID, command ID, input SHA-256, inline evidence ID |
+| 2 ProposalRecorded / 1 | task ID, run ID, proposal ID, expected task version:u64, policy version:u64, action:u16=1 (NoOp), target:u8=0 (none), argument length:u32=0, criterion:u16=1 (NoOpV1), recovery:u8=1 (stop/reconcile), approval required:u8 (0/1) |
+| 3 AuthorizationRecorded / 2 | proposal Ref, expected control revision:u64, decision:u8 (1 permit/2 reject/3 require approval), capability ID, expiry microseconds:u64, use limit:u8, inline evidence ID |
+| 4 DispatchClaimed / 2 | authorization Ref, attempt ID, capability ID, expected task version:u64, expected control revision:u64, proposal fingerprint[32], claim time microseconds:u64 |
+| 5 ObservationRecorded / 3 | claim Ref, evidence ID, outcome:u8 (1 returned/2 indeterminate), criterion:u16=1, observed bytes[4] (ASCII `NOOP` for returned; four zero bytes for indeterminate) |
+| 6 EvaluationRecorded / 4 | observation Ref, claim Ref, observed-event digest[32], criterion:u16=1, verdict:u8 (1 verified/2 rejected), evidence ID |
+| 7 TransitionAccepted / 5 | evaluation Ref, claim Ref, transition ID, expected task version:u64, expected control revision:u64, new task version:u64, new state:u8=2 (complete) |
+| 8 RejectionRecorded / 1–5 | stage:u8 (1 input/2 authorization/3 claim/4 observation/5 evaluation/6 acceptance/7 recovery), reason:u16 from reason registry, related OptionalRef, rejected-input SHA-256 |
+| 9 CapabilityRevoked / 2 | authorization Ref, capability ID, expected control revision:u64, reason:u16 |
+| 10 AttemptDisposition / 5 | claim Ref, expected control revision:u64, disposition:u8 (1 indeterminate/2 reject-stop), reason:u16 |
+
+Reason registry: 1 malformed, 2 unsupported, 3 identity mismatch, 4 stale version, 5 expired, 6 revoked, 7 already used, 8 approval unavailable, 9 evidence invalid, 10 outcome uncertain, 11 missing recovery policy, 12 operator revocation, 13 custody request denied (pending Option A). The stage must match the emitting producer's role; arbitrary producer/stage combinations are invalid. Input rejection containing no usable IDs still has its own runtime-owned event identity and input digest; raw rejected input is not persisted. For authorization decision 1, capability ID is nonzero, use limit=1 and expiry must exceed recorded authorization time. Decisions 2/3 use zero capability/expiry/use limit and grant nothing. The Phase 2 deterministic NoOp policy registry has version 1 only; unknown or changed policy versions reject rather than silently reinterpreting history. No approval-required proposal can receive permit in Phase 2; the approval-binding positive path belongs to Phase 3. This is a scoped rejection proof, not a claim of a working human approval flow.
+
+Hash domains below are their exact ASCII bytes including the final zero byte; concatenation is byte concatenation:
+
+- `event_digest = SHA256("warband.event.v1\0" || body)`.
+- `new_head = SHA256("warband.link.v1\0" || store[16] || epoch:u64 || sequence:u64 || previous_head[32] || event_digest[32])`.
+- `proposal_fingerprint = SHA256("warband.proposal.v1\0" || canonical ProposalRecorded payload)`. The payload binds task/run, expected state, exact no-op shape, policy, criterion, recovery and approval requirement. No proposal-selected criterion weakens NoOpV1.
+- `request_digest = SHA256("warband.request.v1\0" || complete request bytes)`.
+
+#### Custody frames, head and request framing
+
+Custody history uses a separate ordinal:u64 starting at 1 and never resetting across epochs. Each frame starts with `WBCH || version:u16=1 || type:u8 || payload_length:u32 || ordinal:u64 || previous_record_hash[32]` (51 bytes), followed by `header_hash[32]`, payload, then `record_hash[32]`. Types are 1 PENDING, 2 COMMITTED, 3 GENESIS, 4 EPOCH, and proposed 5 REJECTION under pending Option A below. Maximum payload is 65536 bytes; maximum frame is 65651 bytes. First previous-record hash is zero. Header hash is SHA256 of `"warband.custody.header.v1\0" || first 51 bytes`; record hash is SHA256 of `"warband.custody.record.v1\0" || header including header_hash || payload`. The record hash is also the frame checksum and receipt. A bad complete header/hash/link is corruption, never a truncation repair. A final incomplete header is repairable only if all present fixed fields are consistent; an invalid prefix is a fault. A valid complete header with insufficient final payload/checksum is a truncated final frame, subject to the recovery table's head-consistency rule. No scan-forward resynchronization is allowed.
+
+PENDING/COMMITTED payload is the exact 136-byte tuple: `store[16], epoch:u64, prev_seq:u64, prev_head[32], new_seq:u64, new_head[32], event_digest[32]`. COMMITTED must match the outstanding PENDING, including its epoch. Exact replay returns the original record-hash receipt. A later pending pledge does not invalidate the latest committed request's replay receipt or allow that replay to clear the later pledge.
+
+GENESIS payload is the enrollment payload defined below. EPOCH payload is the epoch-change payload below. A materialized head is `WBHD || version:u16=1 || committed Ref || head[32] || committed_record_hash[32] || checksum[32]`; checksum is SHA256 of `"warband.head.v1\0" || all preceding head-file bytes`. Size is 134 bytes. The GENESIS/EPOCH record supplies sequence 0 until the first event is confirmed.
+
+A socket request is `WBCR || version:u16=1 || operation:u8 || payload_length:u32 || payload`, maximum payload 65536. Operations: 1 prepare and 2 confirm carry the tuple; 3 verify carries store[16]/epoch:u64/after_custody_ordinal:u64 under pending Option A; 4 enroll and 5 epoch_change are administrative only and carry the payloads below. Requests are length-delimited; EOF, excess bytes, unsupported versions and unknown operations reject without checkpoint or pledge mutation; pending Option A records only denial metadata. An application reply is `WBRS || version:u16=1 || operation:u8 || status:u16 || payload_length:u32 || payload`. Its fixed payload is request digest[32], receipt[32] (the durable REJECTION record hash under pending Option A; zero if no durable receipt exists), committed Ref, head[32], pending tag:u8 (0/1), followed by the pending tuple only for tag 1. Under pending Option A, append custody_tip_ordinal:u64 and rejection_present:u8 (0/1), followed by exactly one complete 203-byte REJECTION frame only for tag 1. A successful authenticated verify returns the earliest REJECTION after the supplied cursor through the reported custody tip, or tag 0 if none; this is a single-receipt read, never a batch. Other operations use tag 0. An unauthenticated denial reveals no committed Ref/head or pending tuple (zero/absent fields). Replies never contain raw prompts, paths, authentication secrets, bearer credentials or generic error text; the specified peer metadata is returned only through authenticated verification.
+
+Status registry is 0 READY; 1 PENDING_EVENT_MISSING; 2 PENDING_CONFIRMATION; 3 HEAD_PUBLICATION_PENDING; 4 ATTESTATION_UNCERTAIN; 5 CONFIRMED_RESPONSE_PENDING; 6 TORN_FINAL_RECORD; 7 UNATTESTED_TAIL; 8 INTEGRITY_FAULT; 9 CHECKPOINT_INCONSISTENT; 10 ATTESTATION_HISTORY_FAULT; 11 CHECKPOINT_MISSING; 12 STORE_IDENTITY_MISMATCH; 13 EPOCH_MISMATCH; 14 CHECKPOINT_STORAGE_FAULT; 15 CUSTODIAN_AUTH_FAULT; 16 CHECKPOINT_CONFLICT; 17 CUSTODY_BOUNDARY_FAULT; 18 MALFORMED; 19 UNSUPPORTED. A successful prepare/confirm returns READY for that operation, but prepare does not advance the committed head or clear the runtime pending-work gate. For an unestablished committed head, Ref/head are all zero and only fault/admin replies are valid. Permission is determined by authenticated endpoint identity, never operation bytes alone.
+
+**Migration:** v1 rejects unknown versions rather than attempting another parser. No in-place rewrite of events or custody history. A later migration needs a new reviewed schema/ADR, a verified source snapshot and explicit operator authorization, retaining original bytes and full event identities. Phase 1's fixture stays unchanged. [Golden vectors](../verification/adr0005-golden-vectors.json) are specification data, not a runtime codec or passing runtime test.
+
+**Alternative:** Generic maps/canonical JSON and extensible payloads. **Consequence:** Fixed binary schemas reduce interpretation choices but make changes explicit migrations. Numeric limits are v1 bounds, not performance claims.
+
+### 3. Enrollment and epoch transitions
+
+**Decision:** Enrollment is an out-of-band operator action against an empty event store with no prior custody enrollment. Its payload is `store[16] || epoch:u64=1 || authorization_id[16] || reason:text`; reason is nonempty. Genesis head is SHA256 of `"warband.genesis.v1\0" || enrollment payload`. Runtime credentials cannot enroll, replace a missing checkpoint or manufacture an operator authorization. The custodian records the authenticated operator UID and complete authorization payload in a durable administrative receipt; UID is u64 in the GENESIS/EPOCH history payload suffix. The genesis head hashes only the enrollment payload before that UID suffix. The operator UID is custody evidence, not an untrusted request field.
+
+Epoch-change request payload is `old Ref || old_head[32] || new_epoch:u64 || new_seq:u64=0 || new_head[32] || authorization_id[16] || reason:text || unresolved_pending_record_hash[32]` (zero only if none). New epoch is exactly old epoch+1. New head must equal SHA256 of `"warband.epoch.v1\0" || old Ref || old_head || new_epoch:u64 || authorization_id || reason:text || unresolved_pending_record_hash`). Custodian history appends the request payload plus the authenticated UID:u64. Authorization IDs are unique for the store's complete custody history; exact replay of the latest successful administrative request returns its receipt, changed/reused authorization rejects. Preserve the previous epoch and pledge; do not append an automatic cancellation.
+
+Operator quiesces both writers, preserves the old SQLite files/WAL and custody metadata, and starts an empty new epoch segment after investigation. No tasks, capabilities or accepted facts are silently carried from an untrusted segment. The new epoch is a separate task namespace, not an assertion that old authoritative facts were rolled back or became empty. Old tasks remain quarantined/integrity-unknown until their history is reconciled; only the runtime state boundary can establish new task facts. Retained epoch segments remain one logical event history, not independent authoritative ledgers. Epoch administration may remain interrupted/faulted until the operator completes installation and comparison; there is no automatic cross-store administrative transaction or runtime repair. A corrupt custody history cannot supply a trustworthy old head: stop for investigation, rather than allow epoch_change to invent one. Operator recovery does not declare missing work complete.
+
+**Alternatives:** Owner-signed epoch requests provide transport-independent, reviewable authorization, but require protected key custody, rotation, revocation and replay handling; they are not selected for the current out-of-band local operator path. Automatic enrollment/reset from SQLite contents is rejected because it would let the rewriteable store establish its own trust anchor. **Consequence:** Local operator intervention avoids adding key management in Phase 2, while manual recovery remains an accepted availability cost.
+
+### 4. Versions and acceptance table
+
+**Decision:** Task version starts at 1 with TaskCreated and advances only on TransitionAccepted. Control revision is per task/run, starts at 0, and advances on grant, consumption, revocation, accepted transition or an attempt disposition. Attempt identity is immutable, distinct from both counters. All task/control/attempt lookups are scoped by store and epoch. A SQL acceptance transaction checks expected task/control values, current grant/consumption/revocation state, reference closure and uniqueness, and appends the event plus derived indexes atomically. Indexes are reconstructible; they are not a second authoritative ledger. Reads expose only the custodian-confirmed prefix.
+
+| Event | Preconditions | Task/control change | Evidence | Unique key in addition to full event Ref |
+|---|---|---|---|---|
+| TaskCreated | New nonzero task/run/command; registered input producer | task=1, control=0 | Inline evidence ID + SHA256 of `"warband.task.v1\0" || task ID || run ID || command ID`; producing event is this event | task/run and command |
+| ProposalRecorded | Existing incomplete task/run; matching expected version; exact NoOp shape | None | Canonical input and derived proposal fingerprint | proposal ID |
+| AuthorizationRecorded permit | Current proposal/policy; recovery=stop; no approval required; matching control; unused capability ID | control+1 | Producer-2 deterministic decision over recorded proposal; inline evidence ID, producing event is this event | capability ID and proposal authorization |
+| AuthorizationRecorded reject/require approval | Recorded proposal; no capability grant | None | Recorded decision and proposal reference | event Ref |
+| DispatchClaimed | Permit; current task/control/policy; runtime claim time before expiry; not revoked/used; all proposal bindings match | control+1, consume one use | Authorization event and runtime-generated claim binding | capability use and attempt ID |
+| ObservationRecorded | Existing confirmed claim; registered observer; matching attempt; one observation | None | Exact bounded observed bytes or explicit indeterminate outcome | attempt observation and evidence ID |
+| EvaluationRecorded | Existing confirmed observation; registered evaluator; recomputed observation digest; same claim/criterion | None | Observation Ref/digest and evaluator verdict | observation evaluation and evidence ID |
+| TransitionAccepted | Verified NoOpV1 evaluation; same claim; matching task/control; capability consumed by that claim and not revoked; current recorded policy version | task+1, control+1 | Evaluation -> observation -> claim -> authorization -> proposal chain | transition ID and accepted attempt |
+| RejectionRecorded | Known stage/reason; registered producer; valid optional reference | None | Rejected-input digest; no raw secret-bearing input | event Ref |
+| CapabilityRevoked | Existing grant, matching capability and control; not already revoked | control+1 | Registered policy producer's recorded operator/policy revocation reason | capability revocation |
+| AttemptDisposition | Existing claim; matching control; no accepted transition | control+1 | Producing claim plus recorded recovery reason | attempt terminal disposition |
+
+All uniqueness keys above include store/epoch. The same permit is not reissued as another grant after a claim. A recovery retry needs a newly authorized proposal/attempt after operator reconciliation, not resurrection of a consumed lease. Completion acceptance rejects any indeterminate disposition; completing a previously stopped attempt is not an automatic recovery rule. A duplicate accepted attempt returns the recorded result only if the complete binding agrees; it does not create another event or execute again. Concurrent acceptors serialize and still encounter the same SQL constraints. Replay derives these changes from validated recorded inputs without today's policy or clock.
+
+**Alternative:** One counter for audit, task and control. **Consequence:** Rejected because a consumption event could invalidate its own result or allow unrelated state drift. Separate counters add explicit checks but keep each meaning stable.
+
+### 5. Observer and evaluator trust
+
+**Decision:** Producer registry v1: 1 runtime input normalizer, 2 deterministic policy/capability authority, 3 no-op observer, 4 NoOpV1 evaluator, 5 state/recovery boundary; each has version 1. Registration is compiled/reviewed configuration, not a caller-selected producer string. Persisted kind/producer pair and version must match the registry. Producer IDs are role identities, not OS credentials or cryptographic attestation.
+
+Observer content is exactly the ObservationRecorded schema above, bound through its claim Ref to the full attempt/proposal/task/run/capability identity. A returned observation is produced only after the no-op returns; an interrupted/lost attempt is indeterminate. NoOpV1 evaluator independently recomputes the observation event digest and checks the confirmed reference chain, producer/version, outcome=returned, observed bytes=`NOOP`, criterion=1 and runtime-owned proposal criteria. It emits its own evidence identity/verdict. The state boundary alone applies acceptance rules; neither producer 3 nor 4 has a state-write API. An unknown or substituted producer, cross-attempt evidence or model success text cannot become a verified result.
+
+These are separate modules/procedures in the same runtime process. Independence here is deterministic evaluation separate from proposal/executor claims, not process-compromise resistance. A compromised trusted process can fabricate its own inputs; OS/kernel/root compromise is outside this Phase 2 guarantee. Later worker isolation and real observation sources need separate reviews. Phase 2 rejects approval-required requests; valid human approval integration remains Phase 3 work.
+
+**Alternative:** One producer's success boolean, or separate evaluator services immediately. **Consequence:** The boolean cannot establish independent evidence; extra services add identity/transport work before the no-op boundary is proven. Select separate responsibilities without claiming process isolation.
+
+### 6. Proposed Phase 2 effect qualification
+
+**Decision candidate:** The following names are the complete proposed eligible High list for Phase 2. They are not implemented. This separately reviewed qualification takes effect only after operator acceptance and recorded implementation entry. It does not amend or inherit ADR-0007's Phase 1 list. E means direct/transitive effects; all Mid and pure Low remain transitively pure; Low never calls upward. A procedure not listed has no new permission. No generic dispatcher, callbacks, registry of executable commands or effect interpreter is introduced.
+
+| Eligible High E, planned location | Responsibility | Related High | Pure Mid decisions | Direct reviewed Low dependencies / effects |
+|---|---|---|---|---|
+| `cmd/warband:main` | Coordinate selected CLI command | `run_noop` | `parse_command`, `describe_command` | `read_arguments`, `write_result`, `exit_with_status` |
+| `cmd/warband:run_noop` | Coordinate one task workflow under the writer gate | `reconcile_custody_audit`, `record_noop_authorization`, `perform_noop_attempt`, `record_noop_acceptance` | `describe_noop_result` | `acquire_writer_lock`, `release_writer_lock` |
+| `src/runtime:record_noop_authorization` | Record task, normalized proposal and policy grant/rejection | `append_verified_event` | `decide_task_creation`, `normalize_noop`, `decide_authorization` | `read_confirmed_state`, `observe_time`, `generate_identity` |
+| `src/runtime:perform_noop_attempt` | Record the claim and its bounded observation | `append_verified_event` | `decide_claim`, `describe_observation` | `read_confirmed_state`, `observe_time`, `generate_identity`, `invoke_noop_primitive` |
+| `src/state:record_noop_acceptance` | Record evaluation and eligible completion/rejection | `append_verified_event` | `decide_evaluation`, `decide_acceptance`, `describe_rejection` | `read_confirmed_state`, `generate_identity` |
+| `src/store:append_verified_event` | Coordinate one pledged event append | None | `validate_event_plan`, `validate_committed_event` | `send_prepare`, `sqlite_append_transaction`, `read_committed_bytes`, `send_confirm` |
+| `cmd/custodian:main` | Coordinate startup/shutdown | `recover_checkpoint`, `serve_loop` | `validate_configuration`, `validate_custody_paths` | `read_configuration`, `decode_configuration`, `acquire_custodian_lock`, `release_custodian_lock`, `open_socket`, `bind_socket`, `listen_socket`, `close_socket`, `inspect_path_metadata` |
+| `cmd/custodian:serve_loop` | Repeat one reviewed request workflow until shutdown | `serve_request` | `decide_service_continuation` | `observe_termination_request` |
+| `cmd/custodian:serve_request` | Coordinate one authenticated request | `prepare_checkpoint`, `confirm_checkpoint`, `enroll_checkpoint`, `change_epoch`, `recover_checkpoint`, `record_custody_rejection` | `classify_request`, `decide_peer_role`, `describe_reply` | `accept_connection`, `read_request_bytes`, `decode_request`, `read_peer_credentials`, `encode_reply`, `write_reply_bytes`, `close_connection`, `read_history_bytes`, `decode_history` |
+| `src/custody:prepare_checkpoint` | Persist one validated pledge | None | `decide_prepare`, `validate_link` | `read_history_bytes`, `decode_history`, `encode_pending_frame`, `append_history_frame`, `fsync_history` |
+| `src/custody:confirm_checkpoint` | Persist confirmation or return exact replay | `publish_head` | `decide_confirm` | `read_history_bytes`, `decode_history`, `encode_committed_frame`, `append_history_frame`, `fsync_history` |
+| `src/custody:publish_head` | Publish selected head bytes durably | None | None | `encode_head`, `create_head_temporary`, `write_head_bytes`, `fsync_head`, `rename_head`, `fsync_custody_directory` |
+| `src/custody:recover_checkpoint` | Apply permitted metadata recovery | `publish_head` | `classify_recovery`, `validate_custody_history`, `validate_head` | `read_history_bytes`, `read_head_bytes`, `decode_history`, `decode_head`, `truncate_final_frame`, `fsync_history` |
+| `src/custody:enroll_checkpoint` | Record authorized empty-store enrollment | `publish_head` | `decide_enrollment` | `inspect_empty_store`, `read_peer_credentials`, `encode_genesis_frame`, `append_history_frame`, `fsync_history` |
+| `src/custody:change_epoch` | Record separately authorized epoch transition | `publish_head` | `decide_epoch_change` | `read_history_bytes`, `decode_history`, `read_peer_credentials`, `encode_epoch_frame`, `append_history_frame`, `fsync_history` |
+| `src/custody:record_custody_rejection` | Persist a denied-request metadata receipt; pending Gate 1 | None | `describe_custody_rejection` | `read_peer_credentials`, `hash_rejected_prefix`, `encode_rejection_frame`, `append_history_frame`, `fsync_history` |
+| `src/runtime:reconcile_custody_audit` | Import verified receipts as audit-only events; pending Gate 1 | `append_verified_event` | `validate_custody_receipt`, `describe_custody_audit_event` | `send_verify`, `read_confirmed_state` |
+
+Each listed Low name denotes a narrow fixed technical operation, not a general callback or policy-bearing wrapper. Exact permitted callees are those in its row; related High calls are not an all-to-all permission. Pure `decide_*`, `validate_*`, normalization and description procedures call pure Low helpers only. Frame decoding checks representation and hashes, not eligibility policy; SQL constraints enforce the supplied plan rather than selecting a domain action. The three task subflows each expose a distinct durable responsibility; they are not forwarding wrappers. Public event/custody codecs are pure Mid decisions validating schema, identity and bounds over supplied values; they call pure Low packing, parsing and hashing primitives. Those technical primitives remain Low. No codec or reachable helper performs I/O, and the existing Phase 1 fixture classification is unchanged. Pure High may combine only pure Mid. The listed startup/loop procedures have no unlisted effects or imports. A future implementation must map every named operation to its concrete source procedure before review; renaming or splitting does not enlarge the allowed effect set. No unlisted startup exception is granted. All socket, SQLite and filesystem APIs stay behind reviewed Low adapters; no technical handles enter Mid.
+
+**Alternative:** General effectful Mid or unrestricted High-to-Low permission. **Consequence:** Rejected: universal Mid purity and bounded dependencies are preserved at the cost of maintaining an explicit graph. An implementation with additional startup/subflow procedures must return for a scoped graph update, not relabel the same violation.
+
+### 7. SQLite source and integration profile
+
+**Decision candidate:** Pin the official SQLite 3.54.1 amalgamation, not a system SQLite or prebuilt vendor library. [Release notes](https://www.sqlite.org/releaselog/3_54_1.html) identify the release/source; [the download page](https://www.sqlite.org/download.html) publishes its SHA3 digest. Review found a 32-bit heap-buffer-overflow fix plus other reported corrections relative to 3.54.0; this is release review, not a source audit or a claim that no vulnerabilities exist.
+
+| Input | Reviewed identity |
+|---|---|
+| Source URL | `https://www.sqlite.org/2026/sqlite-amalgamation-3540100.zip` |
+| Archive size | 2990966 bytes |
+| Archive SHA-256, independently computed | `0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9` |
+| Archive SHA3-256, matches upstream | `92281c86e2957f9b9305890f9ac04204caa7b677cc868dc326d942689df28e30` |
+| sqlite3.c SHA3-256, matches release notes | `e2b869d3003b33c942b7dd7063604fbc53553e1b66609570df39b9b7b558ee81` |
+| SQLITE_SOURCE_ID, verified in archive header | `2026-10-16 14:45:20 555e07ef33f69a0957d24d8e555b702464a131d6f1607f4c3c1e4551e8e6ca76` |
+
+The archive and source digests were independently checked against downloaded bytes; no SQLite code was compiled or executed in this documentation task. Future project-local static build: compile only sqlite3.c with the platform-pinned Clang C compiler, `-O2 -fPIC -DSQLITE_THREADSAFE=1 -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DQS=0`, and archive it as `.local/dependencies/sqlite/<source-id>/<target>/libsqlite3.a`. Record the complete compiler/version/flags, archive/object digests, target, compile options and final executable linkage. The proposed static archive is a new reviewed dependency; no runtime build is performed by this amendment. No host SQLite discovery or fallback. Keep the existing Odin/LLVM/runner pins unchanged. Check `sqlite3_libversion_number()==3054001`, exact `sqlite3_sourceid()` and required compile options at startup.
+
+Use a minimal reviewed Odin C-ABI binding to this explicit project-local archive, opaque sqlite3 handles only in Low, and prepared statements with bound values; no SQL from proposals. The pinned Odin source demonstrates `foreign import` and C calling conventions in [core/c/libc/stdlib.odin](https://github.com/odin-lang/Odin/blob/8b35c86efb78e9ab5223673a07e02fc2a6884191/core/c/libc/stdlib.odin#L5-L22). This verifies the available binding mechanism, not a working SQLite integration. A link/build check on Linux x64 and macOS ARM64 is still required before any compatibility claim; there is no existing Warband SQLite binding to reuse.
+
+On every writing connection, set and query `journal_mode=WAL`, `synchronous=FULL`, `foreign_keys=ON`; reject any different effective value. Disable extension loading; use no custom VFS, optional extensions or unsafe synchronization settings. Pin the SQLite schema version at 1 and verify schema/constraints at open. The [SQLite synchronous documentation](https://www.sqlite.org/pragma.html#pragma_synchronous) describes WAL/FULL durability assumptions. Linux fault evidence must identify the actual filesystem, VFS, VM disk/cache/flush profile and SQLite compile options. macOS is functional/encoding development evidence only; it supplies no durability or Linux peer-credential claim. Source retention and clean rebuild proof remain release obligations.
+
+**Alternative:** Independently pinned distribution libraries on each OS. **Consequence:** Project-local source adds a build/patch obligation but avoids changing library behavior under host upgrades. This pin is a proposed input to a later build-tooling PR, not an installed dependency in this task.
+
+### Option A: bounded durable custody rejection receipt — pending Gate 1
+
+**Operator decision:** Pending. This specification is prepared for Proto's Gate 1 selection; publishing it does not choose A, accept ADR-0005 or activate Phase 2. No receipt, custody process or importer is implemented by this design change. The selected same-VM, per-event, prepare/confirm and manual-reconciliation rules are unchanged.
+
+**Frame:** Type 5 REJECTION uses the existing v1 custody frame header/hash chain and a fixed 88-byte payload, in this exact order: configured store ID[16], custody epoch:u64, fault code:u16, captured-prefix length:u32, request-complete:u8, bounded-request digest[32], peer-observed:u8, kernel UID:u64, kernel GID:u64, kernel PID:u64. Thus its complete frame is 203 bytes. Epoch 0 denotes pre-enrollment custody metadata only, never a runtime event reference. Fault code is a non-READY value from the existing status registry (1–19). The store/epoch describe the custodian's actual context, not an identity asserted by the denied caller.
+
+The captured prefix is at most 65547 bytes (11-byte request header plus maximum payload); it may be empty when authentication rejects before request acquisition. Request-complete is 1 only for an exact fully observed bounded request, otherwise 0. Compute the digest as SHA256 of `"warband.custody.denial.v1\0" || captured_length:u32 || request_complete:u8 || captured_prefix`. Never claim this identifies unread bytes, read an unbounded request to complete a digest, or persist the raw prefix. Kernel credentials come only from the connected local socket. Peer-observed is 1 only when all UID/GID/PID values were obtained; otherwise it is 0 and all three fields are zero. A caller-supplied identity never fills these fields. PID is provenance, not authorization.
+
+**Persistence and acknowledgment:** Serialize the denial record with other custody history writes. Append one complete REJECTION and fsync the history (and initial directory entry if newly created) before returning a denial response claiming a durable receipt. Return its record hash as the receipt. Each observed denial is a new ordinal, not an idempotent success or an authorization. REJECTION participates in custody ordinal/hash validation but never moves the committed event head, publishes a head file, grants a capability, or replaces/clears a PENDING pledge. Existing prepare/confirm exact-replay receipts remain unchanged even if later denial records exist.
+
+If append, short-write completion or synchronization fails, enter `CHECKPOINT_STORAGE_FAULT`: do not claim durable denial, permit the request, advance state, or acknowledge protected progress. A best-effort nondurable fault reply has a zero receipt, then closes the connection; it is not an audit acknowledgment. Block further mutations until operator reconciliation establishes storage health and actual retained records. Do not recursively try to record storage failure on the same failed storage. Verification may expose the fault without claiming durability. A torn final REJECTION follows the same strict final-frame recovery rule as other custody frames; complete bad hashes or interior corruption remain `ATTESTATION_HISTORY_FAULT`.
+
+**One event history, no new authoritative ledger:** Custody rejection receipts are retained integrity/audit outbox metadata, not task facts or a second authoritative projection. The existing authenticated verify operation can return one receipt at a time using the cursor/reply fields above. A cursor beyond the returned tip rejects; a missing requested interval is not silently treated as imported. The runtime verifies the complete receipt, custody context/hash provenance and kernel-derived producer source before recording `RejectionRecorded`, producer 5, stage 7, reason 13, related reference absent, rejected-input digest=SHA256 of the complete REJECTION frame. That event is audit-only and changes no task/control version. The import identity `(store, custody ordinal, record hash)` is unique; a reconstructible index prevents duplicate audit events without creating another authority store. Raw requests and credentials beyond the specified peer metadata never enter event payloads.
+
+At startup and before a dispatch/publication gate, snapshot the custody tip and reconcile unimported receipts through that watermark into the single event history, using normal prepare/commit/confirm for each imported event. Later denials remain durably retained for the next reconciliation; no batch attestation is introduced. A stopped runtime leaves receipts retained, not silently discarded or represented as completed imports. Import failure withholds protected progress and requires the named recovery disposition. Pure replay uses supplied recorded events/verified custody data; it does not perform live receipt retrieval. Custody metadata never authorizes a state transition, and no receipt is automatically deleted after import. This specifies the handoff required by WB-CON-007 while preserving ADR-0003; end-to-end audit coverage still requires later implementation evidence.
+
+The two pending High procedures in the effect table are limited to these receipt operations. They gain no permission before Gate 1 selection, ADR acceptance and Phase 2 entry. They are outside the first three pure code slices in the current execution task. Owner-signed requests, remote custody, batching and new tools are not introduced.
