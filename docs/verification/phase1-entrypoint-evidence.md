@@ -97,4 +97,4 @@ The results above certify their cited implementation head. The v0.0.0 main basel
 
 ## Subsequent finding disposition candidate
 
-The [Phase 2 verification and findings review](phase2-verification-plan.md#phase-1-findings-disposition) rechecks the three entrypoint call paths against accepted E1 and records each as named release debt owned by Proto, blocking Phase 5 entry and v1 release until explicit owner closure. It recommends closure on structural evidence without changing this historical run record or inferring overall Phase 1 acceptance.
+The [Phase 2 verification and findings review](phase2-verification-plan.md#phase-1-findings-disposition) rechecks the three entrypoint call paths against accepted E1 and records each as named release debt owned by Proto, with Phase 5 entry as the binding closure deadline (and v1 blocked downstream), subject to the severity and independent-review rules before closure. It recommends closure on structural evidence without changing this historical run record or inferring overall Phase 1 acceptance.
