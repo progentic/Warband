@@ -29,3 +29,7 @@ WB-NEG-001 through WB-NEG-012 remain deferred runtime obligations. These additio
 WB-NEG-017/018 are exercised by the manifest controls and actual rejected platform/format/missing-runner invocations preserving prior evidence. The [candidate evidence](phase1-entrypoint-evidence.md) separates behavior from E1 structural review and formal acceptance. One bounded dependency control additionally injects impure Mid, raw High and upward Low calls; it does not claim runtime authority enforcement.
 
 Verification lives in `tests/governance/`, `tests/odin/negative/`, and the manifest runner. No capability, approval, persistence, worker, or audit acceptance exists in this phase.
+
+## Phase 2 verification candidate
+
+The [Phase 2 verification plan](phase2-verification-plan.md) maps the existing runtime IDs to concrete proof groups, costs and crash points. No runtime negative ID is marked implemented by this plan. Phase 2 approval-required rejection does not establish the positive CLI approval binding required in Phase 3; no-op evidence does not establish real-tool or network isolation.

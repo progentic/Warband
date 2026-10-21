@@ -66,7 +66,7 @@ After design authorization, evidence must bind the accepted store and checkpoint
 | Assign ADR-0005 owner | PASS: Proto, explicit owner direction on 2026-10-18 |
 | Select storage and custody direction | PASS: owner selected SQLite and separate same-VM custodian; implementation details remain unverified |
 | Resolve and accept ADR-0005 | BLOCKED: decisions listed above |
-| Close or explicitly assign structural release debt | BLOCKED: owner disposition not recorded |
+| Close or explicitly assign structural release debt | REVIEW PENDING: three named Proto-owned debts with Phase 5 entry/v1 blocking disposition in the verification plan; no automatic closure |
 | Align contracts and runtime effect boundaries | BLOCKED: depends on selected design |
 | Begin runtime implementation | BLOCKED: design acceptance and bounded authorization still required |
 
@@ -83,6 +83,10 @@ The revised pure Mid `phase_two_record_findings` requires the ADR, phase plan, e
 Test necessity: the changed phase decision would otherwise admit a Phase 2 declaration without its governing records, or reject every valid future Phase 2 manifest. Existing foundation controls cover neither case. The current owner clarification reviews this justification at the PR #11 review stage, after the three controls were already authored; no prior-to-addition review is recorded. This retrospective review does not demonstrate compliance with the prior-review timing rule. Future new tests require review before addition. Two governance controls exercise accepted/proposed/conflicting status and required-file removal; one inventory control exercises matching Phase 2, mismatched/unknown/boolean phases and duplicate keys. Cost is three small controls, standard library only. Fixture-only Accepted text does not modify or accept the real ADR. The original 22 controls remain, with unknown-phase rejection moved from the newly recognized 2 to 3; observed total is 25. New runtime verification remains a separate plan and authorization.
 
 Tooling candidate verification: documentation governance and all 25 Python controls pass. The revised runner also executed the unchanged two Odin packages/five named tests successfully with the pinned native macOS ARM64 compiler; fresh JSON reports are under `out/adr0005-tooling-tests/`. This verifies the runner regression, not Phase 2 runtime behavior.
+
+## Verification and finding-disposition candidate
+
+The [verification plan](../verification/phase2-verification-plan.md) defines required proof groups, crash checkpoints and implementation slices. Its source-based Phase 1 findings review records the permitted named-release-debt alternative; formal owner closure remains separate. All runtime verification remains unexecuted.
 
 ## Acceptance provenance gate
 
