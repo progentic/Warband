@@ -4,10 +4,10 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-PURE_IMPORTS = {'governance.py': {'dataclasses', 'enum'}, 'manifest_rules.py': {'dataclasses'}}
+PURE_IMPORTS = {'governance.py': {'dataclasses', 'enum', 're'}, 'manifest_rules.py': {'dataclasses'}}
 PURE_BUILTINS = {'tuple', 'frozenset', 'dict', 'set', 'sum', 'any', 'all', 'sorted', 'type', 'len'}
 PURE_LOW = {
-    'governance.py': {'matches_typed_member', 'starts_with', 'prefixed_lines'},
+    'governance.py': {'matches_typed_member', 'starts_with', 'prefixed_lines', 'matches_line_pattern'},
     'manifest_rules.py': {'includes_markers', 'contains_text', 'target_flags'},
 }
 RAW_HIGH_CALLS = {'open', 'print', 'exec', 'eval', '__import__', 'getattr', 'Path'}
@@ -39,6 +39,8 @@ class E1StructureControls(unittest.TestCase):
             assert_low_has_no_policy_call((ROOT / 'scripts' / name).read_text(), HIGH.get(name, set()), policies)
         with self.assertRaisesRegex(ValueError, 'impure call'):
             assert_pure_module('def decision(value):\n    print(value)\n', set())
+        with self.assertRaisesRegex(ValueError, 'impure module import'):
+            assert_pure_module('import os\n', {'re'})
         with self.assertRaisesRegex(ValueError, 'raw API'):
             assert_high_has_no_raw_api('def main():\n    path.read_text()\n', {'main'})
         with self.assertRaisesRegex(ValueError, 'upward call'):
@@ -52,14 +54,14 @@ def assert_pure_module(source, permitted_imports):
     local_names = {node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.ClassDef))}
     allowed = local_names | PURE_BUILTINS | {'dataclass', 'frozenset', 'ValueError'}
     for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
+        if isinstance(node, ast.Import) and any(alias.name not in permitted_imports for alias in node.names):
             raise ValueError('impure module import')
         if isinstance(node, ast.ImportFrom) and node.module not in permitted_imports:
             raise ValueError('impure module import')
         if isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name) and node.func.id not in allowed:
                 raise ValueError('impure call: ' + node.func.id)
-            if isinstance(node.func, ast.Attribute) and node.func.attr != 'startswith':
+            if isinstance(node.func, ast.Attribute) and node.func.attr not in {'startswith', 'fullmatch'}:
                 raise ValueError('impure call: ' + node.func.attr)
 
 
