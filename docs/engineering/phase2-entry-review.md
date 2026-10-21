@@ -65,7 +65,7 @@ After design authorization, evidence must bind the accepted store and checkpoint
 | Inspect merged phase plan and ADR-0005 | PASS at the reviewed baseline above |
 | Assign ADR-0005 owner | PASS: Proto, explicit owner direction on 2026-10-18 |
 | Select storage and custody direction | PASS: owner selected SQLite and separate same-VM custodian; implementation details remain unverified |
-| Resolve and accept ADR-0005 | BLOCKED on explicit operator acceptance: amended decisions, formats, pin and graph are drafted |
+| Resolve and accept ADR-0005 | BLOCKED on the denied-custodian-request audit decision and explicit operator acceptance; amended formats, pin and graph are drafted |
 | Close or explicitly assign structural release debt | REVIEW PENDING: three named Proto-owned debts with Phase 5 entry/v1 blocking disposition in the verification plan; no automatic closure |
 | Align contracts and runtime effect boundaries | REVIEW PENDING: aligned contract candidate and enumerated Phase 2 graph; no runtime permission active |
 | Begin runtime implementation | BLOCKED: design acceptance and bounded authorization still required |
@@ -89,3 +89,19 @@ Tooling candidate verification: documentation governance and all 25 Python contr
 The [verification plan](../verification/phase2-verification-plan.md) defines required proof groups, crash checkpoints and implementation slices. Its source-based Phase 1 findings review records the permitted named-release-debt alternative; formal owner closure remains separate. All runtime verification remains unexecuted.
 
 The [phase gate table](../governance/PHASE_PLAN.md#phase-26-review-and-exit-gate-table) stages the no-op implementation and later release boundaries. ADR-0005 acceptance, Phase 2 entry and future phase/release authorizations remain separate operator decisions.
+
+## Decision handoff
+
+| Item | Candidate decision | Alternative considered |
+|---|---|---|
+| Identity | Full store/epoch/sequence for references and uniqueness | Store/sequence with globally non-reusable sequences |
+| Bytes | Fixed versioned binary event/custody formats, explicit limits/domains, static independent vectors | Canonical JSON or generic map payloads |
+| Enrollment/epochs | Empty-store operator enrollment; exact bound epoch change, old evidence retained, missing pledge operator-only | Automatic enrollment/reset from SQLite, rejected |
+| Versions/acceptance | Separate task/control/attempt identities and atomic checked acceptance | One shared counter, rejected |
+| Evidence trust | Registered separate observation/evaluation/state responsibilities, same-process limitation | One success flag or extra services |
+| Effects | Separate enumerated Phase 2 High graph; universal pure Mid | Effectful Mid or blanket High-to-Low permission, rejected |
+| SQLite | Verified official 3.54.1 source/digests, future project-local static profile and WAL/FULL | Per-OS distribution libraries |
+
+The operator question on custody rejection audit metadata remains open in the ADR's acceptance-issue section. This is an actual WB-CON-007 coverage question, not a request for another blanket implementation approval. Resolve it before claiming the candidate is acceptance-ready. After that, operator acceptance, protected integration and explicit Phase 2 entry remain distinct decisions. Future operations/security/release owner assignments and production-target selection are deferred to their named phase gates, not guessed here.
+
+Review order is Draft PR #10 decisions, #11 tooling, #12 contracts, #13 verification/findings, #14 roadmap. Each PR targets the preceding concern branch (the first targets main), so its diff is isolated; none is merged by this task. Local documentation governance and governance controls ran before every commit, including stack-update merges. Final hosted check results must be bound to each actual head SHA in the handoff rather than inherited from an earlier passing run.
