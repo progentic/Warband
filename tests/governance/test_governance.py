@@ -47,13 +47,46 @@ class GovernanceTests(unittest.TestCase):
         self.assertEqual(self.codes(), set())
 
     def test_invalid_phase_values_fail_closed(self):
-        for value in (2, -1, True, 1.0, '1', None):
+        for value in (3, -1, True, 1.0, '1', None):
             with self.subTest(value=value):
                 self.declare_phase(value)
                 self.assertIn('invalid_phase', self.codes())
         for text in ('{', '{"phase":0,"phase":1}', '{"phase":1,"bypass":true}'):
             (self.root / 'project.json').write_text(text)
             self.assertIn('invalid_phase', self.codes())
+
+    def test_phase_two_requires_accepted_decision(self):
+        decision = self.root / 'docs/decisions/0005-event-integrity-acceptance-and-recovery.md'
+        # Fixture state is independent of the live ADR's future acceptance.
+        original = '\n'.join(line for line in decision.read_text().splitlines()
+                             if not line.startswith(('- **Acceptance authority:** ',
+                                                     '- **Acceptance record:** ',
+                                                     '- **Accepted source:** '))) + '\n'
+        original = original.replace('- **Status:** Accepted', '- **Status:** Proposed', 1)
+        decision.write_text(original)
+        self.declare_phase(2)
+        self.assertIn('unaccepted_phase_decision', self.codes())
+        decision.write_text(original + '\n- **Status:** Accepted\n')
+        self.assertIn('unaccepted_phase_decision', self.codes())
+        accepted = original.replace('- **Status:** Proposed', '- **Status:** Accepted', 1)
+        decision.write_text(accepted)
+        self.assertIn('missing_acceptance_provenance', self.codes())
+        # Synthetic references exercise format checks, not real operator approval.
+        record = ('- **Acceptance authority:** Proto (project owner)\n'
+                  '- **Acceptance record:** https://github.com/progentic/Warband/commit/' + 'a' * 40 + '\n'
+                  '- **Accepted source:** ' + 'b' * 40 + '\n')
+        decision.write_text(accepted + '\n' + record)
+        self.assertEqual(self.codes(), set())
+        for line in record.splitlines():
+            decision.write_text(accepted + '\n' + record.replace(line + '\n', ''))
+            self.assertIn('missing_acceptance_provenance', self.codes())
+        decision.write_text(accepted + '\n' + record.replace('a' * 40, 'pending'))
+        self.assertIn('missing_acceptance_provenance', self.codes())
+
+    def test_phase_two_cannot_bypass_governing_records(self):
+        self.declare_phase(2)
+        (self.root / 'docs/governance/PHASE_PLAN.md').unlink()
+        self.assertIn('missing_required_file', self.codes())
 
     def test_missing_phase_fails(self):
         (self.root / 'project.json').unlink()

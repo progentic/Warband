@@ -52,17 +52,21 @@ P means no external effects in the full reachable call path; E means direct or t
 
 | Layer / effects | Function name | Responsibility | Calls | Allowed to call |
 |---|---|---|---|---|
-| High P | `validate_inventory` | Combine governance rule findings | `contract_findings`, `guidance_findings`, `link_findings`, `phase_findings`, `required_findings`, `symlink_findings`, `traceability_findings` | Pure Mid only |
+| High P | `validate_inventory` | Combine governance rule findings | `contract_findings`, `guidance_findings`, `link_findings`, `phase_findings`, `phase_two_record_findings`, `phase_two_acceptance_findings`, `required_findings`, `symlink_findings`, `traceability_findings` | Pure Mid only |
 | Mid P | `assemble_inventory` | Construct supplied-value inventory | `Inventory` | Pure Low only |
 | Mid P | `describe_validation` | Select findings/message/status | `DocumentationResult` | Pure Low only |
 | Mid P | `required_findings` | Require declared files | `Finding`, `tuple` | Pure Low only |
 | Mid P | `phase_findings` | Enforce declared phase | `Finding`, `matches_typed_member`, `tuple` | Pure Low only |
+| Mid P | `phase_two_record_findings` | Require Phase 2 records and unambiguous Accepted status | `Finding`, `prefixed_lines`, `tuple` | Pure Low only |
+| Mid P | `phase_two_acceptance_findings` | Require named acceptance authority and provenance references | `Finding`, `matches_line_pattern`, `tuple` | Pure Low only |
 | Mid P | `guidance_findings` | Check guidance constraints | `Finding`, `any`, `sum`, `tuple` | Pure Low only |
 | Mid P | `contract_findings` | Require contract sections | `Finding`, `starts_with`, `tuple` | Pure Low only |
 | Mid P | `link_findings` | Reject escaped/missing links | `Finding`, `tuple` | Pure Low only |
 | Mid P | `traceability_findings` | Compare invariant identifiers | `Finding`, `sorted`, `tuple` | Pure Low only |
 | Mid P | `symlink_findings` | Reject observed symlinks | `Finding`, `tuple` | Pure Low only |
 | Low P | `matches_typed_member` | Check exact typed membership | `type` | Low / technical APIs; no upward calls or policy |
+| Low P | `prefixed_lines` | Extract supplied lines with a literal prefix | `str.startswith`, `tuple` | Pure primitives only |
+| Low P | `matches_line_pattern` | Match one supplied prefixed line to a supplied grammar | `prefixed_lines`, `re.fullmatch`, `len` | Pure Low / representation primitives only |
 | Low P | `starts_with` | Compare string prefix | `text.startswith` | Low / technical APIs; no upward calls or policy |
 
 ### `scripts/build_manifest.py`

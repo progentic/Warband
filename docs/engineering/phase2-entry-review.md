@@ -71,3 +71,31 @@ After design authorization, evidence must bind the accepted store and checkpoint
 | Begin runtime implementation | BLOCKED: design acceptance and bounded authorization still required |
 
 Foundation obligations whose blocking gate is Phase 5 remain tracked in the phase plan. They are not silently promoted to Phase 2 blockers or treated as complete here.
+
+## Staged governance tooling
+
+The tooling candidate recognizes Phase 2 without declaring entry: project and Odin test manifest remain at Phase 1. The previous runner required phase 1 in [read_manifest, baseline lines 33–37](https://github.com/progentic/Warband/blob/3cbfd55b9157058cbd72dfcc6e14a59080925681/scripts/run_odin_tests.py#L33-L37); governance allowed only 0/1 in [baseline lines 28–31](https://github.com/progentic/Warband/blob/3cbfd55b9157058cbd72dfcc6e14a59080925681/scripts/governance.py#L28-L31).
+
+The revised pure Mid `phase_two_record_findings` requires the ADR, phase plan, entry review, coding standard, dependency rules and trust/threat records, in addition to existing contracts. ADR-0005 must have only the recognized Accepted status line plus the named acceptance authority, decision-commit reference and accepted-source SHA described below; a Proposed document with an appended Accepted marker does not pass. These are bounded content/format checks, not proof of operator identity, commit existence, ancestry or a separate decision. They cannot replace operator review or prove every entry gate. Missing/symlinked documents and malformed/unknown project phases remain rejected. Test manifest phase must be a known test phase matching the exact integer project phase; duplicate JSON keys remain rejected. Package/name/count/report discovery is unchanged.
+
+`read_manifest` remains Low technical JSON representation acquisition/consistency checking, using Low `read_phase`/`unique_object`; it grants no runtime authority or ADR acceptance. The [existing procedure review](phase1-effect-composition-review.md) includes the new pure governance rule and prefix extraction helper. No Phase 1 E1 effect permission or runtime code is added.
+
+Test necessity: the changed phase decision would otherwise admit a Phase 2 declaration without its governing records, or reject every valid future Phase 2 manifest. Existing foundation controls cover neither case. The current owner clarification reviews this justification at the PR #11 review stage, after the three controls were already authored; no prior-to-addition review is recorded. This retrospective review does not demonstrate compliance with the prior-review timing rule. Future new tests require review before addition. Two governance controls exercise accepted/proposed/conflicting status and required-file removal; one inventory control exercises matching Phase 2, mismatched/unknown/boolean phases and duplicate keys. Cost is three small controls, standard library only. Fixture-only Accepted text does not modify or accept the real ADR. The original 22 controls remain, with unknown-phase rejection moved from the newly recognized 2 to 3; observed total is 25. New runtime verification remains a separate plan and authorization.
+
+Tooling candidate verification: documentation governance and all 25 Python controls pass. The revised runner also executed the unchanged two Odin packages/five named tests successfully with the pinned native macOS ARM64 compiler; fresh JSON reports are under `out/adr0005-tooling-tests/`. This verifies the runner regression, not Phase 2 runtime behavior.
+
+## Acceptance provenance gate
+
+A future Accepted ADR-0005 must name all three fields, each exactly once in the recognized line grammar:
+
+```text
+- **Acceptance authority:** Proto (project owner)
+- **Acceptance record:** https://github.com/progentic/Warband/commit/<40 lowercase hex characters>
+- **Accepted source:** <40 lowercase hex characters>
+```
+
+The record must be an explicit named operator decision, not a passing run, this draft PR or a commit that only changes a status label. It must identify the reviewed source, decision and authority. Before opening the Phase 2 activation PR, the operator must verify the referenced decision commit is already in protected main, applies to that exact accepted source, and authorizes acceptance separately from implementation entry. The phase activation PR cites that record; it must not manufacture acceptance and phase entry together.
+
+The pure gate rejects missing/malformed references or an absent authority line. It does not query GitHub, prove who made a decision or verify the referenced commit's content/ancestry. A same-PR fabricated reference could still satisfy syntax; human review against protected history remains mandatory. No real acceptance reference is filled in while the ADR is Proposed. Fixture-only synthetic references exercise parsing, not approval.
+
+Test necessity for this correction is concrete: a status-only phase change passed the previous gate, while the stated process required provenance. The existing accepted-decision control now rejects status-only, missing-field and malformed-reference cases; no new test or quota is added (25 total). Its necessity is specified here for this requested correction. The bounded structural control permits only the added pure regex primitive/import and still rejects an injected `os` import, effects and upward dependencies. No phase declaration, runtime code or workflow changes.

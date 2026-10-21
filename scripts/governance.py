@@ -1,6 +1,7 @@
 """Pure documentation rules; no filesystem or process access."""
 from dataclasses import dataclass
 from enum import StrEnum
+import re
 
 PHASE_DECLARATION = 'project.json'
 ROOT_GUIDANCE = 'AGENTS.md'
@@ -28,7 +29,23 @@ CONTRACT_HEADINGS = (
 RUNTIME_DIRECTORIES = frozenset(('src', 'cmd'))
 DOCUMENTATION_PHASE = 0
 FOUNDATION_PHASE = 1
-ALLOWED_PHASES = (DOCUMENTATION_PHASE, FOUNDATION_PHASE)
+AUTHORITY_PHASE = 2
+ALLOWED_PHASES = (DOCUMENTATION_PHASE, FOUNDATION_PHASE, AUTHORITY_PHASE)
+PHASE_TWO_ADR = 'docs/decisions/0005-event-integrity-acceptance-and-recovery.md'
+PHASE_TWO_RECORDS = (
+    PHASE_TWO_ADR, 'docs/governance/PHASE_PLAN.md',
+    'docs/engineering/phase2-entry-review.md',
+    'docs/engineering/coding-standard.md',
+    'docs/architecture/dependency-rules.md', 'docs/security/threat-model.md',
+    'docs/security/trust-model.md',
+)
+ACCEPTED_DECISION_LINE = '- **Status:** Accepted'
+DECISION_STATUS_PREFIX = '- **Status:** '
+ACCEPTANCE_LINES = (
+    ('- **Acceptance authority:** ', r'- \*\*Acceptance authority:\*\* Proto \(project owner\)'),
+    ('- **Acceptance record:** ', r'- \*\*Acceptance record:\*\* https://github\.com/progentic/Warband/commit/[0-9a-f]{40}'),
+    ('- **Accepted source:** ', r'- \*\*Accepted source:\*\* [0-9a-f]{40}'),
+)
 GUIDANCE_FILES = (ROOT_GUIDANCE, DOC_GUIDANCE)
 CONTRACT_ROOT = 'docs/contracts/'
 CONTRACT_INDEX = 'docs/contracts/README.md'
@@ -45,6 +62,8 @@ EMPTY_MESSAGE = ''
 class FindingCode(StrEnum):
     MISSING_REQUIRED = 'missing_required_file'
     INVALID_PHASE = 'invalid_phase'
+    UNACCEPTED_DECISION = 'unaccepted_phase_decision'
+    ACCEPTANCE_PROVENANCE = 'missing_acceptance_provenance'
     PREMATURE_RUNTIME = 'premature_runtime'
     OVERRIDE = 'unexpected_override'
     GUIDANCE_SIZE = 'guidance_size_limit'
@@ -111,7 +130,8 @@ def validate_inventory(inventory: Inventory) -> tuple[Finding, ...]:
     return (required_findings(inventory) + phase_findings(inventory)
             + guidance_findings(inventory) + contract_findings(inventory)
             + link_findings(inventory) + traceability_findings(inventory)
-            + symlink_findings(inventory))
+            + symlink_findings(inventory) + phase_two_record_findings(inventory)
+            + phase_two_acceptance_findings(inventory))
 
 
 def assemble_inventory(catalog: FileCatalog, documents, links, phase) -> Inventory:
@@ -137,6 +157,27 @@ def phase_findings(inventory: Inventory) -> tuple[Finding, ...]:
         return tuple(Finding(FindingCode.PREMATURE_RUNTIME, path)
                      for path in RUNTIME_DIRECTORIES & inventory.directories)
     return ()
+
+
+def phase_two_record_findings(inventory: Inventory) -> tuple[Finding, ...]:
+    if inventory.phase != AUTHORITY_PHASE:
+        return ()
+    missing = tuple(Finding(FindingCode.MISSING_REQUIRED, path)
+                    for path in PHASE_TWO_RECORDS if path not in inventory.files)
+    decisions = tuple(d for d in inventory.documents if d.path == PHASE_TWO_ADR)
+    unaccepted = tuple(Finding(FindingCode.UNACCEPTED_DECISION, d.path)
+                       for d in decisions if prefixed_lines(d.headings, DECISION_STATUS_PREFIX)
+                       != (ACCEPTED_DECISION_LINE,))
+    return missing + unaccepted
+
+
+def phase_two_acceptance_findings(inventory: Inventory) -> tuple[Finding, ...]:
+    if inventory.phase != AUTHORITY_PHASE:
+        return ()
+    return tuple(Finding(FindingCode.ACCEPTANCE_PROVENANCE, d.path, prefix)
+                 for d in inventory.documents if d.path == PHASE_TWO_ADR
+                 for prefix, pattern in ACCEPTANCE_LINES
+                 if not matches_line_pattern(d.headings, prefix, pattern))
 
 
 def guidance_findings(inventory: Inventory) -> tuple[Finding, ...]:
@@ -182,6 +223,17 @@ def symlink_findings(inventory: Inventory) -> tuple[Finding, ...]:
 
 def matches_typed_member(value, expected_type, members) -> bool:
     return type(value) is expected_type and value in members
+
+
+def matches_line_pattern(lines, prefix, pattern) -> bool:
+    values = prefixed_lines(lines, prefix)
+    if len(values) != 1:
+        return False
+    return re.fullmatch(pattern, values[0]) is not None
+
+
+def prefixed_lines(lines, prefix) -> tuple[str, ...]:
+    return tuple(line for line in lines if line.startswith(prefix))
 
 
 def starts_with(text: str, prefix: str) -> bool:

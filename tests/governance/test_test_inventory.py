@@ -1,6 +1,8 @@
 """Controls prove that omission and falsely green reports fail verification."""
 from pathlib import Path
+import json
 import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,6 +18,22 @@ class TestInventoryControls(unittest.TestCase):
 
     def test_current_manifest_matches_source_inventory(self):
         validate_packages(self.declared, self.discovered)
+
+    def test_manifest_requires_matching_known_project_phase(self):
+        with tempfile.TemporaryDirectory(dir=ROOT / '.local') as directory:
+            project = Path(directory) / 'project.json'
+            manifest = Path(directory) / 'packages.json'
+            project.write_text('{"phase":2}')
+            value = json.loads((ROOT / 'tests/odin-packages.json').read_text())
+            manifest.write_text(json.dumps(dict(value, phase=2)))
+            self.assertEqual(read_manifest(manifest, project), self.declared)
+            for phase in (1, 3, True):
+                manifest.write_text(json.dumps(dict(value, phase=phase)))
+                with self.subTest(phase=phase), self.assertRaises(ValueError):
+                    read_manifest(manifest, project)
+            manifest.write_text('{"phase":2,"phase":2,"packages":[]}')
+            with self.assertRaisesRegex(ValueError, 'duplicate'):
+                read_manifest(manifest, project)
 
     def test_omitting_required_package_fails(self):
         with self.assertRaisesRegex(ValueError, 'differs'):

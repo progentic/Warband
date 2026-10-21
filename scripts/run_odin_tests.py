@@ -8,9 +8,11 @@ import re
 import subprocess
 
 from test_inventory import TestPackage, validate_packages, validate_report
+from document_io import read_phase, unique_object
 
 ROOT = Path(__file__).resolve().parents[1]
 TEST_PATTERN = re.compile(r'@\(test\)\s*([a-zA-Z_][a-zA-Z_0-9]*)\s*::\s*proc\s*\(')
+TEST_PHASES = (1, 2)
 
 
 def main():
@@ -30,10 +32,15 @@ def arguments():
     return parser.parse_args()
 
 
-def read_manifest(path: Path):
-    value = json.loads(path.read_text())
-    if type(value.get('phase')) is not int or value['phase'] != 1:
-        raise ValueError('test manifest must declare Phase 1')
+def read_manifest(path: Path, project: Path = ROOT / 'project.json'):
+    value = json.loads(path.read_text(), object_pairs_hook=unique_object)
+    if type(value) is not dict or set(value) != {'phase', 'packages'}:
+        raise ValueError('invalid test manifest shape')
+    phase = read_phase(project)
+    if type(value['phase']) is not int or value['phase'] not in TEST_PHASES:
+        raise ValueError('test manifest must declare a known test phase')
+    if type(phase) is not int or value['phase'] != phase:
+        raise ValueError('test manifest phase differs from project phase')
     return tuple(TestPackage(p['path'], tuple(sorted(p['tests']))) for p in value['packages'])
 
 
