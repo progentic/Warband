@@ -34,3 +34,14 @@ sequence_advance_rejects_overflow :: proc(t: ^testing.T) {
 	_, err = events.next_sequence(max(events.Sequence))
 	testing.expect_value(t, err, .SequenceOverflow)
 }
+
+@(test)
+epoch_advance_rejects_zero_and_overflow :: proc(t: ^testing.T) {
+	next, err := events.next_epoch(1)
+	testing.expect_value(t, err, .None)
+	testing.expect_value(t, next, events.Epoch(2))
+	_, err = events.next_epoch(0)
+	testing.expect_value(t, err, .EmptyEpoch)
+	_, err = events.next_epoch(max(events.Epoch))
+	testing.expect_value(t, err, .EpochOverflow)
+}

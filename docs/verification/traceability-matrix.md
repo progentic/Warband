@@ -34,7 +34,7 @@ The constitutional rows above remain planned. Foundation tests do not establish 
 
 Phase 2 entry is authorized by the separate record in [the entry review](../engineering/phase2-entry-review.md), following ADR-0005 acceptance against `84cfc937` and protected decision commit `f46ae949`. The first slice is limited to pure event-reference validation and sequence overflow rejection. It does not change the planned runtime coverage below or establish storage uniqueness, acceptance, custody, recovery or replay.
 
-`src/domain/events/identity.odin` defines the full store/epoch/sequence value and rejects empty identity fields, wrong explicit store/epoch and sequence overflow. `tests/odin/event_identity/event_identity_test.odin` contains two focused tests; the manifest retains the original five tests and declares all three packages/seven tests. This is partial domain evidence for WB-CON-008/WB-NEG-006, not a passing runtime uniqueness or replay gate.
+`src/domain/events/identity.odin` defines the full store/epoch/sequence value and rejects empty identity fields, wrong explicit store/epoch and sequence overflow. The separately authorized pure epoch follow-on adds `next_epoch`, rejecting zero and overflow without authorizing epoch administration. `tests/odin/event_identity/event_identity_test.odin` contains three focused tests; the manifest retains the original five tests and declares all three packages/eight tests. This is partial domain evidence for WB-CON-008/WB-NEG-006, not a passing runtime uniqueness or replay gate. [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#pure-epoch-advancement-follow-on-recorded-2026-11-10) records the decision, scope and test necessity.
 
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
