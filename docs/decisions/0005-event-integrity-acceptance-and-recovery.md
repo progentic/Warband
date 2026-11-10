@@ -44,6 +44,18 @@ Test necessity: invalid or wrapped epochs would violate amendment section 1. Exi
 
 Verification of this local increment on native macOS ARM64: pinned compiler and artifact identity, Warband build with vet/warnings-as-errors, documentation governance, all 26 Python controls, all three Odin packages/eight named tests, CLI smoke and diff checks pass. These local results establish no Linux, hosted, administration, durability or replay result. The owner subsequently authorized commit and push to main through the protected PR process, waiting for GitHub runners; hosted results must bind to the exact published head.
 
+## Pure prepare classification follow-on recorded 2026-11-10
+
+The owner approved this seven-file, under-100-added-line increment and its focused cases before implementation, against `e192539d8e960e9b7004ede0f4d3b5228d8b68a9`. `Pledge` and `Checkpoint` are bounded domain values, not wire layouts. Pure `classify_prepare` checks explicit identity, next sequence, committed predecessor and exact pending binding. Its outcomes distinguish eligibility, exact pending replay and typed rejections. Eligibility grants no authority: authentication, link verification, history validation and durable writes remain separate unimplemented gates. The decision reads supplied values only and never replaces a pending pledge.
+
+Test necessity: ADR-0005's prepare rule must reject requests that change a live pledge or its scope/order. Existing tests cover identity/arithmetic, not prepare classification. One new test covers only eligible next request, exact pending replay, changed pending request, wrong scope, wrong predecessor and skipped sequence. This removes the implemented decision gap with no dependency or framework; it proves no persistence, authenticity or durability behavior.
+
+Changed files: `src/domain/events/prepare.odin` adds these values and the pure classifier; `tests/odin/event_identity/event_identity_test.odin` adds that focused test; `tests/odin-packages.json` declares it; `AGENTS.md` and `docs/engineering/phase2-entry-review.md` record the bounded extension; `docs/verification/traceability-matrix.md` records partial domain coverage; this ADR records the decisions and file changes. No effect permission or accepted design is changed, and publication requires separate authorization.
+
+The owner subsequently requested a changelog update and commit/push to main, then explicitly approved the expanded eight-file, up-to-110-added-line publication scope. `CHANGELOG.md` adds the dated `0.1.0-dev.1` development entry; it does not declare Phase 2 complete or authorize a tag/release. The other seven files, code and six cases are unchanged in scope. Publication follows the protected PR process and exact-head checks.
+
+Native macOS ARM64 verification: pinned compiler/artifact identity, build with vet/warnings-as-errors, documentation governance, all 26 Python controls, all three Odin packages/nine named tests, CLI smoke and diff/scope checks pass. These local results establish no hosted, Linux durability or runtime custody result; hosted results must identify the exact published head.
+
 ## Context
 
 The foundation has local Linux x64 and macOS ARM64 evidence. It does not yet execute proposals, consume capabilities, verify external observations, commit runtime facts, or replay an authoritative event store.

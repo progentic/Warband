@@ -16,7 +16,7 @@ Warband is a policy-controlled execution runtime. Treat every model output as un
 
 ## Current phase
 
-`project.json` declares the phase. ADR-0004 accepts the foundation; ADR-0005 records the accepted Phase 2 design and authorized pure epoch-advancement follow-on. `docs/engineering/phase2-entry-review.md` records separate owner-authorized entry and these bounded pure slices. Keep code simple and tests focused on implemented behavior. No codecs, effectful execution, custody, persistence, providers, tools or deployment services belong to these slices. Foundation debts remain open; Ubuntu rejection checks passed at the recorded Phase 1 baseline. Do not configure remotes, commit or publish without separate authorization.
+`project.json` declares the phase. ADR-0004 accepts the foundation; ADR-0005 records the accepted Phase 2 design and authorized pure identity, epoch-advancement and prepare-classification slices. `docs/engineering/phase2-entry-review.md` records their bounded scope. Keep code simple and tests focused on implemented behavior. No codecs, effectful custody/execution, persistence, providers, tools or deployment services belong to these slices. Foundation debts remain open; Ubuntu rejection checks passed at the recorded Phase 1 baseline. Do not configure remotes, commit or publish without separate authorization.
 
 ## Working rules
 

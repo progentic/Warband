@@ -10,6 +10,14 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.1.0-dev.1 - 2026-11-10
+
+### Added
+
+- Pure prepare-request classification for eligible pledges, exact pending replay and explicit scope, sequence, predecessor and pending-conflict rejection, with one focused six-case test and aligned ADR, guidance, inventory and traceability records.
+
+Development source entry only: no release or tag is created. Phase 2 remains incomplete; authentication, link/history validation, custody persistence and runtime replay are not implemented.
+
 ## [0.0.2] - 2026-10-18
 
 ### Added

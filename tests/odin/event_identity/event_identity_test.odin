@@ -45,3 +45,28 @@ epoch_advance_rejects_zero_and_overflow :: proc(t: ^testing.T) {
 	_, err = events.next_epoch(max(events.Epoch))
 	testing.expect_value(t, err, .EpochOverflow)
 }
+
+@(test)
+prepare_classification_checks_binding_and_pending_replay :: proc(t: ^testing.T) {
+	store := events.StoreId{}
+	store[0] = 1
+	checkpoint := events.Checkpoint{store = store, epoch = 1}
+	checkpoint.head[0] = 1
+	request := events.Pledge{store = store, epoch = 1, previous_head = checkpoint.head, sequence = 1}
+	request.head[0] = 2
+	request.digest[0] = 3
+	testing.expect_value(t, events.classify_prepare(request, checkpoint, nil), .EligiblePledge)
+	testing.expect_value(t, events.classify_prepare(request, checkpoint, &request), .PendingReplay)
+	changed := request
+	changed.head[0] = 4
+	testing.expect_value(t, events.classify_prepare(changed, checkpoint, &request), .PendingConflict)
+	changed = request
+	changed.epoch = 2
+	testing.expect_value(t, events.classify_prepare(changed, checkpoint, nil), .InvalidIdentity)
+	changed = request
+	changed.previous_head[0] = 4
+	testing.expect_value(t, events.classify_prepare(changed, checkpoint, nil), .InvalidPredecessor)
+	changed = request
+	changed.sequence = 2
+	testing.expect_value(t, events.classify_prepare(changed, checkpoint, nil), .InvalidSequence)
+}
