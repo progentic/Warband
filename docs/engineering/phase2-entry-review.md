@@ -1,11 +1,21 @@
 # Phase 2 entry review
 
-- **Status:** Design preparation; implementation blocked on the decisions below
+- **Status:** Phase 2 entry authorized; initial pure event-reference slice only
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
 - **Design publication scope:** PRs #10–#14; these changes are later than either historical baseline and do not accept ADR-0005 or activate Phase 2
-- **Implementation phase:** `project.json` remains Phase 1
+- **Implementation phase:** `project.json` and the Odin manifest declare Phase 2
+
+## Phase 2 entry recorded 2026-11-10
+
+The project owner separately authorized the assistant to begin Phase 2 in the instruction quoted in ADR-0005, and approved an initial scope of about ten files and up to 250 added lines. This section records Gate 3 entry, not the Gate 2 acceptance decision.
+
+Acceptance authority is Proto (project owner). The [actual acceptance record](https://github.com/progentic/Warband/commit/f46ae949ee84d1a1848fe7519363b0d47600a422) accepts source `84cfc937a88c55d01e4e620337bf20f63afe3b1e`; its contents and ancestry were verified in protected main at `d26927568078980ee8037d1d79a7c86f5fcbdd2b` before activation. The following commit separately records the Accepted metadata: `90ebe6e7a4e90d9984cc0dc8abf6209217033b9c`.
+
+The initial implementation is limited to pure event-reference types, explicit store/epoch validation and sequence advancement with overflow rejection, plus two focused Odin tests. No codec, transition table, custodian, SQLite adapter, provider, execution tool or test framework is added. The original five fixture tests remain. Simple code and tests of the implemented behavior take priority over speculative scaffolding.
+
+The three named Proto-owned debts use the permitted carry-forward disposition; their Phase 5 entry deadline and severity/independent-review conditions are unchanged. No finding, recovery obligation or production gate is closed. The earlier design-review narrative below is historical; this entry record and the updated disposition table govern the current scope.
 
 ## Roles and source references
 
@@ -17,7 +27,7 @@ Unless explicitly labeled PR #8, immutable baseline links below use the later PR
 
 The next deliverable is a deterministic no-op authority path. A proposal receives a policy decision and bounded capability, produces independently evaluated evidence, and results in at most one accepted transition. Recovery and replay use recorded history. This is the Phase 2 outcome in the [phase plan](../governance/PHASE_PLAN.md#phase-2-deterministic-authority-core), not an implementation claim.
 
-The governance review is **conditionally aligned**: preparation can proceed, but the current Proposed [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md) has the amended design in PR #10, with Option A selected by Proto at Gate 1 on 2026-10-21, unbounded aggregate denial growth accepted as a Phase 2 limitation, and ADR acceptance pending Gate 2. Its verification matrix already identifies the affected WB-CON-001 through WB-CON-009, WB-INV and WB-NEG requirements; this review does not duplicate or change those identifiers.
+The amended [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md) is accepted with verified owner-decision provenance. Gate 1's Option A and aggregate denial-growth limitation remain unchanged. Its verification matrix identifies WB-CON-001 through WB-CON-009 and applicable WB-INV/WB-NEG requirements; acceptance and entry are not runtime verification.
 
 ## Decisions required before implementation
 
@@ -30,7 +40,7 @@ The governance review is **conditionally aligned**: preparation can proceed, but
 | State and evidence registries | PR #10 supplies separate versions, transition rules and producer identities; acceptance and implementation evidence remain pending | Freeze transition/evidence tables, observer and evaluator identities, criteria coverage and all capability/attempt bindings |
 | Runtime effect composition | ADR-0007 explicitly excludes runtime coordination, policy, capabilities, evaluation, state and recovery from Phase 1 E1 permission | Review an explicit runtime call/effect graph and authorize any necessary scoped rule qualification before effectful code |
 | Phase 1 structural findings | E1 implementation and ADR-0007 acceptance exist; formal finding closure remains separate | Close each finding with evidence or name its release-debt owner and blocking disposition, as the phase plan requires |
-| Implementation entry | ADR-0005 remains Proposed; affected contracts and traceability still describe planned controls | Accept the resolved design, align affected documents, and record bounded Phase 2 implementation authorization |
+| Implementation entry | ADR-0005 accepted; separate entry recorded above; runtime controls remain unimplemented | Implement only the initial pure event-reference slice under the approved scope |
 
 The owner selected Option 1: same VM, separate checkpoint custodian. [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#owner-selected-storage-and-custody-direction) records the direction and its trust limits. The selection does not accept the complete ADR. A file beside the journal under the same writable identity does not establish independent custody; the amended interface and crash behavior are now concrete candidates awaiting operator review.
 
@@ -75,10 +85,10 @@ After design authorization, evidence must bind the accepted store and checkpoint
 | Inspect merged phase plan and ADR-0005 | PASS at the reviewed baseline above |
 | Assign ADR-0005 owner | PASS: Proto, explicit owner direction on 2026-10-18 |
 | Select storage and custody direction | PASS: owner selected SQLite and separate same-VM custodian; implementation details remain unverified |
-| Resolve and accept ADR-0005 | BLOCKED on explicit Gate 2 acceptance; Gate 1 selected Option A with its recorded Phase 2 denial-growth limitation |
-| Close or explicitly assign structural release debt | REVIEW PENDING: three named Proto-owned debts with a binding Phase 5 entry deadline and unfulfilled severity/independent-closure review in the verification plan; no automatic closure |
-| Align contracts and runtime effect boundaries | REVIEW PENDING: aligned contract candidate and enumerated Phase 2 graph; no runtime permission active |
-| Begin runtime implementation | BLOCKED: design acceptance and bounded authorization still required |
+| Resolve and accept ADR-0005 | PASS: explicit owner decision and protected-main provenance recorded above |
+| Close or explicitly assign structural release debt | PASS for entry's named-debt alternative only; all three remain open until their Phase 5 entry deadline and required closure review |
+| Align contracts and runtime effect boundaries | Accepted design alignment; initial scope is pure domain code with no new effects |
+| Begin runtime implementation | AUTHORIZED: initial pure event-reference slice only; no integrated runtime or durability claim |
 
 Foundation obligations whose blocking gate is Phase 5 remain tracked in the phase plan. They are not silently promoted to Phase 2 blockers or treated as complete here.
 
@@ -113,13 +123,13 @@ The [phase gate table](../governance/PHASE_PLAN.md#phase-26-review-and-exit-gate
 | SQLite | Proposed 3.54.1 source pin with [recorded verification](#sqlite-verification-evidence), future project-local static profile and WAL/FULL | Per-OS distribution libraries |
 | Custodian rejection audit | Proto selected Option A on 2026-10-21; per-receipt bounds, unbounded total history accepted as a Phase 2 limitation; no checkpoint/pledge change | Runtime-only audit handoff or deferred selection were considered; retained below as decision history |
 
-Proto resolved the custody rejection audit selection at Gate 1 on 2026-10-21; the [ADR records Option A and the accepted denial-growth limitation](../decisions/0005-event-integrity-acceptance-and-recovery.md#option-a-bounded-durable-custody-rejection-receipt--selected-by-proto-2026-10-21). Gate 1 does not supply ADR acceptance or implementation authorization. Gate 2 acceptance and Gate 3 entry remain separate operator decisions. Future operations/security/release owner assignments and production-target selection are deferred to their named phase gates, not guessed here.
+Proto resolved the custody rejection audit selection at Gate 1 on 2026-10-21; the [ADR records Option A and its limitation](../decisions/0005-event-integrity-acceptance-and-recovery.md#option-a-bounded-durable-custody-rejection-receipt--selected-by-proto-2026-10-21). Separate Gate 2 acceptance and Gate 3 entry are now recorded above. Future operations/security/release owners and production-target selection remain deferred to their named gates.
 
 Design publication order is PR #10 decisions, #11 tooling, #12 contracts, #13 verification/findings, #14 roadmap. Each is retargeted to main after its predecessor lands and merges only with passing checks on its current head. This publication does not select Option A, accept ADR-0005 or authorize Phase 2 entry. Local documentation governance and governance controls ran before every commit, including stack-update merges. Final hosted check results must be bound to each actual head SHA in the handoff rather than inherited from an earlier passing run.
 
 ## Acceptance provenance gate
 
-A future Accepted ADR-0005 must name all three fields, with one unambiguous recognized value for each:
+Accepted ADR-0005 must name all three fields, with one unambiguous recognized value for each:
 
 ```text
 - **Acceptance authority:** Proto (project owner)
@@ -147,7 +157,7 @@ WB-CON-007 requires security-relevant decisions to produce audit events ([consti
 | B. Runtime-only RejectionRecorded handoff | Reuses the event history without a new custody frame | A down or compromised runtime could omit the custodian denial; without an independently retained receipt this does not close the identified threat-model gap | Not recommended as the sole evidence |
 | C. Defer acceptance | Preserves current authority/custody choices without pretending coverage exists | No audit-gap resolution or acceptance-ready claim; implementation entry remains blocked until a reviewed design closes WB-CON-007 | Safe pending disposition |
 
-Proto selected A, including the single-event-history handoff, on 2026-10-21. Per-receipt bounds remain; aggregate denial-history growth is unbounded and explicitly accepted as a Phase 2 limitation. Gate 2 acceptance and Gate 3 entry are still pending. If audit persistence fails, do not report a durable audit receipt or permit the denied operation; preserve the fault and fail closed. This does not authorize another physical authoritative event ledger, batching, remote custody or a runtime implementation. The existing same-VM, prepare/confirm, per-event and manual-reconciliation decisions remain fixed.
+Proto selected A, including the single-event-history handoff, on 2026-10-21. Per-receipt bounds and the accepted aggregate-growth limitation remain. Gate 2 acceptance and scoped Gate 3 entry are recorded above; custody code remains outside the initial slice. Audit-storage failure must not produce a false durable receipt or permit a denied operation. The single-event-history, same-VM, prepare/confirm, per-event and manual-reconciliation decisions remain fixed.
 
 ## SQLite verification evidence
 
