@@ -51,13 +51,13 @@ Option A does not select an operating system version, CPU floor, store, sandbox 
 
 ## Foundation obligations carried to production
 
-Phase 1 implementation is complete. The following open records do not require reopening its delivered code, but they block a production claim and must be resolved on the path to v1.0.0:
+Phase 1 implementation is complete and explicitly accepted by Ian on 2026-11-10 in [ADR-0004](../decisions/0004-reproducible-odin-toolchain-and-ci.md). The remaining obligations below do not reopen its delivered code, but block a production claim and must be resolved on the path to v1.0.0. Acceptance does not close a debt, promote a profile or authorize Phase 2 entry.
 
 | Obligation | Current state | Accountable owner | Blocking gate | Required disposition |
 |---|---|---|---|---|
-| ADR-0004 ownership and status | Proposed; owner unassigned | Must be assigned before Phase 5 entry | Phase 5 entry | Accept, revise, supersede, or reject it with evidence |
+| ADR-0004 ownership and status | Accepted 2026-11-10; foundation owner/reviewer Ian | Ian, project owner | Owner decision recorded; production obligations below remain | Retain the accepted-source and evidence limits in ADR-0004 |
 | Dependency retention and recovery | Durable archive and clean restore test pending | Must be assigned before Phase 5 entry | Phase 5 exit | Select custody, preserve verified inputs, and pass a clean recovery build |
-| Ubuntu 26.04 rejection evidence | Checks A and B authorized but not implemented | ADR-0006 decision owner | Phase 5 entry | Implement only the authorized checks and retain their separate negative evidence |
+| Ubuntu 26.04 rejection evidence | A/B implemented locally at `28cce613`; A passes locally; native B and new hosted evidence pending | ADR-0006 decision owner | Phase 5 entry | Publish only when authorized, execute the native check and retain its separate negative evidence |
 | Ubuntu 26.04 promotion | Directed after rollout completion; not implemented | ADR-0006 decision owner | Phase 5 entry | Use a separate PR with defined rollback, no automatic fallback, and unchanged required check names |
 | ADR-0006 status | Proposed; owner recorded | ADR-0006 decision owner | Phase 5 entry | Review post-rollout evidence and explicitly accept, revise, supersede, or reject it |
 | Phase 1 structural findings | Three source-reviewed E1 corrections; [named debts](../verification/phase2-verification-plan.md#phase-1-findings-disposition), explicit closure pending | Proto | Phase 2 entry requires the recorded debt alternative; binding closure deadline is Phase 5 entry; v1 remains blocked downstream | Review CLI, documentation and manifest finding dispositions separately; no closure inferred from builds |
