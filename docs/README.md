@@ -1,20 +1,36 @@
-# Documentation Guide
+# Help and documentation
 
-This folder is the main source of truth for Warband's design.
+Start with one of the three guides below. The subfolders group the Warband team's design, engineering, and project records by topic. The folder index follows the guides.
 
-The documents are grouped by purpose:
+## Users
 
-- `foundation/` explains why Warband exists and the rules every implementation must obey.
-- `architecture/` explains how the system is divided and how data and authority move through it.
-- `contracts/` translates each important feature into user, engineering, security, and verification terms.
-- `engineering/` defines how contributors should structure, write, test, and review code.
-- `security/` explains the assets, threats, boundaries, controls, and remaining risks.
-- `governance/` explains document authority, ChatGPT Project setup, `AGENTS.md`, project sources, and agent skills.
-- `decisions/` records important design choices and why they were made.
-- `verification/` explains how the repository proves that the architecture is still being followed.
-- `reference/` provides shared terms and stable identifiers.
+Start with the [user guide](users.md) to learn what Warband can do today, which commands to run, and what to expect. The guide also describes planned features in plain language.
 
-## Normative words
+## Maintainers
+
+Use the [maintainer guide](maintainers.md) to update Warband, review changes, run the required checks, and prepare releases.
+
+## Developers
+
+Use the [developer guide](developers.md) to follow the code, understand how its parts fit together, and find the rules that govern implementation.
+
+## Warband development team records
+
+The repository is the authoritative record for Warband's design and project decisions. See the [authority order](governance/README.md#authority-order) for which documents take precedence. ChatGPT project instructions, project sources, memory, saved responses, and chats provide working context.
+
+| Folder | What it contains |
+| --- | --- |
+| [Decisions](decisions/) | Design decisions and the reasons behind them. |
+| [Governance](governance/) | Document authority, project guidance, and how the team records approvals. |
+| [Foundation](foundation/) | Why Warband exists and the rules every implementation must follow. |
+| [Architecture](architecture/) | How the system is divided and how data and authority move through it. |
+| [Contracts](contracts/) | What users can rely on, what the code must do, which security boundaries apply, and how the team verifies them. These four views must agree. |
+| [Engineering](engineering/) | How contributors structure, write, test, and review code. |
+| [Security](security/) | What Warband protects, the threats it faces, and the controls and remaining risks. |
+| [Verification](verification/) | Verification plans, evidence, and traceability from requirements to checks. |
+| [Reference](reference/) | Shared terms and stable identifiers. |
+
+### Requirement words
 
 - **MUST** means the requirement is mandatory.
 - **MUST NOT** means the behavior is prohibited.
@@ -22,16 +38,3 @@ The documents are grouped by purpose:
 - **SHOULD NOT** means the behavior is normally avoided.
 - **MAY** means the behavior is optional.
 - **INVARIANT** means a condition that must remain true in every valid system state.
-
-## Documentation rule
-
-The same system behavior must be explainable in four aligned ways:
-
-1. User contract: what the person can rely on.
-2. Engineering contract: what the implementation must do.
-3. Security contract: what boundary is enforced.
-4. Verification contract: how the repository proves the rule.
-
-## AI context rule
-
-The repository is authoritative. ChatGPT project instructions, project sources, memory, saved responses, and chats help agents work with the repository, but they do not replace accepted documents.
