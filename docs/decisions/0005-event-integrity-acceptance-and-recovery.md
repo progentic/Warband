@@ -1,12 +1,18 @@
 # ADR-0005 Event integrity acceptance and recovery
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Decision owner:** Proto, project owner (assigned 2026-10-18)
-- **Review status:** Owner acceptance recorded below; protected provenance publication pending
-- **Scope:** Proposed Phase 2 deterministic no-op authority boundary
+- **Review status:** Accepted by Proto; implementation entry recorded separately
+- **Acceptance date:** 2026-11-10
+- **Acceptance authority:** Proto (project owner)
+- **Acceptance record:** https://github.com/progentic/Warband/commit/f46ae949ee84d1a1848fe7519363b0d47600a422
+- **Accepted source:** 84cfc937a88c55d01e4e620337bf20f63afe3b1e
+- **Scope:** Phase 2 deterministic no-op authority boundary
 - **Supersedes:** None
-- **Related decisions:** Accepted ADR-0001 through ADR-0003; Proposed ADR-0004
-- **Authorization:** Design only. Neither this draft nor Phase 1 acceptance authorizes Phase 2 code.
+- **Related decisions:** Accepted ADR-0001 through ADR-0004 and ADR-0007; ADR-0006 remains Proposed
+- **Authorization:** Design acceptance only. Phase 2 implementation requires the separate entry record in the Phase 2 entry review.
+
+The acceptance record was verified in protected main at `d26927568078980ee8037d1d79a7c86f5fcbdd2b` before activation. Acceptance covers the complete amended design; historical candidate labels below do not claim implementation. Phase 1 debts and later production gates remain open.
 
 The owner requested progression to the next phase on 2026-10-18 and assigned Proto as this decision's owner. [Phase 2 entry review](../engineering/phase2-entry-review.md) records the outstanding decisions and proposed review sequence. Owner assignment does not accept this ADR or resolve its implementation gates.
 
