@@ -1,12 +1,28 @@
 # ADR-0004: Reproducible Odin Toolchain and CI Verification
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-10
-- **Decision owner:** Unassigned; must be assigned during governance review
+- **Acceptance date:** 2026-11-10
+- **Decision owner and acceptance reviewer:** Ian, project owner, by explicit acceptance direction
+- **Accepted implementation source:** `28cce613ed75da920d0aabcdf3eae52fc79008f0`
 - **Scope:** Warband Phase 1 foundation; later phases consume the same verification contract
 - **Supersedes:** None
 - **Related decisions:** Existing accepted ADR-0001 through ADR-0003 (unchanged)
-- **Authority:** Proposal for review. The accompanying agent directive authorizes local Phase 1 work; it does not imply formal acceptance of this ADR or of unresolved constitutional decisions.
+- **Authority:** Explicit project-owner acceptance of the Phase 1 implementation. No Phase 2 entry, production release, profile promotion or external publication is authorized.
+
+## Phase 1 acceptance recorded 2026-11-10
+
+Ian directed: "commit the changes, and formally accept the phase 1 implementation" and approved aligning the eight current guidance documents. This records the owner decision separately from test results. Acceptance covers the delivered governed foundation and the local rejection-check changes at the source above; it is not a claim that every later production obligation has passed.
+
+The historical [Linux/macOS review](../verification/phase1-review-evidence.md), [hosted publication](../verification/phase1-publication-evidence.md), [protected integration evidence](../governance/phase1-protection-proposal.md) and [E1 evidence](../verification/phase1-entrypoint-evidence.md) retain their exact source and platform identities. Earlier Proposed, unassigned and blocked statements in those historical records describe their dates, not this later owner decision. Accepted ADR-0001 through ADR-0003 and ADR-0007 are unchanged.
+
+At `28cce613`, documentation governance, all 26 Python controls, Bash syntax, shellcheck and whitespace checks passed locally on macOS. Check A rejects baseline compiler versions under the explicit Ubuntu 26.04 profile. Check B is implemented but has not run on native Ubuntu 26.04. Installed actionlint 1.7.12 rejects the existing `ubuntu-26.04` label in both the unchanged baseline and candidate; all other actionlint checks passed. These are local results, not a new Linux or hosted pass.
+
+The acceptance recheck rebuilt Warband on macOS 27.2 ARM64 (Darwin 27.2.0) with the existing verified Odin source compiler `8b35c86efb78e9ab5223673a07e02fc2a6884191` and exact LLVM/clang 19.1.7. Vet/warnings-as-errors, ARM64 Mach-O identity, two Odin packages/five named tests and CLI smoke passed. Binary SHA-256 is `03b8461839855c6d68bb726bb3e7f11b0d8f98d4e4f7efb775ea6c634e3144be`. The compiler itself was not rebuilt in this recheck; these native results do not establish Linux behavior.
+
+Open obligations remain governed by the [phase plan](../governance/PHASE_PLAN.md#foundation-obligations-carried-to-production): dependency/archive custody, retention and clean recovery proof; the three named structural debts and their severity/independent-review conditions; native Check B and hosted verification of this patch; ADR-0006 disposition and post-rollout promotion; and the later production-target gates. No debt is closed by this acceptance. The original ARM development profile remains unprovisioned, and no production architecture is selected.
+
+Ian is the owner and acceptance reviewer for this foundation decision, not an assigned independent security reviewer. ADR-0005 remains Proposed; its acceptance and Phase 2 entry remain separate operator gates. `project.json` remains Phase 1. This acceptance and the check patch are committed locally; publication and new hosted results remain pending.
 
 ## Context
 
@@ -77,7 +93,7 @@ Phase 1 tests must establish real behavior for phase-built code. Do not create p
 2. Pin third-party and GitHub-provided actions by **reviewed full commit SHA**; do not use floating tags for actions in required workflows. Use `permissions: contents: read` or narrower, and prevent persistence of checkout credentials unless explicitly necessary.
 3. Run untrusted pull requests using `pull_request` jobs with no deployment secrets, elevated tokens, privileged `pull_request_target` checkout flows, or access to production machines. **Never run untrusted PR workloads on the production VM.**
 4. Maintain stable named required jobs/checks as they are split. Configure branch protections/rulesets only after repository owner, visibility, plan and access are confirmed. If controls are unavailable, document the gap rather than assert enforcement.
-5. The Warband Git remote remains unset. No GitHub repository creation, account switching, remote write, push, deployment, or secret provisioning is authorized by this ADR.
+5. The original proposal authorized no remote configuration. Subsequent separately authorized publication selected `progentic/Warband`; its evidence remains separately recorded. This ADR authorizes no GitHub repository creation, account switching, remote write, push, deployment, or secret provisioning.
 
 ## Rejected alternatives
 
@@ -98,19 +114,19 @@ Phase 1 tests must establish real behavior for phase-built code. Do not create p
 
 ## Phase 1 acceptance criteria
 
-All criteria must be demonstrated or explicitly marked blocked; no invented pass status.
+The foundation criteria below are accepted on their recorded historical evidence and the owner decision above. This does not pass the separately listed production obligations or pending native Check B.
 
-- [ ] Phase 0 bootstrap inventory and existing decisions compared without destructive overwrite; ADR-0004 added as **Proposed**.
-- [ ] Unknown phase rejected; Phase 0 restrictions retained; Phase 1 source directories permitted only under the declared phase.
-- [ ] Odin SHA and compatible LLVM/build inputs committed to a readable project toolchain lock, with independent version/identity checks.
-- [ ] Clean x64 Linux checkout builds Odin from source, builds Warband with the intended compiler, and verifies x86-64 ELF architecture.
-- [ ] Phase-relevant negative and domain tests run from an explicit manifest; omission or wrong count makes verification fail.
-- [ ] Stable Linux CI job with `ubuntu-latest`, pinned actions, read-only token, and safe PR trigger is present. No heavy job uses `ubuntu-slim`.
-- [ ] macOS portability checks execute when runtime code is present, or are precisely reported as unverified/blocked.
-- [ ] Project-scoped Lima recipe has explicit mounts and architecture; VM provisioning remains blocked until guest image/digest and architecture have been reviewed.
-- [ ] Documentation, contracts, execution pipeline, negative paths, package boundary mapping, and traceability reflect the work actually completed. Deferred Phase 2–5 requirements remain deferred.
-- [ ] Build/test commands, outcomes, environment versions, architecture assertions, and known gaps are recorded; no status is marked passed without its evidence.
-- [ ] A responsible owner and applicable Phase 0 governance gate are identified before declaring formal Phase 1 completion.
+- [x] Phase 0 bootstrap inventory and existing decisions compared without destructive overwrite; ADR-0004 initially added as **Proposed**.
+- [x] Unknown phase rejected; Phase 0 restrictions retained; Phase 1 source directories permitted only under the declared phase.
+- [x] Odin SHA and compatible LLVM/build inputs committed to a readable project toolchain lock, with independent version/identity checks.
+- [x] Clean x64 Linux checkout builds Odin from source, builds Warband with the intended compiler, and verifies x86-64 ELF architecture.
+- [x] Phase-relevant negative and domain tests run from an explicit manifest; omission or wrong count makes verification fail.
+- [x] Stable Linux CI job with `ubuntu-latest`, pinned actions, read-only token, and safe PR trigger is present. No heavy job uses `ubuntu-slim`.
+- [x] macOS portability checks execute when runtime code is present, or are precisely reported as unverified/blocked.
+- [x] Project-scoped Lima recipe has explicit mounts and architecture; the reviewed x64 guest has Linux evidence, while the unselected ARM profile remains unprovisioned.
+- [x] Documentation, contracts, execution pipeline, negative paths, package boundary mapping, and traceability reflect the work actually completed. Deferred Phase 2–5 requirements remain deferred.
+- [x] Build/test commands, outcomes, environment versions, architecture assertions, and known gaps are recorded; no status is marked passed without its evidence.
+- [x] A responsible owner and applicable Phase 0 governance gate are identified before declaring formal Phase 1 completion; Ian's explicit acceptance is recorded above.
 
 ## Follow-on decisions
 
@@ -134,4 +150,4 @@ The initial implementation incorrectly applied the native macOS LLVM 19.1.7 pin 
 
 The primary CI runner remains `ubuntu-latest`. Linux installation explicitly checks Ubuntu 24.04 and fails on an unreviewed runner OS change. Package URIs, installed revisions, and build metadata retain the actual dependency provenance. Native and Linux verification are separate, and hosted CI execution still requires an authorized repository connection.
 
-This correction remains part of the Proposed decision. It does not assign ownership, accept ADR-0004, select production architecture, or implement the future event encoding/acceptance/recovery/replay decision. See `docs/verification/phase1-review-evidence.md` for current results.
+This correction was Proposed when recorded and supplied no owner assignment or acceptance. The later owner decision above accepts the Phase 1 foundation without selecting production architecture or implementing event encoding, acceptance, recovery or replay. See `docs/verification/phase1-review-evidence.md` for the historical platform results.

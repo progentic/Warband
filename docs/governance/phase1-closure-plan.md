@@ -1,8 +1,8 @@
 # Phase 1 closure plan
 
-Warband's foundation is technically verified locally on Linux x64 and macOS ARM64. Hosted enforcement is demonstrated; formal Phase 1 acceptance remains pending. This plan records the remaining work; it does not authorize commits, remotes, account selection, pushes, infrastructure creation, workflow changes, or ADR acceptance.
+Warband's foundation has recorded Linux x64, macOS ARM64 and hosted enforcement evidence. Ian explicitly accepted the Phase 1 implementation on 2026-11-10 in [ADR-0004](../decisions/0004-reproducible-odin-toolchain-and-ci.md). The production debts and native Check B remain open. This plan does not independently authorize commits, remotes, account selection, pushes, infrastructure creation, workflow changes, or later ADR acceptance.
 
-On 2026-10-10 the user selected [progentic/Warband](https://github.com/progentic/Warband) and subsequently authorized committing and pushing the current Phase 1 status to `main`. Its HTTPS URL is configured as this folder's `origin`. Existing authentication is used; no account was switched. ADR-0004 ownership and formal approval remain pending. [Local evidence](../verification/phase1-review-evidence.md) remains the source for actual command results. [ADR-0004](../decisions/0004-reproducible-odin-toolchain-and-ci.md) stays Proposed. ADR-0005 design may proceed as Proposed, independently of Phase 2 implementation authorization.
+On 2026-10-10 the user selected [progentic/Warband](https://github.com/progentic/Warband) and subsequently authorized committing and pushing the current Phase 1 status to `main`. Its HTTPS URL is configured as this folder's `origin`. Existing authentication is used; no account was switched. The later ADR-0004 acceptance names Ian as owner and acceptance reviewer. [Local evidence](../verification/phase1-review-evidence.md) retains its actual command results and historical pending disposition. ADR-0005 remains Proposed, independently of Phase 1 acceptance; Phase 2 implementation remains unauthorized.
 
 ## Gate 1 Review the source baseline
 
@@ -62,13 +62,13 @@ Ubuntu's official snapshot service is an alternative recovery source. A concrete
 
 ## Gate 5 Close governance and enforce checks
 
-Assign a responsible ADR-0004 owner and reviewer. Review implementation evidence, the source baseline, hosted results, dependency retention/recovery, and unresolved procedure-layering concerns. Record approval separately from technical results. Change Proposed to Accepted only after explicit governance approval and the associated documentation/traceability review; no owner or acceptance is inferred here.
+Ian's explicit acceptance is recorded in ADR-0004, with owner/reviewer, source and evidence limits. This documentation/traceability alignment separates that decision from technical results. Dependency recovery, runner obligations and the three structural debts remain subject to the phase plan; foundation acceptance supplies no independent security closure review.
 
 Configure supported branch protection/rulesets only after the account/repository/plan is known and the actual named jobs have run. Require the observed checks and appropriate review for source, contracts, toolchain, and workflow changes. Inspect the effective settings and prove an unpassing change cannot merge through the intended path. Document unsupported controls instead of claiming enforcement.
 
 Before the user's protection selection, API inspection found `main` unprotected, required checks off, and no repository or inherited rulesets. That inspection changed no settings. The hosted run also identified action-runtime deprecation and an announced ubuntu-latest migration; these maintenance findings and the retained fail-closed guard are recorded in [runner evidence](../verification/phase1-publication-evidence.md).
 
-The [protection configuration and evidence](phase1-protection-proposal.md) records the user-selected settings, exact observed check contexts/app ID, API readback and a deliberately failing non-draft PR whose merge state stayed BLOCKED. The probe was closed without merging and its branch removed. ADR-0004 ownership remains pending user input.
+The [protection configuration and evidence](phase1-protection-proposal.md) records the user-selected settings, exact observed check contexts/app ID, API readback and a deliberately failing non-draft PR whose merge state stayed BLOCKED. The probe was closed without merging and its branch removed. That historical protection decision did not assign ADR-0004 ownership; Ian's later explicit acceptance does.
 
 [ADR-0006](../decisions/0006-hosted-linux-runner-compatibility.md) is the Proposed compatibility record, with a review deadline of 2026-10-18. It records options and required evidence; it does not change the current OS guard, toolchain lock or runner label.
 
@@ -88,9 +88,9 @@ No general agent orchestration, provider integration, new execution surface, dis
 | Hosted runs | All six workflow runs across 53415e7, d6448e1 and 8da731e passed |
 | Runner evidence | Success artifacts inspected at d6448e1; all three failure uploads demonstrated and inspected in protection probe |
 | Dependency recovery | Durable archive and clean restore test pending |
-| Runner migration | ADR-0006 Proposed; native 26.04 evaluation verified; v3 floor and unexecuted candidate-specific rejecting cases recorded; promotion pending; required job retains 24.04 |
+| Runner migration | ADR-0006 Proposed; A/B implemented locally at `28cce613`; A passes locally, native B/new hosted evidence pending; promotion pending; required job retains 24.04 |
 | Required checks | Configured with no reviewer requirement; readback and blocked failing-PR evidence recorded |
-| Owner assignment and ADR acceptance | Pending user input/review; ADR-0004 remains Proposed |
+| Owner assignment and ADR acceptance | Ian explicitly accepted Phase 1 under ADR-0004 on 2026-11-10; local acceptance/check commits not published; open debts retained |
 | Procedure hierarchy | ADR-0007 Accepted against v0.0.0; PR #3 merged; formal finding closure pending |
 | ADR-0005 design | Proposed draft only |
 | Phase 2 implementation | Not authorized |

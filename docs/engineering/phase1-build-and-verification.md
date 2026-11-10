@@ -1,6 +1,6 @@
 # Phase 1 build and verification
 
-Local Phase 1 implementation is authorized by the [execution directive](phase1-agent-execution-directive.md). [ADR-0004](../decisions/0004-reproducible-odin-toolchain-and-ci.md) remains Proposed. Its decision owner and formal review are unassigned; successful local checks do not accept the ADR.
+Phase 1 implementation is formally accepted by Ian in [ADR-0004](../decisions/0004-reproducible-odin-toolchain-and-ci.md) on 2026-11-10 against `28cce613`. The [execution directive](phase1-agent-execution-directive.md) records the original scope. Acceptance is an explicit owner decision, not inferred from local checks; the listed release debts remain open.
 
 ## Declared phase and verification scope
 
@@ -33,6 +33,8 @@ The required Linux job still uses `ubuntu-latest` with the original Ubuntu 24.04
 The candidate keeps Odin SHA `8b35c86efb78e9ab5223673a07e02fc2a6884191` and LLVM major 19. Its exact LLVM/Clang/LLD revision is `1:19.1.7-20ubuntu4` (19.1.7); GCC 14 headers, Make and GNU binutils have separate exact revisions in the new lock profile. Installer and compiler build validate the selected Ubuntu release before work. Version checks receive the explicit profile and remain exact; installed package receipts are checked against the requested revisions.
 
 Use the existing Linux commands below with that explicit profile only on Ubuntu 26.04. No profile is promoted, no required check is renamed and no production architecture is selected. [ADR-0006](../decisions/0006-hosted-linux-runner-compatibility.md) remains Proposed. See [candidate evidence](../verification/ubuntu2604-compatibility-evidence.md) for commands, package provenance, actual results and limits.
+
+Checks A/B are implemented at `28cce613`. Check A passes locally by requiring rejection of baseline 19.1.1 tools under the explicit candidate profile. Check B requires the exact OS-mismatch diagnostic and nonzero status on native Ubuntu 26.04; Bash execution tracing must show no APT invocation before the rejection. The installer diagnostic is a CI assertion contract. Native Check B and new hosted results remain pending; no Mac result substitutes for them.
 
 ## Linux commands
 
@@ -89,4 +91,4 @@ The golden bytes are literal and documented in [the fixture specification](../ve
 
 ## Candidate entrypoint separation
 
-[ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) records owner-accepted E1 at v0.0.0: explicit, bounded High effect composition with universal Mid purity. The [actual hierarchy review](phase1-effect-composition-review.md) maps the implemented candidate, including all external effects. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) separates source review from behavior/platform results. PR #3 merged at 8afe351; ADR-0007 is Accepted. Finding closure and formal Phase 1 acceptance remain separate decisions.
+[ADR-0007](../decisions/0007-phase1-entrypoint-boundaries.md) records owner-accepted E1 at v0.0.0: explicit, bounded High effect composition with universal Mid purity. The [actual hierarchy review](phase1-effect-composition-review.md) maps the implemented candidate, including all external effects. [Candidate evidence](../verification/phase1-entrypoint-evidence.md) separates source review from behavior/platform results. PR #3 merged at 8afe351; ADR-0007 is Accepted. Ian's later Phase 1 acceptance does not close the three structural findings or satisfy their independent-review conditions.

@@ -36,4 +36,10 @@ Instructions guide behavior. Repository controls and verification enforce behavi
 
 ## Phase 1 closure
 
-The [closure plan](phase1-closure-plan.md) records source publication, hosted evidence retention, dependency recovery, ownership and required-check gates. The repository is selected and the hosted baseline passes; ownership and formal acceptance remain pending. [ADR-0006](../decisions/0006-hosted-linux-runner-compatibility.md) tracks the announced runner migration without relaxing the toolchain guard. Technical verification does not imply formal ADR acceptance or Phase 2 authorization.
+The Phase 1 foundation is accepted. Dependency recovery, the remaining code-review items and the native Ubuntu 26.04 rejection check are still open. Phase 2 implementation is not authorized.
+
+## Technical details
+
+- [Phase 1 acceptance and evidence](../decisions/0004-reproducible-odin-toolchain-and-ci.md)
+- [Remaining foundation work](phase1-closure-plan.md)
+- [Linux runner compatibility](../decisions/0006-hosted-linux-runner-compatibility.md)

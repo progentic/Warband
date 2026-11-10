@@ -16,7 +16,7 @@ Warband is a policy-controlled execution runtime. Treat every model output as un
 
 ## Current phase
 
-`project.json` declares the phase. Phase 1 local foundation implementation is authorized by `docs/engineering/phase1-agent-execution-directive.md`. ADR-0004 remains Proposed with an unassigned owner. Do not add Phase 2 execution, providers, capabilities, persistence, or deployment services under this authorization. Do not configure remotes or commit without separate authorization.
+`project.json` declares the phase. Phase 1 foundation implementation is accepted by Ian in `docs/decisions/0004-reproducible-odin-toolchain-and-ci.md`; its listed release debts and hosted Check B remain open. The original implementation scope is in `docs/engineering/phase1-agent-execution-directive.md`. Do not add Phase 2 execution, providers, capabilities, persistence, or deployment services under this authorization. Do not configure remotes, commit or publish without separate authorization.
 
 ## Working rules
 

@@ -45,13 +45,15 @@ The constitutional rows above remain planned. Foundation tests do not establish 
 | WB-INV-009 | WB-CON-001 / WB-CON-006 / WB-CON-008 | Authoritative projection deferred |
 | WB-INV-010 | WB-CON-003 / WB-CON-006 | Learning/promotion unsupported and deferred |
 
-Commands, platform separation, blocked gates, and review findings are recorded in `docs/verification/phase1-evidence.md`. ADR-0004 remains Proposed; ownership and formal approval are outstanding.
+Commands, platform separation, historical blocked gates and review findings are recorded in `docs/verification/phase1-evidence.md`. Ian's explicit Phase 1 acceptance is recorded in [ADR-0004](../decisions/0004-reproducible-odin-toolchain-and-ci.md), dated 2026-11-10, against `28cce613`.
 
-The initial evidence is historical. Local platform pins, manifests, transport limits, and gate results are in `docs/verification/phase1-review-evidence.md`. Subsequent publication and hosted results are in `docs/verification/phase1-publication-evidence.md`. ADR-0004 formal acceptance remains pending.
+The initial evidence is historical. Local platform pins, manifests, transport limits, and gate results are in `docs/verification/phase1-review-evidence.md`. Subsequent publication and hosted results are in `docs/verification/phase1-publication-evidence.md`. Their earlier Proposed/blocked dispositions are not rewritten as later run results.
+
+For WB-P1-001/WB-P1-006, `28cce613` adds explicit-profile rejection in `tests/governance/test_toolchain_versions.py`, a stable installer OS diagnostic and the native workflow no-APT rejection step. All 26 Python controls pass locally, including Check A. Check B and hosted verification of that source remain pending; no new Linux pass is inferred. Foundation acceptance closes no runtime row or structural debt and supplies no dependency-recovery proof.
 
 ## Proposed closure and Phase 2 design
 
-`docs/governance/phase1-closure-plan.md` distinguishes the completed publication/hosted/protection gates from remaining dependency recovery, owner/review and procedure-layering work. Completed technical checks do not imply formal acceptance.
+`docs/governance/phase1-closure-plan.md` distinguishes the recorded publication/hosted/protection gates and explicit owner acceptance from remaining dependency recovery, runner and procedure-layering work. Completed technical checks do not themselves imply acceptance; the dated owner decision does.
 
 `docs/decisions/0005-event-integrity-acceptance-and-recovery.md` maps proposed mechanisms and required future verification to the existing WB-CON, WB-INV and WB-NEG identifiers. The runtime rows above remain planned/deferred. No event store, protected head, capability consumption, observation/evaluation boundary, recovery process or replay implementation is added by this design draft.
 
