@@ -13,7 +13,11 @@ esac
 expected_release="$(python3 -c 'import json,sys; print(json.load(open("toolchain/odin.lock.json"))[sys.argv[1]]["ubuntu_release"])' "$lock_profile")"
 # shellcheck source=/dev/null
 . /etc/os-release
-test "$ID:$VERSION_ID" = "ubuntu:$expected_release"
+# This diagnostic is a CI assertion contract for rejecting a profile before APT.
+if [[ "$ID:$VERSION_ID" != "ubuntu:$expected_release" ]]; then
+  printf 'ERROR: toolchain profile OS mismatch: expected ubuntu:%s, got %s:%s\n' "$expected_release" "$ID" "$VERSION_ID" >&2
+  exit 1
+fi
 mkdir -p out/linux_amd64
 sudo apt-get -o APT::Update::Error-Mode=any update
 locked_revision="$(python3 -c 'import json,sys; print(json.load(open("toolchain/odin.lock.json"))[sys.argv[1]]["llvm_package_version"])' "$lock_profile")"

@@ -27,7 +27,13 @@ class ToolchainVersionControls(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('unrecognized clang version output', result.stderr)
 
-    def check(self, platform, llvm, clang):
+    def test_explicit_ubuntu2604_profile_rejects_baseline_versions(self):
+        result = self.check('linux_amd64', '19.1.1', 'Ubuntu clang version 19.1.1',
+                            profile='linux_ubuntu2604')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('llvm_version_mismatch', result.stderr)
+
+    def check(self, platform, llvm, clang, profile=None):
         with tempfile.TemporaryDirectory(dir=ROOT / '.local') as temporary:
             directory = Path(temporary)
             config = directory / 'llvm-config'
@@ -36,7 +42,10 @@ class ToolchainVersionControls(unittest.TestCase):
             compiler.write_text('#!/bin/sh\nprintf "%s\\n" "' + clang + '"\n')
             config.chmod(0o755)
             compiler.chmod(0o755)
-            return subprocess.run([
+            command = [
                 'python3', str(ROOT / 'scripts/toolchain_versions.py'),
                 '--platform', platform, '--llvm-config', str(config), '--cxx', str(compiler),
-            ], text=True, capture_output=True, check=False)
+            ]
+            if profile is not None:
+                command.extend(['--profile', profile])
+            return subprocess.run(command, text=True, capture_output=True, check=False)
