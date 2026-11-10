@@ -2,13 +2,21 @@
 
 - **Status:** Proposed
 - **Decision owner:** Proto, project owner (assigned 2026-10-18)
-- **Review status:** Amended decision candidate; operator acceptance pending
+- **Review status:** Owner acceptance recorded below; protected provenance publication pending
 - **Scope:** Proposed Phase 2 deterministic no-op authority boundary
 - **Supersedes:** None
 - **Related decisions:** Accepted ADR-0001 through ADR-0003; Proposed ADR-0004
 - **Authorization:** Design only. Neither this draft nor Phase 1 acceptance authorizes Phase 2 code.
 
 The owner requested progression to the next phase on 2026-10-18 and assigned Proto as this decision's owner. [Phase 2 entry review](../engineering/phase2-entry-review.md) records the outstanding decisions and proposed review sequence. Owner assignment does not accept this ADR or resolve its implementation gates.
+
+## Owner acceptance decision recorded 2026-11-10
+
+The project owner, Proto for this decision, explicitly authorized the assistant to record acceptance: "Rufus, I approved that and I want you to accept it. I am authorizing you to accept that ADR and then to begin the phase 2 implementation."
+
+This records the owner's acceptance of ADR-0005's complete amended design at reviewed source `84cfc937a88c55d01e4e620337bf20f63afe3b1e`, including the selected Option A and its recorded aggregate denial-history growth limitation. The assistant records the owner's decision on his behalf; this is not an independent agent or security-review approval.
+
+This commit records the Gate 2 decision only. Its actual commit must be verified in protected main before filling the acceptance provenance fields and activating Phase 2. Gate 3 entry is recorded separately. No implementation result, debt closure or production release is claimed.
 
 ## Context
 
