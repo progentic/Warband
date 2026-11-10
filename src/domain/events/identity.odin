@@ -18,6 +18,7 @@ Error :: enum {
 	WrongStore,
 	WrongEpoch,
 	SequenceOverflow,
+	EpochOverflow,
 }
 
 validate_event_ref :: proc(value: EventRef, store: StoreId, epoch: Epoch) -> Error {
@@ -43,6 +44,16 @@ validate_event_ref :: proc(value: EventRef, store: StoreId, epoch: Epoch) -> Err
 next_sequence :: proc(current: Sequence) -> (Sequence, Error) {
 	if current == max(Sequence) {
 		return 0, .SequenceOverflow
+	}
+	return current + 1, .None
+}
+
+next_epoch :: proc(current: Epoch) -> (Epoch, Error) {
+	if current == 0 {
+		return 0, .EmptyEpoch
+	}
+	if current == max(Epoch) {
+		return 0, .EpochOverflow
 	}
 	return current + 1, .None
 }

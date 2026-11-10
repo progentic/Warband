@@ -24,6 +24,26 @@ This records the owner's acceptance of ADR-0005's complete amended design at rev
 
 This commit records the Gate 2 decision only. Its actual commit must be verified in protected main before filling the acceptance provenance fields and activating Phase 2. Gate 3 entry is recorded separately. No implementation result, debt closure or production release is claimed.
 
+## Pure epoch advancement follow-on recorded 2026-11-10
+
+The project owner authorized this seven-file increment, requested this ADR record, and reviewed the three focused cases before test implementation. The baseline is `95b2a4bff5a53b1ebc53c6da1a5885a5d2a2b8d5`; the increment stays below 100 added lines. This implementation record does not change the accepted design or its original acceptance provenance.
+
+Epoch advancement must stop rather than create an invalid identity. The pure `next_epoch` rule returns the supplied epoch plus one, rejects zero with `EmptyEpoch`, and rejects the maximum value with `EpochOverflow`. It grants no operator authority, enrolls no store and changes no custody or runtime state. Actual epoch administration remains deferred.
+
+Changed files and decisions:
+
+- `src/domain/events/identity.odin`: add only the typed arithmetic rule and overflow error.
+- `tests/odin/event_identity/event_identity_test.odin`: add one test with normal advancement, zero rejection and overflow rejection only.
+- `tests/odin-packages.json`: declare that test in the existing package.
+- `AGENTS.md`: recognize the separately authorized pure follow-on without widening effect permissions.
+- `docs/engineering/phase2-entry-review.md`: record the bounded scope extension.
+- `docs/verification/traceability-matrix.md`: record partial domain coverage without closing runtime gates.
+- `docs/decisions/0005-event-integrity-acceptance-and-recovery.md`: preserve this decision and file-change record.
+
+Test necessity: invalid or wrapped epochs would violate amendment section 1. Existing tests cover references and sequence advancement, not epoch advancement. The new test removes that gap for the implemented rule at the cost of one small test, three cases and no dependency. It does not speculate about future administration, custody, storage or replay behavior.
+
+Verification of this local increment on native macOS ARM64: pinned compiler and artifact identity, Warband build with vet/warnings-as-errors, documentation governance, all 26 Python controls, all three Odin packages/eight named tests, CLI smoke and diff checks pass. These local results establish no Linux, hosted, administration, durability or replay result. The owner subsequently authorized commit and push to main through the protected PR process, waiting for GitHub runners; hosted results must bind to the exact published head.
+
 ## Context
 
 The foundation has local Linux x64 and macOS ARM64 evidence. It does not yet execute proposals, consume capabilities, verify external observations, commit runtime facts, or replay an authoritative event store.
