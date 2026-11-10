@@ -32,6 +32,8 @@ The constitutional rows above remain planned. Foundation tests do not establish 
 
 ## Invariant coverage status
 
+Phase 2 entry is authorized by the separate record in [the entry review](../engineering/phase2-entry-review.md), following ADR-0005 acceptance against `84cfc937` and protected decision commit `f46ae949`. The first slice is limited to pure event-reference validation and sequence overflow rejection. It does not change the planned runtime coverage below or establish storage uniqueness, acceptance, custody, recovery or replay.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |
