@@ -10,6 +10,16 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.4 - 2026-11-11
+
+### Added
+
+- Pure confirm classification with focused replay and rejection coverage.
+
+### Changed
+
+- Adopted ADR-0008 resource limits and the tracked denial-growth exception.
+
 ## 0.1.0-dev.1 - 2026-11-10
 
 ### Added

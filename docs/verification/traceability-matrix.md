@@ -2,9 +2,9 @@
 
 This matrix links constitutional rules to contracts, planned implementation, verification, and user-visible behavior.
 
-## Proposed resource-limit review
+## Resource-limit review
 
-[WB-EXC-001 status and proposed limits](../decisions/0008-phase2-resource-limits.md) and the [fault/measurement plan](phase2-verification-plan.md#proposed-limits-and-measurement) provide the review records for WB-CON-007/008/009 and WB-INV-004/006/008/009, with applicable WB-NEG-005/006/009 cases. Evidence-backed statuses remain in the rows below.
+[WB-EXC-001 status and provisional limits](../decisions/0008-phase2-resource-limits.md) and the [fault/measurement plan](phase2-verification-plan.md#proposed-limits-and-measurement) provide the review records for WB-CON-007/008/009 and WB-INV-004/006/008/009, with applicable WB-NEG-005/006/009 cases. Evidence-backed statuses remain in the rows below.
 
 | Requirement | Contract | Planned implementation | Planned verification | User behavior | Status |
 |---|---|---|---|---|---|
@@ -41,6 +41,8 @@ Phase 2 entry is authorized by the separate record in [the entry review](../engi
 `src/domain/events/identity.odin` defines the full store/epoch/sequence value and rejects empty identity fields, wrong explicit store/epoch and sequence overflow. The separately authorized pure epoch follow-on adds `next_epoch`, rejecting zero and overflow without authorizing epoch administration. At that increment, `tests/odin/event_identity/event_identity_test.odin` contained three focused tests and the manifest declared three packages/eight tests, retaining the original five. This is partial domain evidence for WB-CON-008/WB-NEG-006, not a passing runtime uniqueness or replay gate. [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#pure-epoch-advancement-follow-on-recorded-2026-11-10) records the decision, scope and test necessity.
 
 The authorized `src/domain/events/prepare.odin` follow-on adds supplied-value prepare classification. One focused test in the same identity package covers eligibility, exact pending replay and four binding/order rejections; the manifest now declares three packages/nine tests. [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#pure-prepare-classification-follow-on-recorded-2026-11-10) records its scope and necessity. This adds partial domain evidence for WB-CON-008/WB-NEG-005/006 only; authentication, link/history validation, persistence, actual receipts, confirm, recovery and runtime replay remain unimplemented.
+
+`src/domain/events/confirm.odin` adds pure confirm classification under the [authorized entry](../engineering/phase2-entry-review.md#pure-confirm-classification-authorized-2026-11-11). One focused test covers pending binding, publication readiness and exact latest-committed replay preserving a newer pledge; the manifest declares three packages/ten tests. This is partial WB-CON-008/WB-INV-008 and WB-NEG-005/006 domain evidence. Actual confirmation, authentication, durability and receipts remain unimplemented.
 
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|

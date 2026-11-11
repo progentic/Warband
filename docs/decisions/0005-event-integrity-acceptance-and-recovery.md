@@ -16,7 +16,7 @@ The acceptance record was verified in protected main at `d26927568078980ee8037d1
 
 The owner requested progression to the next phase on 2026-10-18 and assigned Proto as this decision's owner. [Phase 2 entry review](../engineering/phase2-entry-review.md) records the outstanding decisions and proposed review sequence. Owner assignment does not accept this ADR or resolve its implementation gates.
 
-[Proposed ADR-0008](0008-phase2-resource-limits.md) tracks WB-EXC-001 and proposes resource limits, review and expiry conditions for the accepted denial-growth limitation. Its structured fields hold the exception disposition; acceptance of this historical design remains recorded above.
+[Accepted ADR-0008](0008-phase2-resource-limits.md) tracks WB-EXC-001 and records provisional resource limits, review and expiry conditions for the accepted denial-growth limitation. Its structured fields hold the exception disposition; acceptance of this historical design remains recorded above.
 
 ## Proposed ADR-0008 amendment review
 
@@ -67,6 +67,12 @@ Changed files: `src/domain/events/prepare.odin` adds these values and the pure c
 The owner subsequently requested a changelog update and commit/push to main, then explicitly approved the expanded eight-file, up-to-110-added-line publication scope. `CHANGELOG.md` adds the dated `0.1.0-dev.1` development entry; it does not declare Phase 2 complete or authorize a tag/release. The other seven files, code and six cases are unchanged in scope. Publication follows the protected PR process and exact-head checks.
 
 Native macOS ARM64 verification: pinned compiler/artifact identity, build with vet/warnings-as-errors, documentation governance, all 26 Python controls, all three Odin packages/nine named tests, CLI smoke and diff/scope checks pass. These local results establish no hosted, Linux durability or runtime custody result; hosted results must identify the exact published head.
+
+## Pure confirm classification recorded 2026-11-11
+
+The [entry review](../engineering/phase2-entry-review.md#pure-confirm-classification-authorized-2026-11-11) records the owner-approved bounded slice. `classify_confirm` reuses identity and prepare checks, compares the complete latest committed tuple against the supplied committed checkpoint, and gates eligibility/replay on head publication. Latest committed replay reads but never clears a newer pending pledge. Supplied metadata must come from future authenticated and validated custody observations; classification itself grants no authority or durable receipt.
+
+The owner subsequently authorized committing and publishing this slice to main with a concise next-patch changelog entry. Version `0.0.4` records the classifier and ADR-0008 adoption; `0.0.3` remains reserved for the separate governance cleanup. Publication uses the protected PR path.
 
 ## Context
 
