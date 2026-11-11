@@ -70,3 +70,38 @@ prepare_classification_checks_binding_and_pending_replay :: proc(t: ^testing.T) 
 	changed.sequence = 2
 	testing.expect_value(t, events.classify_prepare(changed, checkpoint, nil), .InvalidSequence)
 }
+
+@(test)
+confirm_classification_checks_pending_and_committed_replay :: proc(t: ^testing.T) {
+	store := events.StoreId{}
+	store[0] = 1
+	checkpoint := events.Checkpoint{store = store, epoch = 1}
+	request := events.Pledge{store = store, epoch = 1, sequence = 1}
+	request.head[0] = 2
+	request.digest[0] = 3
+	testing.expect_value(t, events.classify_confirm(request, checkpoint, &request, nil, true), .EligibleConfirmation)
+	testing.expect_value(t, events.classify_confirm(request, checkpoint, nil, nil, true), .MissingPledge)
+	testing.expect_value(t, events.classify_confirm(request, checkpoint, &request, nil, false), .HeadPublicationPending)
+	changed := request
+	changed.digest[0] = 4
+	testing.expect_value(t, events.classify_confirm(changed, checkpoint, &request, nil, true), .RequestMismatch)
+	changed = request
+	changed.epoch = 2
+	testing.expect_value(t, events.classify_confirm(changed, checkpoint, &request, nil, true), .InvalidIdentity)
+	changed = request
+	changed.previous_head[0] = 5
+	testing.expect_value(t, events.classify_confirm(changed, checkpoint, &changed, nil, true), .RequestMismatch)
+	checkpoint.sequence = request.sequence
+	checkpoint.head = request.head
+	later := events.Pledge{store = store, epoch = 1, previous_sequence = 1, previous_head = request.head, sequence = 2}
+	later.head[0] = 6
+	later_before := later
+	testing.expect_value(t, events.classify_confirm(request, checkpoint, &later, &request, true), .CommittedReplay)
+	testing.expect_value(t, later, later_before)
+	testing.expect_value(t, events.classify_confirm(request, checkpoint, &later, &request, false), .HeadPublicationPending)
+	changed = request
+	changed.digest[0] = 4
+	testing.expect_value(t, events.classify_confirm(changed, checkpoint, &later, &request, true), .RequestMismatch)
+	checkpoint.head[0] = 7
+	testing.expect_value(t, events.classify_confirm(request, checkpoint, &later, &request, true), .RequestMismatch)
+}

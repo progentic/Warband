@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Phase 2 entry authorized; pure event-reference, epoch-advancement and prepare-classification slices only
+- **Status:** Phase 2 entry authorized; pure event-reference, epoch-advancement, prepare-classification and confirm-classification slices only
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -20,6 +20,14 @@ The owner separately authorized a seven-file, under-100-added-line pure epoch-ad
 The owner separately approved the [pure prepare classifier](../decisions/0005-event-integrity-acceptance-and-recovery.md#pure-prepare-classification-follow-on-recorded-2026-11-10) and its six concrete cases, initially seven files under 100 added lines, then eight files up to 110 lines to include its requested changelog/publication record. Only supplied-value identity, order, predecessor and pending binding are classified; authentication, link verification, history validation, codecs and custody writes remain unimplemented.
 
 The three named Proto-owned debts use the permitted carry-forward disposition; their Phase 5 entry deadline and severity/independent-review conditions are unchanged. No finding, recovery obligation or production gate is closed. The earlier design-review narrative below is historical; this entry record and the updated disposition table govern the current scope.
+
+## Pure confirm classification authorized 2026-11-11
+
+Proto adopted ADR-0008 and approved up to eight files and 150 added lines for pure confirm classification, requesting simple code and focused tests. `classify_confirm` uses supplied committed/pending tuples and publication state. It distinguishes pending eligibility, latest committed replay, publication waiting and rejection without mutating inputs. Authentication, durability and receipt production remain future boundaries.
+
+One focused test covers exact pending confirmation, missing pledge, publication waiting, mismatched tuple/scope/predecessor, committed replay preserving a newer pledge, and inconsistent committed metadata. Existing tests cover prepare only; these cases verify the new confirm decisions at the cost of one test in the existing package.
+
+Verification on native macOS ARM64 passed the existing runner for all five tests in the event-identity package, documentation governance, all 28 Python governance controls and whitespace checks. The manifest now declares three packages/ten tests; this increment adds no Linux durability evidence.
 
 ## Roles and source references
 

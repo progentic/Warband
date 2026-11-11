@@ -40,6 +40,16 @@ PHASE_TWO_RECORDS = (
     'docs/security/trust-model.md',
 )
 ACCEPTED_DECISION_LINE = '- **Status:** Accepted'
+RESOURCE_DECISION = 'docs/decisions/0008-phase2-resource-limits.md'
+EXCEPTION_FIELDS = (
+    ('Exception ID', r'WB-EXC-001'),
+    ('Exception status', r'Open|Closed'),
+    ('Expires before phase', r'[3-6]'),
+    ('Exception owner', r'Proto'),
+    ('Independent reviewer', r'\S[^\n]*'),
+    ('Disposition record', r'Pending|https://github\.com/progentic/Warband/commit/[0-9a-f]{40}'),
+    ('Status', r'Proposed|Accepted'),
+)
 DECISION_STATUS_PREFIX = '- **Status:** '
 ACCEPTANCE_LINES = (
     ('- **Acceptance authority:** ', r'- \*\*Acceptance authority:\*\* Proto \(project owner\)'),
@@ -74,6 +84,8 @@ class FindingCode(StrEnum):
     UNMAPPED_ID = 'unmapped_constitution_id'
     UNDEFINED_ID = 'undefined_constitution_id'
     SYMLINK = 'symlinked_input'
+    EXCEPTION_RECORD = 'invalid_resource_exception'
+    EXCEPTION_EXPIRED = 'expired_resource_exception'
 
 
 @dataclass(frozen=True)
@@ -131,7 +143,8 @@ def validate_inventory(inventory: Inventory) -> tuple[Finding, ...]:
             + guidance_findings(inventory) + contract_findings(inventory)
             + link_findings(inventory) + traceability_findings(inventory)
             + symlink_findings(inventory) + phase_two_record_findings(inventory)
-            + phase_two_acceptance_findings(inventory))
+            + phase_two_acceptance_findings(inventory)
+            + resource_exception_findings(inventory))
 
 
 def assemble_inventory(catalog: FileCatalog, documents, links, phase) -> Inventory:
@@ -178,6 +191,30 @@ def phase_two_acceptance_findings(inventory: Inventory) -> tuple[Finding, ...]:
                  for d in inventory.documents if d.path == PHASE_TWO_ADR
                  for prefix, pattern in ACCEPTANCE_LINES
                  if not matches_line_pattern(d.headings, prefix, pattern))
+
+
+def resource_exception_findings(inventory: Inventory) -> tuple[Finding, ...]:
+    if type(inventory.phase) is not int or inventory.phase < AUTHORITY_PHASE:
+        return ()
+    decisions = tuple(d for d in inventory.documents if d.path == RESOURCE_DECISION)
+    if len(decisions) != 1:
+        return (Finding(FindingCode.EXCEPTION_RECORD, RESOURCE_DECISION),)
+    lines = decisions[0].headings
+    fields = {}
+    for name, pattern in EXCEPTION_FIELDS:
+        prefix = f'- **{name}:** '
+        if not matches_line_pattern(lines, prefix, rf'- \*\*{name}:\*\* (?:{pattern})'):
+            return (Finding(FindingCode.EXCEPTION_RECORD, RESOURCE_DECISION, name),)
+        fields[name] = prefixed_lines(lines, prefix)[0][len(prefix):]
+    expiry = {'3': 3, '4': 4, '5': 5, '6': 6}[fields['Expires before phase']]
+    reviewed_disposition = (fields['Status'] == 'Accepted'
+                            and fields['Independent reviewer'] not in ('Pending', fields['Exception owner'])
+                            and fields['Disposition record'] != 'Pending')
+    if (fields['Exception status'] == 'Closed' or expiry != 3) and not reviewed_disposition:
+        return (Finding(FindingCode.EXCEPTION_RECORD, RESOURCE_DECISION, 'reviewed disposition'),)
+    if fields['Exception status'] == 'Open' and inventory.phase >= expiry:
+        return (Finding(FindingCode.EXCEPTION_EXPIRED, RESOURCE_DECISION, 'WB-EXC-001'),)
+    return ()
 
 
 def guidance_findings(inventory: Inventory) -> tuple[Finding, ...]:

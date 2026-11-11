@@ -16,6 +16,18 @@ The acceptance record was verified in protected main at `d26927568078980ee8037d1
 
 The owner requested progression to the next phase on 2026-10-18 and assigned Proto as this decision's owner. [Phase 2 entry review](../engineering/phase2-entry-review.md) records the outstanding decisions and proposed review sequence. Owner assignment does not accept this ADR or resolve its implementation gates.
 
+[Accepted ADR-0008](0008-phase2-resource-limits.md) tracks WB-EXC-001 and records provisional resource limits, review and expiry conditions for the accepted denial-growth limitation. Its structured fields hold the exception disposition; acceptance of this historical design remains recorded above.
+
+## Proposed ADR-0008 amendment review
+
+This clock amendment is Proposed for separate owner acceptance. [ADR-0008](0008-phase2-resource-limits.md) specifies provisional elapsed-time limits and the resource exception. Its acceptance does not accept this amendment or authorize live capability implementation.
+
+For the proposed Linux adapter, use CLOCK_BOOTTIME for all live deadlines, including suspend. Start the 90-second capability interval when authorization construction begins and retain the deadline only in the issuing process incarnation. Require claim confirmation and dispatch strictly before it. Record expiry in the authorization event for audit, but live permission never depends on the wall clock. Pure decisions receive elapsed-time observations; clock failures or regressions reject. Audit timestamps may use the wall clock through a separate path.
+
+Every process restart invalidates prior grants for live dispatch. Tasks in flight are reconciled against their recorded durable state and never automatically resumed or redispatched. The 180-second task deadline ends with that incarnation; any separately authorized new task receives a new identity and deadline. Replay preserves historical facts without reviving permission. The macOS live-deadline adapter is unsupported by this proposal; pure supplied-value decisions remain portable. Acceptance and contract alignment precede implementation.
+
+Resource overrun uses the proposed capped recovery/readiness checks; no persistent latch or new custody metadata is proposed. Epoch rotation retains custody ordinals and complete-history authorization uniqueness. An archive-and-new-store closure path needs a separately reviewed predecessor-head binding and archive-verification procedure beyond the current genesis format.
+
 ## Owner acceptance decision recorded 2026-11-10
 
 The project owner, Proto for this decision, explicitly authorized the assistant to record acceptance: "Rufus, I approved that and I want you to accept it. I am authorizing you to accept that ADR and then to begin the phase 2 implementation."
@@ -55,6 +67,12 @@ Changed files: `src/domain/events/prepare.odin` adds these values and the pure c
 The owner subsequently requested a changelog update and commit/push to main, then explicitly approved the expanded eight-file, up-to-110-added-line publication scope. `CHANGELOG.md` adds the dated `0.1.0-dev.1` development entry; it does not declare Phase 2 complete or authorize a tag/release. The other seven files, code and six cases are unchanged in scope. Publication follows the protected PR process and exact-head checks.
 
 Native macOS ARM64 verification: pinned compiler/artifact identity, build with vet/warnings-as-errors, documentation governance, all 26 Python controls, all three Odin packages/nine named tests, CLI smoke and diff/scope checks pass. These local results establish no hosted, Linux durability or runtime custody result; hosted results must identify the exact published head.
+
+## Pure confirm classification recorded 2026-11-11
+
+The [entry review](../engineering/phase2-entry-review.md#pure-confirm-classification-authorized-2026-11-11) records the owner-approved bounded slice. `classify_confirm` reuses identity and prepare checks, compares the complete latest committed tuple against the supplied committed checkpoint, and gates eligibility/replay on head publication. Latest committed replay reads but never clears a newer pending pledge. Supplied metadata must come from future authenticated and validated custody observations; classification itself grants no authority or durable receipt.
+
+The owner subsequently authorized committing and publishing this slice to main with a concise next-patch changelog entry. Version `0.0.4` records the classifier and ADR-0008 adoption; `0.0.3` remains reserved for the separate governance cleanup. Publication uses the protected PR path.
 
 ## Context
 
