@@ -18,6 +18,16 @@ The owner requested progression to the next phase on 2026-10-18 and assigned Pro
 
 [Proposed ADR-0008](0008-phase2-resource-limits.md) tracks WB-EXC-001 and proposes resource limits, review and expiry conditions for the accepted denial-growth limitation. Its structured fields hold the exception disposition; acceptance of this historical design remains recorded above.
 
+## Proposed ADR-0008 amendment review
+
+This clock amendment is Proposed for separate owner acceptance. [ADR-0008](0008-phase2-resource-limits.md) specifies provisional elapsed-time limits and the resource exception. Its acceptance does not accept this amendment or authorize live capability implementation.
+
+For the proposed Linux adapter, use CLOCK_BOOTTIME for all live deadlines, including suspend. Start the 90-second capability interval when authorization construction begins and retain the deadline only in the issuing process incarnation. Require claim confirmation and dispatch strictly before it. Record expiry in the authorization event for audit, but live permission never depends on the wall clock. Pure decisions receive elapsed-time observations; clock failures or regressions reject. Audit timestamps may use the wall clock through a separate path.
+
+Every process restart invalidates prior grants for live dispatch. Tasks in flight are reconciled against their recorded durable state and never automatically resumed or redispatched. The 180-second task deadline ends with that incarnation; any separately authorized new task receives a new identity and deadline. Replay preserves historical facts without reviving permission. The macOS live-deadline adapter is unsupported by this proposal; pure supplied-value decisions remain portable. Acceptance and contract alignment precede implementation.
+
+Resource overrun uses the proposed capped recovery/readiness checks; no persistent latch or new custody metadata is proposed. Epoch rotation retains custody ordinals and complete-history authorization uniqueness. An archive-and-new-store closure path needs a separately reviewed predecessor-head binding and archive-verification procedure beyond the current genesis format.
+
 ## Owner acceptance decision recorded 2026-11-10
 
 The project owner, Proto for this decision, explicitly authorized the assistant to record acceptance: "Rufus, I approved that and I want you to accept it. I am authorizing you to accept that ADR and then to begin the phase 2 implementation."
