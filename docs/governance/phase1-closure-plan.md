@@ -1,8 +1,10 @@
 # Phase 1 closure plan
 
-Warband's foundation has recorded Linux x64, macOS ARM64 and hosted enforcement evidence. Ian explicitly accepted the Phase 1 implementation on 2026-11-10 in [ADR-0004](../decisions/0004-reproducible-odin-toolchain-and-ci.md). The production debts and native Check B remain open. This plan does not independently authorize commits, remotes, account selection, pushes, infrastructure creation, workflow changes, or later ADR acceptance.
+Warband's foundation has recorded Linux x64, macOS ARM64 and hosted enforcement evidence. Ian explicitly accepted the Phase 1 implementation on 2026-11-10 in [ADR-0004](../decisions/0004-reproducible-odin-toolchain-and-ci.md). The [foundation obligations table](PHASE_PLAN.md#foundation-obligations-carried-to-production) records current production debts and the completed Ubuntu rejection checks. This plan does not independently authorize commits, remotes, account selection, pushes, infrastructure creation, workflow changes, or later ADR acceptance.
 
-On 2026-10-10 the user selected [progentic/Warband](https://github.com/progentic/Warband) and subsequently authorized committing and pushing the current Phase 1 status to `main`. Its HTTPS URL is configured as this folder's `origin`. Existing authentication is used; no account was switched. The later ADR-0004 acceptance names Ian as owner and acceptance reviewer. [Local evidence](../verification/phase1-review-evidence.md) retains its actual command results and historical pending disposition. ADR-0005 remains Proposed, independently of Phase 1 acceptance; Phase 2 implementation remains unauthorized.
+On 2026-10-10 the user selected [progentic/Warband](https://github.com/progentic/Warband) and subsequently authorized committing and pushing the current Phase 1 status to `main`. Its HTTPS URL is configured as this folder's `origin`. Existing authentication is used; no account was switched. The later ADR-0004 acceptance names Ian as owner and acceptance reviewer. [Local evidence](../verification/phase1-review-evidence.md) retains its actual command results and historical pending disposition. [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md) records subsequent design acceptance, and the [Phase 2 entry review](../engineering/phase2-entry-review.md) governs the separately authorized pure-code slices.
+
+The gate narratives below retain the historical publication sequence. The current gate table and linked decision and entry records govern present status.
 
 ## Gate 1 Review the source baseline
 
@@ -74,7 +76,7 @@ The [protection configuration and evidence](phase1-protection-proposal.md) recor
 
 ## Gate 6 Prepare Phase 2 design
 
-[ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md) is a Proposed design draft. It addresses event encoding, anchors, evidence provenance, transactional acceptance, capability consumption, uncertain execution outcomes, and deterministic replay. Its open decisions and verification matrix must be reviewed before any Phase 2 code is authorized.
+[ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md) records the accepted event-integrity and recovery design. The [Phase 2 entry review](../engineering/phase2-entry-review.md) records the permitted implementation slices. The [verification plan](../verification/phase2-verification-plan.md) defines the remaining runtime proof obligations.
 
 No general agent orchestration, provider integration, new execution surface, distributed consensus, or production deployment belongs to this closure plan. Phase 1 acceptance does not itself authorize Phase 2 implementation.
 
@@ -88,11 +90,11 @@ No general agent orchestration, provider integration, new execution surface, dis
 | Hosted runs | All six workflow runs across 53415e7, d6448e1 and 8da731e passed |
 | Runner evidence | Success artifacts inspected at d6448e1; all three failure uploads demonstrated and inspected in protection probe |
 | Dependency recovery | Durable archive and clean restore test pending |
-| Runner migration | ADR-0006 Proposed; A/B implemented locally at `28cce613`; A passes locally, native B/new hosted evidence pending; promotion pending; required job retains 24.04 |
+| Runner migration | See [foundation obligations](PHASE_PLAN.md#foundation-obligations-carried-to-production) for recorded A/B results at `84cfc937` and pending promotion/ADR disposition; required job retains 24.04 |
 | Required checks | Configured with no reviewer requirement; readback and blocked failing-PR evidence recorded |
-| Owner assignment and ADR acceptance | Ian explicitly accepted Phase 1 under ADR-0004 on 2026-11-10; local acceptance/check commits not published; open debts retained |
+| Owner assignment and ADR acceptance | Ian explicitly accepted Phase 1 under ADR-0004 on 2026-11-10; acceptance/check changes integrated through merged PR #16 at `84cfc937`; open debts retained |
 | Procedure hierarchy | ADR-0007 Accepted against v0.0.0; PR #3 merged; formal finding closure pending |
-| ADR-0005 design | Proposed draft only |
-| Phase 2 implementation | Not authorized |
+| ADR-0005 design | Acceptance and provenance recorded in [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md) |
+| Phase 2 implementation | Authorized pure slices are recorded in the [entry review](../engineering/phase2-entry-review.md) |
 
 References: [GitHub shell failure semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax), [artifact behavior](https://github.com/actions/upload-artifact/tree/ea165f8d65b6e75b540449e92b4886f43607fa02), and [Ubuntu snapshot service](https://snapshot.ubuntu.com/).

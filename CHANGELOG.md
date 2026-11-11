@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.3 - 2026-11-11
+
+### Fixed
+
+- Reconciled governance and phase status with recorded acceptance, authorized pure-code slices and Ubuntu rejection evidence.
+
 ## 0.1.0-dev.1 - 2026-11-10
 
 ### Added
