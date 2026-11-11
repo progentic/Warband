@@ -2,6 +2,10 @@
 
 This matrix links constitutional rules to contracts, planned implementation, verification, and user-visible behavior.
 
+## Proposed resource-limit review
+
+[WB-EXC-001 status and proposed limits](../decisions/0008-phase2-resource-limits.md) and the [fault/measurement plan](phase2-verification-plan.md#proposed-limits-and-measurement) provide the review records for WB-CON-007/008/009 and WB-INV-004/006/008/009, with applicable WB-NEG-005/006/009 cases. Evidence-backed statuses remain in the rows below.
+
 | Requirement | Contract | Planned implementation | Planned verification | User behavior | Status |
 |---|---|---|---|---|---|
 | WB-CON-001 | `docs/contracts/authoritative-state.md` | `src/state/transition.odin` | `tests/invariants/no_direct_state_mutation_test.odin` | The AI cannot directly mark work complete. | planned |
@@ -15,7 +19,7 @@ This matrix links constitutional rules to contracts, planned implementation, ver
 | WB-CON-009 | `docs/contracts/authoritative-state.md` | `src/recovery/` | `tests/negative/missing_recovery_policy_test.odin` | Unsafe actions stop before execution. | planned |
 | WB-CON-010 | `docs/contracts/model-proposals.md` | `src/model/provider.odin` | `tests/integration/provider_independence_test.odin` | Safety does not depend on one AI provider. | planned |
 
-## Phase 1 implementation evidence
+## Historical Phase 1 implementation evidence
 
 The constitutional rows above remain planned. Foundation tests do not establish runtime authority, model isolation, evidence acceptance, or replay.
 
@@ -63,7 +67,7 @@ For WB-P1-001/WB-P1-006, `28cce613` adds explicit-profile rejection in `tests/go
 
 `docs/decisions/0005-event-integrity-acceptance-and-recovery.md` maps proposed mechanisms and required future verification to the existing WB-CON, WB-INV and WB-NEG identifiers. The runtime rows above remain planned/deferred. No event store, protected head, capability consumption, observation/evaluation boundary, recovery process or replay implementation is added by this design draft.
 
-On 2026-10-18, Proto became ADR-0005 decision owner and selected SQLite with a separate same-VM checkpoint custodian as the design direction. ADR-0005 records the trust limits and revised prepare/confirm protocol, chained custody history and unified crash/fault recovery table; `docs/engineering/phase2-entry-review.md` tracks the remaining entry gates. This direction concerns WB-CON-007/008, WB-INV-006/008/009 and WB-NEG-009; their implementation and verification status remains planned. The owner selected operator-only reconciliation for a missing pledged event. Protocol specification is not durability or recovery evidence; ADR-0005 remains Proposed.
+On 2026-10-18, Proto became ADR-0005 decision owner and selected SQLite with a separate same-VM checkpoint custodian as the design direction. ADR-0005 records the trust limits and revised prepare/confirm protocol, chained custody history and unified crash/fault recovery table; `docs/engineering/phase2-entry-review.md` tracks the remaining entry gates. This direction concerns WB-CON-007/008, WB-INV-006/008/009 and WB-NEG-009; their implementation and verification status remains planned. The owner selected operator-only reconciliation for a missing pledged event. [ADR-0005 acceptance](../decisions/0005-event-integrity-acceptance-and-recovery.md) and the [entry review](../engineering/phase2-entry-review.md) govern current design and implementation scope; runtime durability and recovery evidence remains pending.
 
 `docs/decisions/0006-hosted-linux-runner-compatibility.md` tracks the WB-P1-001/WB-P1-006 build-environment risk and required future compatibility evidence. The owner selected native Ubuntu 26.04 evaluation; the unpromoted candidate is recorded in `docs/verification/ubuntu2604-compatibility-evidence.md`. The required Ubuntu 24.04 profile and exact version/OS rejection remain in force.
 

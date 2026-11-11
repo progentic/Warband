@@ -16,6 +16,8 @@ The acceptance record was verified in protected main at `d26927568078980ee8037d1
 
 The owner requested progression to the next phase on 2026-10-18 and assigned Proto as this decision's owner. [Phase 2 entry review](../engineering/phase2-entry-review.md) records the outstanding decisions and proposed review sequence. Owner assignment does not accept this ADR or resolve its implementation gates.
 
+[Proposed ADR-0008](0008-phase2-resource-limits.md) tracks WB-EXC-001 and proposes resource limits, review and expiry conditions for the accepted denial-growth limitation. Its structured fields hold the exception disposition; acceptance of this historical design remains recorded above.
+
 ## Owner acceptance decision recorded 2026-11-10
 
 The project owner, Proto for this decision, explicitly authorized the assistant to record acceptance: "Rufus, I approved that and I want you to accept it. I am authorizing you to accept that ADR and then to begin the phase 2 implementation."

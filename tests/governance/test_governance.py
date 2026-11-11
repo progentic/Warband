@@ -36,6 +36,46 @@ class GovernanceTests(unittest.TestCase):
     def test_phase_zero_baseline_passes(self):
         self.assertEqual(self.codes(), set())
 
+    def test_resource_exception_rejects_missing_and_malformed_records(self):
+        self.declare_phase(2)
+        decision = self.root / 'docs/decisions/0008-phase2-resource-limits.md'
+        original = decision.read_text()
+        self.assertNotIn('invalid_resource_exception', self.codes())
+        for field, value in (('Exception ID', 'unknown'), ('Expires before phase', '3.0'),
+                             ('Exception status', 'Waived'), ('Exception owner', '')):
+            with self.subTest(field=field):
+                lines = [f'- **{field}:** {value}' if line.startswith(f'- **{field}:** ')
+                         else line for line in original.splitlines()]
+                decision.write_text('\n'.join(lines))
+                self.assertIn('invalid_resource_exception', self.codes())
+        decision.write_text(original + '\n- **Expires before phase:** 4\n')
+        self.assertIn('invalid_resource_exception', self.codes())
+        decision.unlink()
+        self.assertIn('invalid_resource_exception', self.codes())
+
+    def test_resource_exception_expiry_and_reviewed_disposition(self):
+        self.declare_phase(3)
+        decision = self.root / 'docs/decisions/0008-phase2-resource-limits.md'
+        original = decision.read_text()
+        self.assertIn('expired_resource_exception', self.codes())
+        for candidate in (original.replace('Exception status:** Open', 'Exception status:** Closed'),
+                          original.replace('Expires before phase:** 3', 'Expires before phase:** 4')):
+            decision.write_text(candidate)
+            self.assertIn('invalid_resource_exception', self.codes())
+            reviewed = candidate.replace('Status:** Proposed', 'Status:** Accepted')
+            reviewed = reviewed.replace('Independent reviewer:** Pending', 'Independent reviewer:** Reviewer B')
+            reviewed = reviewed.replace('Disposition record:** Pending',
+                                        'Disposition record:** https://github.com/progentic/Warband/commit/' + 'a' * 40)
+            decision.write_text(reviewed)
+            self.assertNotIn('invalid_resource_exception', self.codes())
+            self.assertNotIn('expired_resource_exception', self.codes())
+            self.assertIn('invalid_phase', self.codes())
+            decision.write_text(reviewed.replace('Independent reviewer:** Reviewer B', 'Independent reviewer:** Proto'))
+            self.assertIn('invalid_resource_exception', self.codes())
+        decision.write_text(reviewed)
+        self.declare_phase(4)
+        self.assertIn('expired_resource_exception', self.codes())
+
     def test_phase_zero_rejects_source(self):
         (self.root / 'src').mkdir()
         self.assertIn('premature_runtime', self.codes())
