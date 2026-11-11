@@ -1,8 +1,8 @@
 # Warband phase plan to v1.0.0
 
 - **Status:** Proposed release roadmap
-- **Planning baseline:** `main` at `3cbfd55b9157058cbd72dfcc6e14a59080925681`, published through `v0.0.2`; subsequent decision/tooling/contract/verification PRs remain candidates
-- **Current implementation:** Phase 1 accepted; Phase 2 entered for the initial pure event-reference slice
+- **Historical planning baseline:** `main` at `3cbfd55b9157058cbd72dfcc6e14a59080925681`, published through `v0.0.2`; this baseline predates the acceptance and entry records linked below
+- **Current implementation:** Phase 1 accepted; the [Phase 2 entry review](../engineering/phase2-entry-review.md) records the authorized pure event-reference, epoch-advancement and prepare-classification slices
 - **Target:** A narrow, evidence-backed production release tagged `v1.0.0`
 - **Authority:** This document sequences work. It does not accept an ADR, select a production architecture, authorize a phase implementation, or declare a control verified.
 
@@ -38,7 +38,7 @@ Option A does not select an operating system version, CPU floor, store, sandbox 
 ## Rules that apply to every phase
 
 1. The [runtime constitution](../foundation/runtime-constitution.md) remains the highest authority.
-2. Preserve accepted ADR-0001 through ADR-0003 and ADR-0007. Proposed ADRs remain non-authoritative until explicitly accepted.
+2. Preserve accepted ADR-0001 through ADR-0005 and ADR-0007. Proposed ADRs remain non-authoritative until explicitly accepted.
 3. A phase begins only after its design decisions, owner, scope, and implementation authorization are recorded.
 4. A phase exits only when its user, engineering, security, and verification descriptions agree.
 5. Every new permission or state transition needs a rejecting test. Test additions must satisfy the repository's test necessity rule.
@@ -89,7 +89,7 @@ This table stages the existing phase requirements; it does not authorize impleme
 | 5 / Proto; name operations, dependency-recovery and security-triage owners plus independent reviewer before entry | Phase 4 exit accepted; exact production OS/CPU/kernel/VM/storage/service profile selected; resolve entry-blocking ADR-0004/0006, Ubuntu rejection/promotion disposition and named structural debts; retain accepted store/custodian or invalidate/rerun affected evidence | Locked production build/install/configuration, retained dependencies, backup/restore and custody reconciliation, operator epoch-change and migration/rollback runbooks, observability/redaction, release provenance and signing plan | WB-CON-001 through WB-CON-010; WB-INV-001 through WB-INV-010; real-path WB-NEG-001 through WB-NEG-012. Clean dependency rebuild; all production-target Phase 2 vectors/fault/replay and Phase 3 sandbox/network tests rerun when boundaries differ. Verify SQLite source/version/compile options/linkage on every supported target, Linux durability on the exact storage/VM profile, macOS development without durability claims. Rehearse empty-host restore with trusted head, operator epoch change and missing-pledge reconciliation, upgrade/rollback and interrupted recovery | Restore/upgrade/rollback demonstrated; independent security review; no open critical/high finding; residual risks owned and approved; dependency recovery proof complete. Record exact production artifact and evidence package |
 | 6 / Proto as release decision authority; release executor and independent reviewer named before entry | Accepted Phase 5 exit and evidence; all foundation debt resolved at its gate; no unowned risks; explicit authorization to freeze exact RC commit | Frozen event/config/CLI/tool schemas, complete release manifest and durable evidence, operator procedures and exact RC build from retained inputs | WB-CON-001 through WB-CON-010, WB-INV-001 through WB-INV-010, WB-NEG-001 through WB-NEG-018 on the exact candidate as applicable. Complete workflow, target identity, independent review, install/task/rejection/backup/restore/epoch/reconciliation/rollback rehearsal; no skipped or substituted required test | All thirteen release gates below pass; explicit owner authorization for changelog, protected merge, annotated tag and publication. Any changed source/dependency/target/trust boundary creates a new candidate and affected reruns |
 
-Every phase retains foundation WB-NEG-013 through WB-NEG-018 and required branch checks. Proto must record future operations/security/release owners and independent reviewers before their entry gates. Phase 2 entry is recorded in the [entry review](../engineering/phase2-entry-review.md); its initial scope is pure event-reference code only. Version targets remain planning values. No tag, release, service or production architecture is selected.
+Every phase retains foundation WB-NEG-013 through WB-NEG-018 and required branch checks. Proto must record future operations/security/release owners and independent reviewers before their entry gates. Phase 2 entry is recorded in the [entry review](../engineering/phase2-entry-review.md); that record governs the initial pure event-reference slice and its authorized epoch-advancement and prepare-classification follow-ons. Version targets remain planning values. No tag, release, service or production architecture is selected.
 
 ### Operator acceptance handoff for Phase 2
 
