@@ -105,3 +105,45 @@ confirm_classification_checks_pending_and_committed_replay :: proc(t: ^testing.T
 	checkpoint.head[0] = 7
 	testing.expect_value(t, events.classify_confirm(request, checkpoint, &later, &request, true), .RequestMismatch)
 }
+
+@(test)
+recovery_classification_checks_outcomes_and_mismatch_precedence :: proc(t: ^testing.T) {
+	store := events.StoreId{}
+	store[0] = 1
+	committed := events.Checkpoint{store = store, epoch = 1, sequence = 1}
+	committed.head[0] = 2
+	pending := events.Pledge{store = store, epoch = 1, previous_sequence = 1, previous_head = committed.head, sequence = 2}
+	pending.head[0] = 3
+	pending.digest[0] = 4
+	journal := events.Checkpoint{store = store, epoch = 1, sequence = 2, head = pending.head}
+	testing.expect_value(t, events.classify_recovery(committed, committed, nil, nil), .Ready)
+	testing.expect_value(t, events.classify_recovery(committed, committed, &pending, nil), .PendingEventMissing)
+	testing.expect_value(t, events.classify_recovery(committed, journal, &pending, &pending), .PendingConfirmation)
+	testing.expect_value(t, events.classify_recovery(committed, journal, nil, &pending), .UnattestedTail)
+	changed_journal := journal
+	changed_journal.sequence = 3
+	testing.expect_value(t, events.classify_recovery(committed, changed_journal, &pending, nil), .UnattestedTail)
+	changed_event := pending
+	changed_event.digest[0] = 5
+	testing.expect_value(t, events.classify_recovery(committed, journal, &pending, &changed_event), .IntegrityFault)
+	testing.expect_value(t, events.classify_recovery(committed, journal, &pending, nil), .IntegrityFault)
+	changed_journal = committed
+	changed_journal.head[0] = 6
+	testing.expect_value(t, events.classify_recovery(committed, changed_journal, &pending, nil), .IntegrityFault)
+	changed_journal = committed
+	changed_journal.sequence = 0
+	testing.expect_value(t, events.classify_recovery(committed, changed_journal, nil, nil), .IntegrityFault)
+	changed_event = pending
+	changed_event.previous_head[0] = 7
+	testing.expect_value(t, events.classify_recovery(committed, committed, &changed_event, nil), .IntegrityFault)
+	changed_journal = journal
+	changed_journal.epoch = 2
+	testing.expect_value(t, events.classify_recovery(committed, changed_journal, &pending, &pending), .EpochMismatch)
+	changed_journal.store[0] = 8
+	testing.expect_value(t, events.classify_recovery(committed, changed_journal, &pending, &pending), .StoreIdentityMismatch)
+	changed_event = pending
+	changed_event.epoch = 2
+	testing.expect_value(t, events.classify_recovery(committed, committed, &changed_event, nil), .EpochMismatch)
+	changed_event.store[0] = 8
+	testing.expect_value(t, events.classify_recovery(committed, journal, &pending, &changed_event), .StoreIdentityMismatch)
+}

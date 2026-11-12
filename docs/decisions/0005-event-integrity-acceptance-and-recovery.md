@@ -74,6 +74,14 @@ The [entry review](../engineering/phase2-entry-review.md#pure-confirm-classifica
 
 The owner subsequently authorized committing and publishing this slice to main with a concise next-patch changelog entry. Version `0.0.4` records the classifier and ADR-0008 adoption; `0.0.3` remains reserved for the separate governance cleanup. Publication uses the protected PR path.
 
+## Pure recovery classification recorded 2026-11-12
+
+The [entry review](../engineering/phase2-entry-review.md#pure-recovery-classification-authorized-2026-11-12) records the seven-file, 150-line authorization. `classify_recovery` implements supplied-value READY, PENDING_EVENT_MISSING, PENDING_CONFIRMATION, UNATTESTED_TAIL, INTEGRITY_FAULT, STORE_IDENTITY_MISMATCH and EPOCH_MISMATCH. Journal-behind, conflicting heads and changed pledged tuples are integrity faults; an unpledged or extra suffix is unattested. Store/epoch mismatch takes precedence. The procedure reads existing domain values and reuses prepare validation without mutating state.
+
+This slice assumes validated custody metadata and a verified checkpoint-covered prefix. Parsing, hashing, storage, publication recovery and actual recovery actions remain separate future boundaries. A returned READY classifies these observations only and grants no execution or state-transition authority.
+
+The owner authorized publication of the recovery slice through a PR after checks pass, with the concise `0.0.5` changelog entry dated 2026-11-12.
+
 ## Context
 
 The foundation has local Linux x64 and macOS ARM64 evidence. It does not yet execute proposals, consume capabilities, verify external observations, commit runtime facts, or replay an authoritative event store.
