@@ -44,6 +44,8 @@ The authorized `src/domain/events/prepare.odin` follow-on adds supplied-value pr
 
 `src/domain/events/confirm.odin` adds pure confirm classification under the [authorized entry](../engineering/phase2-entry-review.md#pure-confirm-classification-authorized-2026-11-11). One focused test covers pending binding, publication readiness and exact latest-committed replay preserving a newer pledge; the manifest declares three packages/ten tests. This is partial WB-CON-008/WB-INV-008 and WB-NEG-005/006 domain evidence. Actual confirmation, authentication, durability and receipts remain unimplemented.
 
+`src/domain/events/recovery.odin` adds the [authorized pure recovery slice](../engineering/phase2-entry-review.md#pure-recovery-classification-authorized-2026-11-12), with one focused named-outcome/precedence test and three packages/eleven declared tests. This adds partial WB-CON-007/008/009, WB-INV-004/006/008/009 and WB-NEG-005/006/009 domain coverage. Persisted integrity, crash recovery and operator reconciliation remain future verification.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |

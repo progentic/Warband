@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Phase 2 entry authorized; pure event-reference, epoch-advancement, prepare-classification and confirm-classification slices only
+- **Status:** Phase 2 entry authorized; pure event-reference, epoch-advancement, prepare-classification, confirm-classification and recovery-classification slices only
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -28,6 +28,14 @@ Proto adopted ADR-0008 and approved up to eight files and 150 added lines for pu
 One focused test covers exact pending confirmation, missing pledge, publication waiting, mismatched tuple/scope/predecessor, committed replay preserving a newer pledge, and inconsistent committed metadata. Existing tests cover prepare only; these cases verify the new confirm decisions at the cost of one test in the existing package.
 
 Verification on native macOS ARM64 passed the existing runner for all five tests in the event-identity package, documentation governance, all 28 Python governance controls and whitespace checks. The manifest now declares three packages/ten tests; this increment adds no Linux durability evidence.
+
+## Pure recovery classification authorized 2026-11-12
+
+Proto approved seven files and up to 150 added lines for a pure recovery classifier reusing `Checkpoint`, `Pledge` and prepare validation. It compares supplied committed and journal tips, optional pending pledge and the journal-final event when ahead. Callers must first validate custody/history and the checkpoint-covered prefix and handle external faults. The classifier returns a primary decision; callers retain observations and any additional diagnostics.
+
+One focused test covers the seven implemented outcomes and mismatch precedence. Store mismatch precedes epoch mismatch; both precede integrity and permissive recovery decisions. A changed pledge/predecessor or conflicting checkpoint rejects before missing-event/confirmation handling. Existing tests exercise prepare/confirm but cannot prove these recovery decisions. The test costs one case group in the existing package with no new dependency.
+
+Verification on native macOS ARM64 passed all six event-identity tests through the existing runner, all 28 Python governance controls, documentation governance and whitespace checks. The manifest declares three packages/eleven tests. Persisted recovery and Linux durability remain future evidence.
 
 ## Roles and source references
 
