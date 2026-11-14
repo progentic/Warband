@@ -4,7 +4,7 @@ Use this guide to trace the code and understand the architecture. The [constitut
 
 ## Current implementation
 
-[project.json](../project.json) declares Phase 2. The [entry review](engineering/phase2-entry-review.md) authorizes pure identity, epoch advancement, and prepare classification only. The CLI still exposes Phase 1 commands. Warband has no runtime gateway, policy engine, evaluator, state writer, database, custodian, or execution tool yet.
+[project.json](../project.json) declares Phase 2. The [entry review](engineering/phase2-entry-review.md) records pure identity, epoch, prepare/confirm/recovery classification the fixed pledge codec/link hash, and TaskCreated-only canonical event encoding. The CLI still exposes Phase 1 commands. Warband has no runtime gateway, policy engine, evaluator, state writer, database, custodian service or execution tool yet.
 
 Source links pin reviewed main baseline `109b8d1`.
 
@@ -50,6 +50,12 @@ Earlier failures take precedence. The function never replaces a pledge or advanc
 
 The [event tests](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/tests/odin/event_identity/event_identity_test.odin) cover identity, arithmetic, and six classifier cases. The [manifest](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/tests/odin-packages.json) lists three packages and nine tests. These tests prove partial domain behavior, not runtime replay or durability.
 
+## Fixed pledge encoding and link hash
+
+`src/custody/pledge.odin` packs the existing pledge into exactly 136 little-endian bytes. Both codec directions require expected store/epoch and reject invalid identity, ordering or link. `derive_head` hashes the exact domain, store, epoch, new sequence, previous head and event digest; it changes no input. A valid digest/link is not evidence that an event was persisted or that its producer was authorized.
+
+Two tests in `tests/odin/custody/pledge_test.odin` compare the independently reproduced literal vector and reject malformed/tampered data. That increment declared four packages/thirteen tests, retaining the eleven earlier tests. This is native Mac encoding/hash evidence; full event/frame codecs and target-specific persistence proofs remain future work.
+
 ## Repository checks
 
 [check_docs.py](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/scripts/check_docs.py) separates inventory reads from pure governance decisions. Its provenance checks validate document fields, not operator identity or commit ancestry.
@@ -89,3 +95,7 @@ The design trusts VM root, kernel, administrator, and storage behavior. It canno
 `MUST` requires compliance. `MUST NOT` prohibits behavior. `SHOULD` expects compliance unless a documented reason justifies an exception. `SHOULD NOT` means you should normally avoid the behavior. `MAY` permits a choice. An `INVARIANT` holds in every valid state.
 
 Keep user, engineering, security, and verification contracts aligned. Follow the [documentation standard](engineering/documentation-standard.md) and [authority order](governance/README.md#authority-order). Repository records govern. Chats, memory, saved responses, and examples provide working context, not accepted decisions.
+
+## TaskCreated event bytes
+
+`src/audit/task_created.odin` encodes kind 1 into 184 bytes and validates the exact schema, producer, payload size, expected store/epoch and nonzero IDs on decode. Its 16-byte task/run/command/evidence IDs live under `domain/events`. `digest_task_created` hashes the event domain and 152-byte body; `custody.derive_head` binds the previous head separately. Five packages/fifteen tests are now declared, including two focused event-vector/rejection tests. Hashing supplies byte binding; acceptance requires the later authority/evidence path.

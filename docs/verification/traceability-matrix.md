@@ -46,6 +46,10 @@ The authorized `src/domain/events/prepare.odin` follow-on adds supplied-value pr
 
 `src/domain/events/recovery.odin` adds the [authorized pure recovery slice](../engineering/phase2-entry-review.md#pure-recovery-classification-authorized-2026-11-12), with one focused named-outcome/precedence test and three packages/eleven declared tests. This adds partial WB-CON-007/008/009, WB-INV-004/006/008/009 and WB-NEG-005/006/009 domain coverage. Persisted integrity, crash recovery and operator reconciliation remain future verification.
 
+`src/custody/pledge.odin` adds the [authorized fixed pledge codec/link hash](../engineering/phase2-entry-review.md#pledge-codec-and-link-hash-authorized-2026-11-12). Independent field-table/OpenSSL reproduction preceded the two focused tests in `tests/odin/custody/pledge_test.odin`; the manifest now declares four packages/thirteen tests. This is partial canonical-byte, link-binding and malformed-input evidence for WB-CON-007/008, WB-INV-006/008/009 and WB-NEG-001/009/012. It establishes no authenticity, persisted integrity, custody, Linux durability or runtime replay.
+
+The [TaskCreated codec record](../decisions/0005-event-integrity-acceptance-and-recovery.md#taskcreated-canonical-codec-recorded-2026-11-13) adds fixed canonical event bytes and body-digest evidence for WB-CON-007/008 and WB-NEG-001/012. Two focused tests cover the independent vector and implemented rejection paths; five packages/fifteen tests are declared. This is partial encoding evidence; runtime audit, authenticity, persisted integrity and replay rows remain planned.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |
