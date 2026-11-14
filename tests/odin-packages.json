@@ -3,6 +3,8 @@
   "packages": [
     {"path": "tests/odin/foundation", "tests": ["fixture_has_exact_portable_bytes", "fixture_round_trip_preserves_injected_values"]},
     {"path": "tests/odin/negative", "tests": ["unknown_fixture_schema_is_rejected", "empty_identifiers_are_rejected", "truncated_and_oversized_bytes_are_rejected"]},
-    {"path": "tests/odin/event_identity", "tests": ["event_reference_checks_identity_and_scope", "sequence_advance_rejects_overflow", "epoch_advance_rejects_zero_and_overflow", "prepare_classification_checks_binding_and_pending_replay", "confirm_classification_checks_pending_and_committed_replay", "recovery_classification_checks_outcomes_and_mismatch_precedence"]}
+    {"path": "tests/odin/event_identity", "tests": ["event_reference_checks_identity_and_scope", "sequence_advance_rejects_overflow", "epoch_advance_rejects_zero_and_overflow", "prepare_classification_checks_binding_and_pending_replay", "confirm_classification_checks_pending_and_committed_replay", "recovery_classification_checks_outcomes_and_mismatch_precedence"]},
+    {"path": "tests/odin/custody", "tests": ["pledge_encoding_and_link_match_golden", "pledge_decoding_rejects_length_and_tampering"]},
+    {"path": "tests/odin/audit", "tests": ["task_created_encoding_and_digest_match_golden", "task_created_decoding_rejects_malformed_and_unsupported"]}
   ]
 }

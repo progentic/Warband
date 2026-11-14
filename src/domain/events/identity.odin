@@ -3,6 +3,10 @@ package events
 StoreId :: distinct [16]u8
 Epoch :: distinct u64
 Sequence :: distinct u64
+TaskId :: distinct [16]u8
+RunId :: distinct [16]u8
+CommandId :: distinct [16]u8
+EvidenceId :: distinct [16]u8
 
 EventRef :: struct {
 	store: StoreId,

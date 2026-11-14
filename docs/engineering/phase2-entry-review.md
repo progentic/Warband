@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Phase 2 entry authorized; pure event-reference, epoch-advancement, prepare-classification, confirm-classification and recovery-classification slices only
+- **Status:** Phase 2 entry authorized; recorded pure identity/classification slices and fixed pledge codec/link hash only
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -37,6 +37,18 @@ One focused test covers the seven implemented outcomes and mismatch precedence. 
 
 Verification on native macOS ARM64 passed all six event-identity tests through the existing runner, all 28 Python governance controls, documentation governance and whitespace checks. The manifest declares three packages/eleven tests. Persisted recovery and Linux durability remain future evidence.
 
+## Pledge codec and link hash authorized 2026-11-12
+
+The owner approved approximately 8–10 files and 200–250 added lines for local Mac pledge encoding and SHA-256 link hashing, including focused known-value, round-trip, malformed-length and tampering checks. [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#pledge-encoding-and-link-hashing-recorded-2026-11-12) records the exact boundary, independent vector reproduction, dependencies and changed files. This adds no event/frame codec, storage, custody service or runtime authority; later slices require their own authorization.
+
+Review found automatic standard-library CPU initialization. The owner separately approved the [pinned CPU-query/cache qualification](../decisions/0005-event-integrity-acceptance-and-recovery.md#pinned-sha-256-library-startup-qualification--approved-2026-11-12); no other startup, persistence or runtime-effect permission is added.
+
+## TaskCreated canonical codec authorized 2026-11-13
+
+The owner approved eleven files and up to 300 additional lines, preserving the uncommitted pledge increment. The TaskCreated-only codec uses a fixed 184-byte representation, explicit expected store/epoch, distinct 16-byte IDs and the approved endian/SHA-256 dependencies. Two focused tests compare the independent event/digest/link vectors and round-trip, then exercise the supplied negative vectors and implemented header, length and identity rejection paths.
+
+The [ADR record](../decisions/0005-event-integrity-acceptance-and-recovery.md#taskcreated-canonical-codec-recorded-2026-11-13) contains reasoning, failure history and verification logs. Later event kinds, frames, custody authentication and persistence retain their separate gates.
+
 ## Roles and source references
 
 Proto is the project owner, ADR-0005 decision owner and acceptance operator for this design record. Here, an architectural “owner decision” or “operator acceptance” means Proto's explicit recorded decision. A future operational operator is a separately allowlisted OS identity for enrollment/reconciliation; that identity does not automatically receive ADR decision authority. No Unix UID or GitHub login is inferred from the name Proto.
@@ -60,7 +72,7 @@ The amended [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery
 | State and evidence registries | PR #10 supplies separate versions, transition rules and producer identities; acceptance and implementation evidence remain pending | Freeze transition/evidence tables, observer and evaluator identities, criteria coverage and all capability/attempt bindings |
 | Runtime effect composition | ADR-0007 explicitly excludes runtime coordination, policy, capabilities, evaluation, state and recovery from Phase 1 E1 permission | Review an explicit runtime call/effect graph and authorize any necessary scoped rule qualification before effectful code |
 | Phase 1 structural findings | E1 implementation and ADR-0007 acceptance exist; formal finding closure remains separate | Close each finding with evidence or name its release-debt owner and blocking disposition, as the phase plan requires |
-| Implementation entry | ADR-0005 accepted; separate entry and follow-ons recorded above; runtime controls remain unimplemented | Implement only the approved pure identity, epoch and prepare-classification slices |
+| Implementation entry | ADR-0005 accepted; separate entry and follow-ons recorded above; runtime controls remain unimplemented | Implement only the recorded pure slices and fixed pledge codec/link hash |
 
 The owner selected Option 1: same VM, separate checkpoint custodian. [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#owner-selected-storage-and-custody-direction) records the direction and its trust limits. The selection does not accept the complete ADR. A file beside the journal under the same writable identity does not establish independent custody; the amended interface and crash behavior are now concrete candidates awaiting operator review.
 
@@ -108,7 +120,7 @@ After design authorization, evidence must bind the accepted store and checkpoint
 | Resolve and accept ADR-0005 | PASS: explicit owner decision and protected-main provenance recorded above |
 | Close or explicitly assign structural release debt | PASS for entry's named-debt alternative only; all three remain open until their Phase 5 entry deadline and required closure review |
 | Align contracts and runtime effect boundaries | Accepted design alignment; initial scope is pure domain code with no new effects |
-| Begin runtime implementation | AUTHORIZED: pure identity, epoch and prepare-classification slices only; no integrated runtime or durability claim |
+| Begin runtime implementation | AUTHORIZED: recorded pure slices, fixed pledge codec/link hash and TaskCreated-only event codec; no integrated runtime or durability claim |
 
 Foundation obligations whose blocking gate is Phase 5 remain tracked in the phase plan. They are not silently promoted to Phase 2 blockers or treated as complete here.
 
