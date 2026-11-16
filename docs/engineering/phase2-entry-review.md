@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Phase 2 entry authorized; recorded pure identity/classification slices and fixed pledge codec/link hash only
+- **Status:** Phase 2 entry authorized; recorded pure identity/classification slices, pledge/TaskCreated codecs and PENDING/COMMITTED frame and head-file codecs
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -48,6 +48,10 @@ Review found automatic standard-library CPU initialization. The owner separately
 The owner approved eleven files and up to 300 additional lines, preserving the uncommitted pledge increment. The TaskCreated-only codec uses a fixed 184-byte representation, explicit expected store/epoch, distinct 16-byte IDs and the approved endian/SHA-256 dependencies. Two focused tests compare the independent event/digest/link vectors and round-trip, then exercise the supplied negative vectors and implemented header, length and identity rejection paths.
 
 The [ADR record](../decisions/0005-event-integrity-acceptance-and-recovery.md#taskcreated-canonical-codec-recorded-2026-11-13) contains reasoning, failure history and verification logs. Later event kinds, frames, custody authentication and persistence retain their separate gates.
+
+## Custody frame and head codecs authorized 2026-11-15
+
+The owner approved eleven files and up to 400 added lines for the two fixed pledge-frame kinds and head-file codec. The [ADR record](../decisions/0005-event-integrity-acceptance-and-recovery.md#custody-frame-and-head-codecs-recorded-2026-11-15) defines independent vectors, focused test necessity, error boundaries and retained evidence. Exact bytes and hash binding are the implemented guarantees; full history, recovery actions and custody authentication remain future boundaries.
 
 ## Roles and source references
 
@@ -120,7 +124,7 @@ After design authorization, evidence must bind the accepted store and checkpoint
 | Resolve and accept ADR-0005 | PASS: explicit owner decision and protected-main provenance recorded above |
 | Close or explicitly assign structural release debt | PASS for entry's named-debt alternative only; all three remain open until their Phase 5 entry deadline and required closure review |
 | Align contracts and runtime effect boundaries | Accepted design alignment; initial scope is pure domain code with no new effects |
-| Begin runtime implementation | AUTHORIZED: recorded pure slices, fixed pledge codec/link hash and TaskCreated-only event codec; no integrated runtime or durability claim |
+| Begin runtime implementation | AUTHORIZED: recorded pure slices, fixed pledge codec/link hash, TaskCreated-only event codec and PENDING/COMMITTED frame/head codecs; no integrated runtime or durability claim |
 
 Foundation obligations whose blocking gate is Phase 5 remain tracked in the phase plan. They are not silently promoted to Phase 2 blockers or treated as complete here.
 

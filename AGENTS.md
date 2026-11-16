@@ -16,7 +16,7 @@ Warband is a policy-controlled execution runtime. Treat every model output as un
 
 ## Current phase
 
-`project.json` declares the phase. ADR-0004 accepts the foundation; ADR-0005 and `docs/engineering/phase2-entry-review.md` record the authorized pure identity/classification slices and fixed pledge codec/link hash and TaskCreated-only canonical event codec. Keep code simple and tests focused on implemented behavior. Other event kinds and custody-frame codecs, effectful custody/execution, persistence, providers, tools and deployment services remain outside these slices. Foundation debts remain open; Ubuntu rejection checks passed at the recorded Phase 1 baseline. Do not configure remotes, commit or publish without separate authorization.
+`project.json` declares the phase. ADR-0004 accepts the foundation; ADR-0005 and `docs/engineering/phase2-entry-review.md` record the authorized pure identity/classification slices and fixed pledge codec/link hash and TaskCreated-only canonical event codec, PENDING/COMMITTED frame codecs and head-file codec. Keep code simple and tests focused on implemented behavior. Other event kinds and custody-frame payloads, effectful custody/execution, persistence, providers, tools and deployment services remain outside these slices. Foundation debts remain open; Ubuntu rejection checks passed at the recorded Phase 1 baseline. Do not configure remotes, commit or publish without separate authorization.
 
 ## Working rules
 
