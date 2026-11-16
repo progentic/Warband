@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Phase 2 entry authorized; recorded pure identity/classification slices, pledge/TaskCreated codecs and PENDING/COMMITTED frame and head-file codecs
+- **Status:** Phase 2 entry authorized; recorded pure identity/classification slices, pledge/TaskCreated codecs and PENDING/COMMITTED frame/head codecs and GENESIS/EPOCH/REJECTION payloads
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -52,6 +52,10 @@ The [ADR record](../decisions/0005-event-integrity-acceptance-and-recovery.md#ta
 ## Custody frame and head codecs authorized 2026-11-15
 
 The owner approved eleven files and up to 400 added lines for the two fixed pledge-frame kinds and head-file codec. The [ADR record](../decisions/0005-event-integrity-acceptance-and-recovery.md#custody-frame-and-head-codecs-recorded-2026-11-15) defines independent vectors, focused test necessity, error boundaries and retained evidence. Exact bytes and hash binding are the implemented guarantees; full history, recovery actions and custody authentication remain future boundaries.
+
+## Administrative and rejection payloads authorized 2026-11-15
+
+The owner approved fourteen files and up to 700 added lines for GENESIS/EPOCH/REJECTION payloads and hashes. The [ADR record](../decisions/0005-event-integrity-acceptance-and-recovery.md#genesis-epoch-and-rejection-payloads-recorded-2026-11-15) records the reviewed semantics, vector construction, focused test necessity and failures. Six tests cover these newly implemented byte/validation paths; existing tests cover only other representations. Frame integration for kinds 3–5 and all operational custody remain separately gated.
 
 ## Roles and source references
 

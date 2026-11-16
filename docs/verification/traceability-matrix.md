@@ -52,6 +52,8 @@ The [TaskCreated codec record](../decisions/0005-event-integrity-acceptance-and-
 
 The [custody frame/head slice](../decisions/0005-event-integrity-acceptance-and-recovery.md#custody-frame-and-head-codecs-recorded-2026-11-15) adds fixed frame/head bytes, checksum and supplied-context binding coverage for WB-CON-007/008, WB-INV-006/008/009 and WB-NEG-009/012. Three focused tests distinguish truncation from complete corruption and verify the published vectors; five packages/eighteen tests are declared. Actual history validation, repair, authenticated custody and durable publication remain unverified.
 
+The [administrative/rejection payload slice](../decisions/0005-event-integrity-acceptance-and-recovery.md#genesis-epoch-and-rejection-payloads-recorded-2026-11-15) adds bounded payload bytes and hash-binding tests for WB-CON-007/008/009, WB-INV-004/006/008/009 and applicable WB-NEG-001/006/009/012 cases. Five packages/twenty-four tests are declared. Operator authentication, authorization-ID uniqueness, actual epoch installation, rejection persistence and kind-3–5 frame integration remain unimplemented.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |

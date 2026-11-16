@@ -4,7 +4,7 @@ Use this guide to trace the code and understand the architecture. The [constitut
 
 ## Current implementation
 
-[project.json](../project.json) declares Phase 2. The [entry review](engineering/phase2-entry-review.md) records pure identity, epoch, prepare/confirm/recovery classification the fixed pledge codec/link hash, and TaskCreated-only canonical event encoding, and PENDING/COMMITTED frame/head codecs. The CLI still exposes Phase 1 commands. Warband has no runtime gateway, policy engine, evaluator, state writer, database, custodian service or execution tool yet.
+[project.json](../project.json) declares Phase 2. The [entry review](engineering/phase2-entry-review.md) records pure identity, epoch, prepare/confirm/recovery classification the fixed pledge codec/link hash, and TaskCreated-only canonical event encoding, PENDING/COMMITTED frame/head codecs, and GENESIS/EPOCH/REJECTION payload codecs. The CLI still exposes Phase 1 commands. Warband has no runtime gateway, policy engine, evaluator, state writer, database, custodian service or execution tool yet.
 
 Source links pin reviewed main baseline `109b8d1`.
 
@@ -103,3 +103,7 @@ Keep user, engineering, security, and verification contracts aligned. Follow the
 ## Custody frame and head bytes
 
 `src/custody/frame.odin` encodes 251-byte PENDING/COMMITTED records and checks supplied ordinal/predecessor binding. `src/custody/head.odin` handles the 134-byte head file, including sequence-zero metadata. Three focused tests add exact-vector and rejection coverage; the current manifest declares five packages/eighteen tests. Truncated frames require later history/recovery review before any repair; a matching checksum alone supplies no authenticity or durable-publication guarantee.
+
+## Administrative and rejection payloads
+
+GENESIS/EPOCH history encoders return fixed-capacity buffers with explicit lengths; their owned Reason values contain 1–1024 UTF-8 bytes without NUL. EPOCH derives advancement and new_head and verifies both on decode. REJECTION permits expected epoch zero and an observed root peer while bounding capture and validating flags. Hashes exclude the administrative UID suffix as specified. Six focused tests bring the manifest to five packages/twenty-four tests; decode_frame still supports only PENDING/COMMITTED.

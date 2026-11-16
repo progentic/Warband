@@ -4,7 +4,7 @@ Use this guide to update, review, and release Warband.
 
 ## Check the scope
 
-Read applicable `AGENTS.md` guidance before editing. [project.json](../project.json) declares Phase 2. The [entry review](engineering/phase2-entry-review.md) records the authorized pure identity/classification slices fixed pledge codec/link hash and TaskCreated-only event encoding and PENDING/COMMITTED frame/head codecs. The CLI still provides the Phase 1 foundation; persistence and custody services are not implemented.
+Read applicable `AGENTS.md` guidance before editing. [project.json](../project.json) declares Phase 2. The [entry review](engineering/phase2-entry-review.md) records the authorized pure identity/classification slices fixed pledge codec/link hash and TaskCreated-only event encoding PENDING/COMMITTED frame/head codecs and GENESIS/EPOCH/REJECTION payloads. The CLI still provides the Phase 1 foundation; persistence and custody services are not implemented.
 
 Follow the [authority order](governance/README.md#authority-order) when descriptions conflict. Keep design acceptance, implementation permission, and verified behavior separate.
 
@@ -25,6 +25,8 @@ Source links pin reviewed baseline `109b8d1`. Check the current files before cha
 `src/audit/task_created.odin` exposes `encode_task_created`, `decode_task_created` and `digest_task_created`, each taking explicit expected store/epoch. Check typed errors and preserve the 184-byte layout and event-domain NUL. The independent TaskCreated vectors cover only kind 1; expansion to another kind requires its own approved schema and tests.
 
 `src/custody/frame.odin` exposes `encode_frame` and `decode_frame`; decoding additionally requires expected custody ordinal and previous-record hash. `src/custody/head.odin` exposes `encode_head_file` and `decode_head_file`. Check `FormatError` before using results. Preserve truncation/corruption distinctions and independently verify custody history before acting on any returned bytes or metadata.
+
+Use `encode_genesis`/`decode_genesis`, `genesis_head`, `encode_epoch`/`decode_epoch`, `encode_rejection`/`decode_rejection` and `denial_digest` for the new pure payload paths. Administrative buffers expose data plus used length; hash/serialize only that length. Reasons are owned fixed arrays, and decoding returns zero values on errors. Preserve the UID/hash exclusion, epoch-zero rejection-metadata rule and kind-3–5 frame boundary documented in ADR-0005.
 
 ## Update the matching records
 
