@@ -4,7 +4,7 @@ Use this guide to update, review, and release Warband.
 
 ## Check the scope
 
-Read applicable `AGENTS.md` guidance before editing. [project.json](../project.json) declares Phase 2. The [entry review](engineering/phase2-entry-review.md) records the authorized pure identity/classification slices fixed pledge codec/link hash and TaskCreated-only event encoding. The CLI still provides the Phase 1 foundation; persistence and custody services are not implemented.
+Read applicable `AGENTS.md` guidance before editing. [project.json](../project.json) declares Phase 2. The [entry review](engineering/phase2-entry-review.md) records the authorized pure identity/classification slices fixed pledge codec/link hash and TaskCreated-only event encoding and PENDING/COMMITTED frame/head codecs. The CLI still provides the Phase 1 foundation; persistence and custody services are not implemented.
 
 Follow the [authority order](governance/README.md#authority-order) when descriptions conflict. Keep design acceptance, implementation permission, and verified behavior separate.
 
@@ -23,6 +23,8 @@ Source links pin reviewed baseline `109b8d1`. Check the current files before cha
 - [toolchain/odin.lock.json](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/toolchain/odin.lock.json) pins compiler and platform profiles. Follow the [build instructions](engineering/phase1-build-and-verification.md). A Mac pass proves no Linux result.
 
 `src/audit/task_created.odin` exposes `encode_task_created`, `decode_task_created` and `digest_task_created`, each taking explicit expected store/epoch. Check typed errors and preserve the 184-byte layout and event-domain NUL. The independent TaskCreated vectors cover only kind 1; expansion to another kind requires its own approved schema and tests.
+
+`src/custody/frame.odin` exposes `encode_frame` and `decode_frame`; decoding additionally requires expected custody ordinal and previous-record hash. `src/custody/head.odin` exposes `encode_head_file` and `decode_head_file`. Check `FormatError` before using results. Preserve truncation/corruption distinctions and independently verify custody history before acting on any returned bytes or metadata.
 
 ## Update the matching records
 

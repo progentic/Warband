@@ -50,6 +50,8 @@ The authorized `src/domain/events/prepare.odin` follow-on adds supplied-value pr
 
 The [TaskCreated codec record](../decisions/0005-event-integrity-acceptance-and-recovery.md#taskcreated-canonical-codec-recorded-2026-11-13) adds fixed canonical event bytes and body-digest evidence for WB-CON-007/008 and WB-NEG-001/012. Two focused tests cover the independent vector and implemented rejection paths; five packages/fifteen tests are declared. This is partial encoding evidence; runtime audit, authenticity, persisted integrity and replay rows remain planned.
 
+The [custody frame/head slice](../decisions/0005-event-integrity-acceptance-and-recovery.md#custody-frame-and-head-codecs-recorded-2026-11-15) adds fixed frame/head bytes, checksum and supplied-context binding coverage for WB-CON-007/008, WB-INV-006/008/009 and WB-NEG-009/012. Three focused tests distinguish truncation from complete corruption and verify the published vectors; five packages/eighteen tests are declared. Actual history validation, repair, authenticated custody and durable publication remain unverified.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |
