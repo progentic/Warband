@@ -110,6 +110,8 @@ Failure record: focused attempt 1 failed at compilation because Odin rejected ar
 
 Broader validation initially failed before running adjacent packages because the manual invocation passed relative `tests/odin` to `discover_packages`, whose paths must be relative to its absolute repository root. The corrected invocation uses `ROOT / 'tests/odin'`. `adjacent-packages.log` retains the failed invocation; `adjacent-packages-attempt2.log` records six event-identity and two pledge tests passing plus exact manifest inventory. All 28 Python governance controls pass (`governance-tests.log`), and documentation governance passes (`governance-docs.log`). Command recipes and the complete failure summary are retained in `.local/task-created-review/validation-record.md`; scope comparison confirms the pledge source/tests remain byte-for-byte intact.
 
+The [2026-11-15 evidence addendum](../verification/task-created-evidence-addendum.md) records the retained bundle, exact test names and vector values, retrospective hashes, scope reconciliation, reproducible commands and limits of historical provenance.
+
 ## Codec publication authorized 2026-11-13
 
 The owner subsequently authorized publishing the local pledge and TaskCreated codec increments to main. The earlier local-only scope and pending-hosted statements describe their original verification points. Publication follows the protected PR path, with hosted results tied to the published source.
