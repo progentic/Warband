@@ -7,6 +7,7 @@ TaskId :: distinct [16]u8
 RunId :: distinct [16]u8
 CommandId :: distinct [16]u8
 EvidenceId :: distinct [16]u8
+AuthorizationId :: distinct [16]u8
 
 EventRef :: struct {
 	store: StoreId,
