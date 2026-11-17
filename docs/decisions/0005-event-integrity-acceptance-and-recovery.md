@@ -252,6 +252,14 @@ Independent Python field-table construction and OpenSSL digest checks preceded i
 
 Four focused tests check exact encoding, decoding, digests and linked heads plus typed rejection of invalid scope/order, identifiers, producer and payload fields. The task-version test exercises both the last valid increment and overflow. Native macOS verification passed all 14 audit tests, all 28 governance controls, documentation governance and vector reproduction. The review recipe, vectors, command output and JSON reports are retained under `.local/evaluation-transition/`.
 
+## CapabilityRevoked and AttemptDisposition authorized 2026-11-17
+
+Proto approved this pair of pure codecs within ten files and 400 added lines. CapabilityRevoked (kind 9, producer 2) encodes a 58-byte payload in 146 event bytes. AttemptDisposition (kind 10, producer 5) encodes a 43-byte payload in 131 event bytes. The claim reference identifies the attempt for subsequent lookup. Both codecs reuse the shared envelope, reference and digest operations. Encode and decode require an earlier, nonzero reference in the supplied store and epoch. A capability ID must be nonzero. Control revision zero is valid. Both codecs accept reasons 1–13 across their supported representations; disposition accepts 1 or 2.
+
+The independent Python field-table recipe checked predecessor bodies, digests and linked heads against the published vectors before constructing new bytes. OpenSSL cross-checked each SHA-256 calculation. The revocation example branches from the sequence-3 permit using its capability ID and expected control revision plus one. The two terminal examples branch independently from the sequence-4 claim. One records indeterminate and the other reject-stop. The vectors demonstrate encoding; checking actual grant state, matching a capability to its grant, checking for an unterminated claim, resolving references and deciding the applicable reason belong to later runtime/store verification.
+
+Four focused tests cover the complete bytes, digest, linked head and round-trip of each example, zero control revision, reason boundaries, identity and order errors, unknown disposition, invalid capability and cross-kind input. Local validation uses the pinned macOS compiler. The recipe, logs and named test report are retained in `.local/increment-a/`. Kind 8 has a separately approved review scope.
+
 ## Context
 
 The foundation has local Linux x64 and macOS ARM64 evidence. It does not yet execute proposals, consume capabilities, verify external observations, commit runtime facts, or replay an authoritative event store.
