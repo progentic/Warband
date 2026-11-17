@@ -242,6 +242,16 @@ Two focused tests cover both golden bytes/digests/heads, round-trip and a repres
 
 Evidence is retained under `.local/observation-codec-review/`: independent recipe/output/hash, source/compiler snapshots and hashes, exact command, exit code, raw output and fresh JSON reports. The first combined audit run passed all ten named tests without a compile/test failure. Broader validation passed thirteen custody and six event-identity tests, all 28 Python governance controls, inventory, reproduction, documentation and whitespace checks. The five untouched foundation/negative tests were outside this local run. Commands and exits are in validation-results.json. These are native macOS functional results; hosted/Linux and operational observer verification remain separate.
 
+## EvaluationRecorded and TransitionAccepted codecs authorized 2026-11-17
+
+Proto approved a paired pure codec increment of eleven files and up to 550 added lines. Kind 6 uses producer 4 and carries 115 payload bytes in a 203-byte event. Kind 7 uses producer 5 and carries 105 payload bytes in a 193-byte event. Both use the existing envelope, SHA-256 event domain and link calculation. The two codecs share helpers for encoding and reading a 32-byte Ref and checking the supplied reference chain.
+
+Both codecs require nonzero IDs and references in the expected store and epoch. They check sequence order as claim < observation < evaluation or claim < evaluation < transition. Gaps are valid. Evaluation represents criterion 1 and validates verdict 1 (verified) or 2 (rejected). The supplied observation digest is opaque to the codec. Transition derives the complete state byte (2) and the next task version. It checks the expected version before adding one and validates the encoded result on decode. Expected control revision is recorded verbatim. Current-state comparisons, the control revision increment, observation digest verification, same-claim lookup, uniqueness and capability checks belong to runtime evaluation and the acceptance transaction.
+
+Independent Python field-table construction and OpenSSL digest checks preceded implementation. The two alternative sequence-6 examples recompute observation bytes, digest and linked head from the published observation payloads and shared claim head. Returned leads to verified, then to a sequence-7 complete transition. Indeterminate leads to rejected and ends there. The transition retains the claim's expected task version and includes the control advance for consumption. These examples exercise representation; live outcome verification requires the registered evaluator and acceptance boundary.
+
+Four focused tests check exact encoding, decoding, digests and linked heads plus typed rejection of invalid scope/order, identifiers, producer and payload fields. The task-version test exercises both the last valid increment and overflow. Native macOS verification passed all 14 audit tests, all 28 governance controls, documentation governance and vector reproduction. The review recipe, vectors, command output and JSON reports are retained under `.local/evaluation-transition/`.
+
 ## Context
 
 The foundation has local Linux x64 and macOS ARM64 evidence. It does not yet execute proposals, consume capabilities, verify external observations, commit runtime facts, or replay an authoritative event store.
