@@ -11,6 +11,7 @@ AuthorizationId :: distinct [16]u8
 ProposalId :: distinct [16]u8
 CapabilityId :: distinct [16]u8
 AttemptId :: distinct [16]u8
+TransitionId :: distinct [16]u8
 
 EventRef :: struct {
 	store: StoreId,

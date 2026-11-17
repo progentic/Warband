@@ -64,6 +64,8 @@ The [DispatchClaimed codec](../decisions/0005-event-integrity-acceptance-and-rec
 
 The [ObservationRecorded codec](../decisions/0005-event-integrity-acceptance-and-recovery.md#observationrecorded-codec-authorized-2026-11-17) adds canonical kind-5 bytes and outcome/byte-pairing rejection coverage for partial WB-CON-007/008 and applicable WB-NEG-001/012 cases. Two tests bring the manifest to five packages/thirty-four tests. Observer authenticity, claim/attempt binding, observation uniqueness, independent evaluation and completion remain future boundaries.
 
+The [evaluation and transition codecs](../decisions/0005-event-integrity-acceptance-and-recovery.md#evaluationrecorded-and-transitionaccepted-codecs-authorized-2026-11-17) add partial WB-CON-007/008 representation evidence. Four focused tests cover canonical bytes, references, verdict and checked task-version advancement. The manifest declares five packages and 38 tests. WB-CON-003/006 and WB-INV-005/009 still require independent runtime evaluation and transactional acceptance evidence.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |
