@@ -62,6 +62,8 @@ The [AuthorizationRecorded codec](../decisions/0005-event-integrity-acceptance-a
 
 The [DispatchClaimed codec](../decisions/0005-event-integrity-acceptance-and-recovery.md#dispatchclaimed-codec-authorized-2026-11-16) adds canonical kind-4 bytes and representation/reference-order rejection coverage for partial WB-CON-007/008 and applicable WB-NEG-001/012 cases. Two focused tests bring the manifest to five packages/thirty-two tests. Authorization resolution, version/fingerprint binding, capability consumption, live expiry and actual dispatch remain future boundaries.
 
+The [ObservationRecorded codec](../decisions/0005-event-integrity-acceptance-and-recovery.md#observationrecorded-codec-authorized-2026-11-17) adds canonical kind-5 bytes and outcome/byte-pairing rejection coverage for partial WB-CON-007/008 and applicable WB-NEG-001/012 cases. Two tests bring the manifest to five packages/thirty-four tests. Observer authenticity, claim/attempt binding, observation uniqueness, independent evaluation and completion remain future boundaries.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |

@@ -228,6 +228,20 @@ Evidence is retained under `.local/dispatch-codec-review/`: independent recipe/o
 
 On 2026-11-17 the owner authorized DispatchClaimed publication through a PR after all hosted checks pass. The local evidence archive has SHA-256 `f64ed7afa08a8f2dea49280e98c24c04c5293d0c2c378c512151234165ef6651`; this two-line publication note extends its documentation while preserving its tested implementation and assertions. Hosted evidence must identify the published source.
 
+## ObservationRecorded codec authorized 2026-11-17
+
+Proto approved eight files and up to 300 added lines for kind 5/producer 3, using the unchanged shared envelope and existing EventRef/EvidenceId types. `observation_recorded.odin` encodes 55 payload bytes, 111 body bytes and a 143-byte complete event. Its typed value carries only Returned or Indeterminate outcome; criterion and observed bytes are derived. Returned writes criterion 1 and ASCII NOOP, while Indeterminate writes criterion 1 and four zero bytes. There is no observed-bytes argument.
+
+Decode validates the outcome/criterion and all four observed bytes before returning a typed value, then requires nonzero identities and explicit expected store/epoch. Unsupported outcome/criterion/producer returns Unsupported, inconsistent observed bytes returns Malformed, and invalid identities return InvalidIdentity. Claim sequence must be strictly earlier than the observation, using the same self/forward-reference rule as AuthorizationRecorded and DispatchClaimed. Failures return zero output.
+
+Recorded time has no ordering rule here. Claim existence and confirmation, the claim's attempt/capability identities, observer authenticity, observation uniqueness, actual execution, evaluation and authoritative completion are later checks. Canonical observation bytes and hashes supply no proof that a returned result occurred. This slice computes the event digest and linked head only.
+
+Independent Python struct/hashlib/OpenSSL construction first rebuilt the published claim body from its payload and metadata, recalculated its digest and linked head, and verified the chain to the permit. Both new vectors reference that claim's own sequence-4 Ref and continue its head at sequence 5. Evidence bytes 0xbb differ from the attempt's 0xaa and capability's 0x88. The vectors are alternative encoding examples, never a history containing two observations of one claim.
+
+Two focused tests cover both golden bytes/digests/heads, round-trip and a representation-only zero recorded-time case; lowercase returned bytes, one wrong byte at each position for both outcomes, NOOP on indeterminate, outcome 0/3, criterion 0/2, zero evidence/claim store, wrong claim store/epoch, zero/self/forward sequence, wrong payload length, cross-kind input in both directions and producer 2 on kind 5. The sequence-minus-one boundary is accepted by the golden cases. Existing codecs, helpers and tests remain unchanged. The manifest declares five packages/thirty-four tests.
+
+Evidence is retained under `.local/observation-codec-review/`: independent recipe/output/hash, source/compiler snapshots and hashes, exact command, exit code, raw output and fresh JSON reports. The first combined audit run passed all ten named tests without a compile/test failure. Broader validation passed thirteen custody and six event-identity tests, all 28 Python governance controls, inventory, reproduction, documentation and whitespace checks. The five untouched foundation/negative tests were outside this local run. Commands and exits are in validation-results.json. These are native macOS functional results; hosted/Linux and operational observer verification remain separate.
+
 ## Context
 
 The foundation has local Linux x64 and macOS ARM64 evidence. It does not yet execute proposals, consume capabilities, verify external observations, commit runtime facts, or replay an authoritative event store.
