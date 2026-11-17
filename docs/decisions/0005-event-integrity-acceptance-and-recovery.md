@@ -260,6 +260,14 @@ The independent Python field-table recipe checked predecessor bodies, digests an
 
 Four focused tests cover the complete bytes, digest, linked head and round-trip of each example, zero control revision, reason boundaries, identity and order errors, unknown disposition, invalid capability and cross-kind input. Local validation uses the pinned macOS compiler. The recipe, logs and named test report are retained in `.local/increment-a/`. Kind 8 has a separately approved review scope.
 
+## RejectionRecorded codec authorized 2026-11-17
+
+The owner authorized Increment B within eight files and 350 added lines. Kind 8 uses the existing envelope and an owned optional EventRef. A zero tag selects 124 event bytes (36-byte payload); tag 1 selects 156 (68-byte payload). Encoding leaves unused capacity zero. Event hashing covers the used 92- or 124-byte body. The decoder checks total size before reading producer, uses the shared envelope to validate kind, version and declared payload size, then independently validates producer range and stage compatibility through the seven permitted assignments.
+
+The approved interpretation of the producer-role rule assigns stages 1–7 respectively to producers 1, 2, 2, 3, 4, 5, 5. Both codec paths accept only registered reasons 1–13. A present related reference must be nonzero, match the expected store/epoch and precede the containing event. Tag/length disagreement or a tag outside 0–1 is malformed. Runtime semantics, producer authentication, historical reference closure and exactly-once receipt import require later verification.
+
+Independent Python construction with OpenSSL digest checks preceded implementation. One encoding example records approval unavailable against the related proposal. The other uses producer 5, stage 7, reason 13 and an absent reference: its rejected-input digest is SHA-256 over the entire published 203-byte custody REJECTION frame, including its final record hash. The two examples are alternative event bytes. A named assignment table exercises all seven producer/stage pairs. Focused rejection cases cover role mismatch, unknown producer, invalid stage/reason, crossed tags/lengths, tag 2 and invalid related references.
+
 ## Context
 
 The foundation has local Linux x64 and macOS ARM64 evidence. It does not yet execute proposals, consume capabilities, verify external observations, commit runtime facts, or replay an authoritative event store.

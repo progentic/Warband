@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Phase 2 entry authorized for the recorded pure slices; [CapabilityRevoked and AttemptDisposition](../decisions/0005-event-integrity-acceptance-and-recovery.md#capabilityrevoked-and-attemptdisposition-authorized-2026-11-17) record the latest bounded increment
+- **Status:** Phase 2 entry authorized for the recorded pure slices; [RejectionRecorded](../decisions/0005-event-integrity-acceptance-and-recovery.md#rejectionrecorded-codec-authorized-2026-11-17) completes the ten registered audit event codecs.
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
