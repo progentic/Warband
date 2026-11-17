@@ -52,9 +52,9 @@ Implements bounded actions. Tools may not call each other unless a documented ex
 
 `src/custody` owns the fixed pledge representation/link hash, PENDING/COMMITTED frame representation and materialized head bytes under Proto's bounded Phase 2 authorization. Its supplied-value codecs and technical endian/SHA-256 helpers do not authenticate, store, mutate custody or accept facts. All five frame kinds now use a [shared core with payload delegation](../decisions/0005-event-integrity-acceptance-and-recovery.md#all-kind-custody-framing-authorized-2026-11-16); runtime custody procedures remain planned; [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#pledge-encoding-and-link-hashing-recorded-2026-11-12) records the exact dependency and verification boundary.
 
-## Implemented TaskCreated codec
+## Implemented event codecs
 
-`src/audit/task_created.odin` owns pure TaskCreated encoding, decoding and event-body hashing. It imports event-domain vocabulary and the same approved endian/SHA-256 dependencies as the pledge codec. Tests compose its digest with `custody.derive_head`; production audit code has no custody, storage or state-writer dependency. Other event kinds remain planned.
+`src/audit/task_created.odin` owns pure TaskCreated encoding, decoding and event-body hashing. It imports event-domain vocabulary and the same approved endian/SHA-256 dependencies as the pledge codec. Tests compose its digest with `custody.derive_head`; production audit code has no custody, storage or state-writer dependency. `src/audit/proposal_recorded.odin` adds kind 2 through the shared envelope/hash implementation in `envelope.odin`; [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#proposalrecorded-codec-authorized-2026-11-16) records its scope. Remaining event kinds stay planned.
 
 Frame/head codecs reuse package-private endian operations and a shared metadata-domain SHA-256 helper. Frame encoding delegates pledge validation to the existing codec. Head decoding verifies representation and supplied scope; it does not establish trust in the referenced custody record.
 

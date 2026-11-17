@@ -4,7 +4,7 @@ Use this guide to trace the code and understand the architecture. The [constitut
 
 ## Current implementation
 
-[project.json](../project.json) declares Phase 2. The [entry review](engineering/phase2-entry-review.md) records pure identity, epoch, prepare/confirm/recovery classification the fixed pledge codec/link hash, and TaskCreated-only canonical event encoding, PENDING/COMMITTED frame/head codecs, and GENESIS/EPOCH/REJECTION payload codecs. The CLI still exposes Phase 1 commands. Warband has no runtime gateway, policy engine, evaluator, state writer, database, custodian service or execution tool yet.
+[project.json](../project.json) declares Phase 2. The [entry review](engineering/phase2-entry-review.md) records pure identity, epoch, prepare/confirm/recovery classification the fixed pledge codec/link hash, and TaskCreated and ProposalRecorded canonical event encoding, PENDING/COMMITTED frame/head codecs, and GENESIS/EPOCH/REJECTION payload codecs. The CLI still exposes Phase 1 commands. Warband has no runtime gateway, policy engine, evaluator, state writer, database, custodian service or execution tool yet.
 
 Source links pin reviewed main baseline `109b8d1`.
 
@@ -107,3 +107,5 @@ Keep user, engineering, security, and verification contracts aligned. Follow the
 ## Administrative and rejection payloads
 
 GENESIS/EPOCH history encoders return fixed-capacity buffers with explicit lengths; their owned Reason values contain 1–1024 UTF-8 bytes without NUL. EPOCH derives advancement and new_head and verifies both on decode. REJECTION permits expected epoch zero and an observed root peer while bounding capture and validating flags. Hashes exclude the administrative UID suffix as specified. Six focused tests bring the manifest to five packages/twenty-four tests; decode_frame still supports only PENDING/COMMITTED.
+
+`src/audit/proposal_recorded.odin` encodes 163-byte kind-2 NoOp proposals. TaskCreated and ProposalRecorded share `envelope.odin` for headers and hashing. The proposal fingerprint covers all 75 payload bytes, including task/run/proposal IDs. [ADR-0005](decisions/0005-event-integrity-acceptance-and-recovery.md#proposalrecorded-codec-authorized-2026-11-16) records the field rules, tests and later authority obligations.
