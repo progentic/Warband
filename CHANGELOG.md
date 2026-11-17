@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.15 - 2026-11-17
+
+### Added
+
+- Added single-epoch custody history validation for GENESIS, PENDING and COMMITTED frames, including pledge pairing and published-head checks. [PR #42](https://github.com/progentic/Warband/pull/42)
+
 ## 0.0.14 - 2026-11-17
 
 ### Added
