@@ -212,6 +212,22 @@ Evidence is retained under `.local/authorization-codec-review/`: independent rep
 
 The owner subsequently authorized AuthorizationRecorded publication through a PR after all hosted checks pass. The local evidence archive has SHA-256 `0f551f567afc0562123684ac2be68ac5756e49fbb7574e65674d83d7d59ff3c6`; this two-line publication note extends its documentation while preserving the tested implementation and assertions. Hosted evidence must identify the published source.
 
+## DispatchClaimed codec authorized 2026-11-16
+
+Proto approved nine files and up to 300 added lines for kind 4/producer 2 through the unchanged shared envelope. `src/audit/dispatch_claimed.odin` encodes 120 payload bytes, 176 body bytes and a 208-byte complete event. It adds a distinct 16-byte AttemptId and reuses CapabilityId, EventRef and the existing fingerprint API's [32]u8 representation. No separate fingerprint type or serialization is introduced; only the event digest and linked head are computed here.
+
+Both codec directions require nonzero identities, explicit expected store/epoch, positive task version and an authorization reference strictly earlier than the claim's own sequence. This is the same detectable self/forward-reference rule used for AuthorizationRecorded. Invalid identities/scope return InvalidIdentity; self/forward references and zero task version return Malformed. Control revision zero, all-zero fingerprint bytes and every u64 claim-time value remain intentionally representable. The codec reads no clock and imposes no timestamp ordering or lifetime rule.
+
+Authorization existence and permit status, capability binding/consumption, current task/control versions, fingerprint agreement, producer authenticity and live expiry remain later reference/state/authorization checks. A canonical claim or matching hash supplies no proof of dispatch or successful execution.
+
+Independent Python struct/hashlib/OpenSSL construction first recomputed the approval-0 proposal fingerprint and linked head, then the permit digest/head. It verified that the permit references that proposal, and used the permit's own sequence-3 Ref, capability ID and control revision plus one for the sequence-4 claim. Attempt bytes 0xaa and capability bytes 0x88 differ; claim time `0x0002030405060708` and recorded time `0x0003040506070809` differ and exercise multi-byte encoding. The example claim time is after permit recording and before its expiry. This is an encoding example, not an accepted history. Control revision zero is tested separately as representation only.
+
+Two focused tests cover golden bytes/digest/head and round-trip, reference sequence minus one acceptance, zero task/control cases, opaque fingerprint/claim-time representation, zero/wrong reference store, wrong epoch, zero/self/forward reference sequence, empty attempt/capability, payload length and cross-kind rejection in both directions, plus producer 1 on kind 4. Shared header failures remain covered by the unchanged earlier event tests. The manifest declares five packages/thirty-two tests.
+
+Evidence is retained under `.local/dispatch-codec-review/`: independent recipe/output/hash, source/compiler snapshots and hashes, exact command, exit code, output and fresh JSON reports. The first combined audit build passed all eight named tests without a compile/test failure. Broader validation passed thirteen custody and six event-identity tests, all 28 Python governance controls, inventory, reproduction, documentation and whitespace checks. The five untouched foundation/negative tests were outside this local run. Commands and exits are in validation-results.json. These are native macOS functional results; hosted/Linux and operational dispatch verification remain separate.
+
+On 2026-11-17 the owner authorized DispatchClaimed publication through a PR after all hosted checks pass. The local evidence archive has SHA-256 `f64ed7afa08a8f2dea49280e98c24c04c5293d0c2c378c512151234165ef6651`; this two-line publication note extends its documentation while preserving its tested implementation and assertions. Hosted evidence must identify the published source.
+
 ## Context
 
 The foundation has local Linux x64 and macOS ARM64 evidence. It does not yet execute proposals, consume capabilities, verify external observations, commit runtime facts, or replay an authoritative event store.
