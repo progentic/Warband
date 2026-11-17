@@ -60,6 +60,8 @@ The [ProposalRecorded slice](../decisions/0005-event-integrity-acceptance-and-re
 
 The [AuthorizationRecorded codec](../decisions/0005-event-integrity-acceptance-and-recovery.md#authorizationrecorded-codec-authorized-2026-11-16) adds kind-3 canonical bytes and conditional representation checks for partial WB-CON-004/005/007/008 and applicable WB-NEG-001/012 coverage. Two focused tests bring the manifest to five packages/thirty tests. Runtime policy, live expiry, reference closure, capability uniqueness and approval enforcement remain unverified.
 
+The [DispatchClaimed codec](../decisions/0005-event-integrity-acceptance-and-recovery.md#dispatchclaimed-codec-authorized-2026-11-16) adds canonical kind-4 bytes and representation/reference-order rejection coverage for partial WB-CON-007/008 and applicable WB-NEG-001/012 cases. Two focused tests bring the manifest to five packages/thirty-two tests. Authorization resolution, version/fingerprint binding, capability consumption, live expiry and actual dispatch remain future boundaries.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |
