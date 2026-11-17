@@ -70,6 +70,8 @@ The [revocation and disposition codecs](../decisions/0005-event-integrity-accept
 
 The [RejectionRecorded codec](../decisions/0005-event-integrity-acceptance-and-recovery.md#rejectionrecorded-codec-authorized-2026-11-17) adds kind-8 byte, role and reference checks for partial WB-CON-007/008 and WB-NEG-001/012 coverage. Two named tests complete the codec inventory of five packages and 44 tests. Authenticated denial recording and receipt import remain future evidence.
 
+The [single-epoch custody history validator](../decisions/0005-event-integrity-acceptance-and-recovery.md#single-epoch-custody-history-validation-authorized-2026-11-17) supplies partial WB-CON-007/008, WB-INV-006/009 and WB-NEG-009 evidence for record linkage, pledge pairing and published-head agreement. The manifest declares five packages and 45 tests. Physical tail repair, authentication and storage durability remain open.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |

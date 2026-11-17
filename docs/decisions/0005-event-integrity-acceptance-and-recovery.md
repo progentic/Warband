@@ -268,6 +268,14 @@ The approved interpretation of the producer-role rule assigns stages 1–7 respe
 
 Independent Python construction with OpenSSL digest checks preceded implementation. One encoding example records approval unavailable against the related proposal. The other uses producer 5, stage 7, reason 13 and an absent reference: its rejected-input digest is SHA-256 over the entire published 203-byte custody REJECTION frame, including its final record hash. The two examples are alternative event bytes. A named assignment table exercises all seven producer/stage pairs. Focused rejection cases cover role mismatch, unknown producer, invalid stage/reason, crossed tags/lengths, tag 2 and invalid related references.
 
+## Single-epoch custody history validation authorized 2026-11-17
+
+Proto approved six files and up to 250 added lines for the first pure slice 3a increment. The validator takes a supplied byte sequence, expected store and decoded published head. Starting from ordinal 1 and a zero predecessor hash, it uses the existing record decoder to validate frame bytes and linkage. GENESIS establishes the epoch-1 checkpoint. PENDING must extend the committed checkpoint with one eligible pledge. COMMITTED must match that entire live pledge. A matching published head includes both the checkpoint and its custody record hash. The returned view retains the pending pledge, latest committed head, custody ordinal and record hash.
+
+A published head matching an older validated checkpoint yields HeadPublicationPending. An unexplained published head or invalid history yields AttestationHistoryFault. An incomplete final byte prefix yields TornFinalRecord only when the preceding complete history explains the supplied head. These outcomes classify supplied evidence; physical finality, journal reconciliation, resource enforcement, durable repair and readiness belong to later slices. EPOCH and REJECTION histories remain outside this first validator. The existing effect qualification and entry gates continue to apply.
+
+The focused test uses an enrolled three-frame chain with independently reproduced final custody hash `cf70871bc3142a9c387b900193db9c44a33894c5f1b5fcbfe065adca3530fc46`. It checks pending and committed states, stale and contradictory heads, both outcomes of an incomplete commit, and individually well-formed frames with a changed predecessor or a conflicting pledge. This closes a cross-frame coverage gap in the existing single-record tests.
+
 ## Context
 
 The foundation has local Linux x64 and macOS ARM64 evidence. It does not yet execute proposals, consume capabilities, verify external observations, commit runtime facts, or replay an authoritative event store.
