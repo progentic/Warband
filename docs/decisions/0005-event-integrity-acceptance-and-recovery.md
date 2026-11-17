@@ -276,6 +276,16 @@ A published head matching an older validated checkpoint yields HeadPublicationPe
 
 The focused test uses an enrolled three-frame chain with independently reproduced final custody hash `cf70871bc3142a9c387b900193db9c44a33894c5f1b5fcbfe065adca3530fc46`. It checks pending and committed states, stale and contradictory heads, both outcomes of an incomplete commit, and individually well-formed frames with a changed predecessor or a conflicting pledge. This closes a cross-frame coverage gap in the existing single-record tests.
 
+## Pure custodian requests and peer roles authorized 2026-11-17
+
+Proto approved up to eleven files and 450 added lines for the five WBCR v1 requests, their request digest and the pure endpoint/peer decision. The fixed 11-byte header carries magic, version, operation and little-endian payload size. The bounded encoder returns used length and storage for the largest specified request (11 + 1186 bytes). Digest input includes the NUL-terminated request domain and the complete used request. Prepare/confirm delegate to the pledge codec. Verify carries store, epoch and an opaque receipt cursor; validation compares the supplied expected scope. The service will check the cursor against the custody tip.
+
+Enroll and epoch-change request types expose only the authorization payload. Encoding reuses the corresponding history encoder and excludes its final eight UID bytes. Decoding checks the declared size, pads a bounded local buffer with eight zeros to use the existing history decoder, and takes only the request fields from its result. That internal padding carries no credential information. The counted reason enforces the exact administrative request shape. Enrollment's epoch field is fixed at 1. Enrollment eligibility and operator UID acquisition belong to the effectful boundary.
+
+The peer decision takes resolved listener identities, configured UIDs, an optional observed UID and the operation. The runtime listener permits operations 1–3 for the configured runtime UID. The separate administrative listener permits operations 4–5 for an allowlisted operator. Missing credentials, unknown endpoint or operation, overlapping listeners, and a runtime UID anywhere in the operator list yield Denied. Startup must resolve the actual listeners; slice 3b must obtain credentials from the connected socket and enforce the operator check at the write boundary.
+
+Independent Python/OpenSSL construction framed the published payloads and checked all five request digests before implementation. Two codec tests cover exact bytes, digests, round-trip, header and scope failures, and UID-suffixed enrollment/epoch data with a matching declared length. A table-driven peer test exercises all permitted operations and distinct denial paths. Local evidence and reproduction commands are in `.local/wbcr/`. WBRS disclosure rules, actual OS access denial and durable denial recording retain their own gates.
+
 ## Context
 
 The foundation has local Linux x64 and macOS ARM64 evidence. It does not yet execute proposals, consume capabilities, verify external observations, commit runtime facts, or replay an authoritative event store.

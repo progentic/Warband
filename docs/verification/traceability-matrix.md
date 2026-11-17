@@ -72,6 +72,8 @@ The [RejectionRecorded codec](../decisions/0005-event-integrity-acceptance-and-r
 
 The [single-epoch custody history validator](../decisions/0005-event-integrity-acceptance-and-recovery.md#single-epoch-custody-history-validation-authorized-2026-11-17) supplies partial WB-CON-007/008, WB-INV-006/009 and WB-NEG-009 evidence for record linkage, pledge pairing and published-head agreement. The manifest declares five packages and 45 tests. Physical tail repair, authentication and storage durability remain open.
 
+The [WBCR and peer-role increment](../decisions/0005-event-integrity-acceptance-and-recovery.md#pure-custodian-requests-and-peer-roles-authorized-2026-11-17) covers canonical request bytes and supplied-value role separation for partial WB-CON-005/007 and WB-NEG-003/012 evidence. The manifest declares 48 tests. Connected-socket credential acquisition and Linux permission denials remain future evidence.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |
