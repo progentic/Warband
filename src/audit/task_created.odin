@@ -22,7 +22,7 @@ encode_task_created :: proc(value: TaskCreated, store: events.StoreId, epoch: ev
 		return {}, err
 	}
 	bytes: TaskCreatedBytes
-	write_envelope(bytes[:], {value.reference, value.recorded_time, value.previous_head}, 1)
+	write_envelope(bytes[:], {value.reference, value.recorded_time, value.previous_head}, 1, 1)
 	copy(bytes[56:72], value.task[:])
 	copy(bytes[72:88], value.run[:])
 	copy(bytes[88:104], value.command[:])
@@ -32,7 +32,7 @@ encode_task_created :: proc(value: TaskCreated, store: events.StoreId, epoch: ev
 }
 
 decode_task_created :: proc(bytes: []u8, store: events.StoreId, epoch: events.Epoch) -> (TaskCreated, Error) {
-	envelope, envelope_error := read_envelope(bytes, 1, 96)
+	envelope, envelope_error := read_envelope(bytes, 1, 1, 96)
 	if envelope_error != .None {
 		return {}, envelope_error
 	}

@@ -58,6 +58,8 @@ The [all-kind framing increment](../decisions/0005-event-integrity-acceptance-an
 
 The [ProposalRecorded slice](../decisions/0005-event-integrity-acceptance-and-recovery.md#proposalrecorded-codec-authorized-2026-11-16) adds canonical kind-2 bytes, whole-payload fingerprinting and representation rejection evidence for WB-CON-007/008 and applicable WB-NEG-001/012 cases. The TaskCreated tests remain unchanged; two new tests bring the manifest to five packages/twenty-eight tests. State/version uniqueness, authorization and approval enforcement remain future boundaries.
 
+The [AuthorizationRecorded codec](../decisions/0005-event-integrity-acceptance-and-recovery.md#authorizationrecorded-codec-authorized-2026-11-16) adds kind-3 canonical bytes and conditional representation checks for partial WB-CON-004/005/007/008 and applicable WB-NEG-001/012 coverage. Two focused tests bring the manifest to five packages/thirty tests. Runtime policy, live expiry, reference closure, capability uniqueness and approval enforcement remain unverified.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |
