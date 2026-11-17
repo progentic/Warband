@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.16 - 2026-11-17
+
+### Added
+
+- Added codecs for all five WBCR custody requests and endpoint-specific role checks using supplied peer credentials. [PR #43](https://github.com/progentic/Warband/pull/43)
+
 ## 0.0.15 - 2026-11-17
 
 ### Added
