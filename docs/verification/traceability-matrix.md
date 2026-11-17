@@ -56,6 +56,8 @@ The [administrative/rejection payload slice](../decisions/0005-event-integrity-a
 
 The [all-kind framing increment](../decisions/0005-event-integrity-acceptance-and-recovery.md#all-kind-custody-framing-authorized-2026-11-16) adds format and caller-supplied ordinal/predecessor binding for kinds 3–5, with payload delegation, bounded lengths and shared corruption checks. Two tests extend partial WB-CON-007/008, WB-INV-006/008/009 and WB-NEG-009/012 evidence; five packages/twenty-six tests are declared. Authenticated history, administration and persistence remain future boundaries.
 
+The [ProposalRecorded slice](../decisions/0005-event-integrity-acceptance-and-recovery.md#proposalrecorded-codec-authorized-2026-11-16) adds canonical kind-2 bytes, whole-payload fingerprinting and representation rejection evidence for WB-CON-007/008 and applicable WB-NEG-001/012 cases. The TaskCreated tests remain unchanged; two new tests bring the manifest to five packages/twenty-eight tests. State/version uniqueness, authorization and approval enforcement remain future boundaries.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |
