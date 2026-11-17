@@ -10,11 +10,17 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.14 - 2026-11-17
+
+### Added
+
+- Added the `RejectionRecorded` codec with optional event references and producer/stage validation. [PR #41](https://github.com/progentic/Warband/pull/41)
+
 ## 0.0.13 - 2026-11-17
 
 ### Added
 
-- Added `CapabilityRevoked` and `AttemptDisposition` codecs with golden vectors for revocation, indeterminate attempts and rejected attempts that stop.
+- Added `CapabilityRevoked` and `AttemptDisposition` codecs with golden vectors for revocation, indeterminate attempts and rejected attempts that stop. [PR #40](https://github.com/progentic/Warband/pull/40)
 
 ## 0.0.12 - 2026-11-17
 
