@@ -59,3 +59,5 @@ Implements bounded actions. Tools may not call each other unless a documented ex
 Frame/head codecs reuse package-private endian operations and a shared metadata-domain SHA-256 helper. Frame encoding delegates pledge validation to the existing codec. Head decoding verifies representation and supplied scope; it does not establish trust in the referenced custody record.
 
 `src/custody/genesis.odin`, `epoch.odin` and `rejection.odin` own pure administrative/rejection payloads and their specified hashes. Shared private identity/reason validation serves both administrative formats; reason validation uses the pinned standard-library UTF-8 implementation. AuthorizationId remains domain vocabulary. Payload serialization supplies no operator authority or custody mutation.
+
+Custody also owns the [WBCR codec and pure peer decision](../decisions/0005-event-integrity-acceptance-and-recovery.md#pure-custodian-requests-and-peer-roles-authorized-2026-11-17). The caller supplies listener identity and observed credentials; socket acquisition and filesystem effects require separate authorization.
