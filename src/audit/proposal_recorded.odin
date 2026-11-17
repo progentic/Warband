@@ -23,7 +23,7 @@ encode_proposal_recorded :: proc(value: ProposalRecorded, store: events.StoreId,
 		return {}, err
 	}
 	bytes: ProposalRecordedBytes
-	write_envelope(bytes[:], {value.reference, value.recorded_time, value.previous_head}, 2)
+	write_envelope(bytes[:], {value.reference, value.recorded_time, value.previous_head}, 2, 1)
 	copy(bytes[56:72], value.task[:])
 	copy(bytes[72:88], value.run[:])
 	copy(bytes[88:104], value.proposal[:])
@@ -40,7 +40,7 @@ encode_proposal_recorded :: proc(value: ProposalRecorded, store: events.StoreId,
 }
 
 decode_proposal_recorded :: proc(bytes: []u8, store: events.StoreId, epoch: events.Epoch) -> (ProposalRecorded, Error) {
-	envelope, err := read_envelope(bytes, 2, 75)
+	envelope, err := read_envelope(bytes, 2, 1, 75)
 	if err != .None {
 		return {}, err
 	}

@@ -9,6 +9,7 @@ CommandId :: distinct [16]u8
 EvidenceId :: distinct [16]u8
 AuthorizationId :: distinct [16]u8
 ProposalId :: distinct [16]u8
+CapabilityId :: distinct [16]u8
 
 EventRef :: struct {
 	store: StoreId,
