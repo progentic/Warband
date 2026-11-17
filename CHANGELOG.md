@@ -10,6 +10,42 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.11 - 2026-11-17
+
+### Added
+
+- Added the `ObservationRecorded` codec and golden vectors for returned and indeterminate outcomes. Decoding checks all four observed bytes against the recorded outcome. [PR #37](https://github.com/progentic/Warband/pull/37)
+
+## 0.0.10 - 2026-11-17
+
+### Added
+
+- Added the `DispatchClaimed` codec and a golden vector linking the claim to the preceding permit and proposal fingerprint. [PR #36](https://github.com/progentic/Warband/pull/36)
+
+## 0.0.9 - 2026-11-16
+
+### Added
+
+- Added the `AuthorizationRecorded` codec with decision-specific validation of capability ID, expiry and use limit for permit, reject and require-approval records. [PR #35](https://github.com/progentic/Warband/pull/35)
+
+## 0.0.8 - 2026-11-16
+
+### Added
+
+- Added the `ProposalRecorded` codec and whole-payload proposal fingerprint. It shares event envelope and digest handling with `TaskCreated`. [PR #34](https://github.com/progentic/Warband/pull/34)
+
+## 0.0.7 - 2026-11-16
+
+### Added
+
+- Integrated all five custody frame kinds through a shared codec with a 1309-byte maximum frame size and support for the existing PENDING and COMMITTED APIs. [PR #33](https://github.com/progentic/Warband/pull/33)
+
+## 0.0.6 - 2026-11-15
+
+### Added
+
+- Added GENESIS, EPOCH and REJECTION payload codecs and hashes, including validation of epoch advancement and denial-receipt fields. [PR #32](https://github.com/progentic/Warband/pull/32)
+
 ## 0.0.5 - 2026-11-12
 
 ### Added
