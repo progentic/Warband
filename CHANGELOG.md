@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.19 - 2026-11-18
+
+### Changed
+
+- Documented the custodian’s Gate 0 effect boundaries and the prerequisites for activating slice 3b. [PR #46](https://github.com/progentic/Warband/pull/46)
+
 ## 0.0.18 - 2026-11-17
 
 ### Added

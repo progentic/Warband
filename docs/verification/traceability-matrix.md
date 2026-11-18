@@ -78,6 +78,8 @@ The [WBRS reply increment](../decisions/0005-event-integrity-acceptance-and-reco
 
 The [multi-epoch validator](../decisions/0005-event-integrity-acceptance-and-recovery.md#multi-epoch-history-validation-authorized-2026-11-17) extends partial WB-CON-007/008 and WB-NEG-006/009 evidence to pre-enrollment denials, pending-hash binding and store-wide authorization-ID uniqueness. The inventory declares 52 tests. Linux custody access controls, persisted ordering, repair and reconciliation remain future evidence.
 
+The [3b Gate 0 amendment](../decisions/0005-event-integrity-acceptance-and-recovery.md#gate-0-custodian-amendment-2026-11-18) names the planned Linux identity, initial directory-sync failure, read-only verify and enrollment checks for WB-CON-001/005/007/009 and WB-NEG-003/009. Implementation, activation prerequisites and target-specific test evidence are pending.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |
