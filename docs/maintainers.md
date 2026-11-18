@@ -4,7 +4,7 @@ Use this guide to update, review, and release Warband.
 
 ## Check the scope
 
-Read the applicable `AGENTS.md` guidance. The [entry review](engineering/phase2-entry-review.md#slice-3b-gate-0) records completed pure custody work and the conditions for activating the custodian process. Before approving effectful work, check for Proto’s review of WB-EXC-001 and the recorded Linux storage and enforcement configuration.
+Read the applicable `AGENTS.md` guidance. The [entry review](engineering/phase2-entry-review.md#slice-3b-gate-0) records completed pure custody work and the activated Linux custodian scope. Review [target evidence](verification/isolated-linux-custodian.md) against the recorded storage stack and UID and memory boundaries. WB-EXC-001 remains open for controlled local inputs.
 
 Follow the [authority order](governance/README.md#authority-order) when descriptions conflict. Keep design acceptance, implementation permission, and verified behavior separate.
 

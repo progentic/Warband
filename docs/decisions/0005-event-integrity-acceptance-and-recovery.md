@@ -650,6 +650,20 @@ The owner directed Gate 0 after slice 3a landed at `67d55f6`. The 3b qualificati
 
 **Peer authority.** Bind the operation to the resolved listener and connected kernel credentials. Enrollment and epoch change re-read credentials from the same accepted connection and rerun the operator decision at the effect boundary. The Linux proof uses distinct custodian, runtime, operator and unlisted UIDs. Record successful operator enrollment and runtime prepare/confirm/verify, protocol denial of runtime administration, unlisted-peer denial, and real OS denial of direct runtime access to protected files and paths. Retain actual identities, errno values, redacted replies and persisted denial receipts. The Linux integration harness is a separate host-level check; its positive and negative outcomes require execution on the recorded target.
 
+#### Isolated Linux custodian implementation (2026-11-18)
+
+Proto approved a Linux elapsed-time Low adapter for request I/O and startup recovery. Add `wb_millis` to the `serve_request` and `recover_checkpoint` rows, including bounded socket reads and writes beneath the request row. It reads `CLOCK_BOOTTIME` for the 30-second request and 60-second recovery deadlines. The separate live-capability clock amendment retains its Proposed status.
+
+| Qualified workflow | Concrete implementation and effects |
+| --- | --- |
+| Startup and shutdown | `cmd/custodian/main_linux.odin:main` parses the store and three distinct identity roles. `wb_lock` opens and validates the protected path components and takes the lifetime custodian lock. `wb_listen` creates, binds and listens on the two Unix sockets. `wb_close` and `wb_unlock` release descriptors. |
+| Serving a request | `serve_loop` uses `wb_wait` to select a ready listener. `serve_request` accepts, reads, obtains connected credentials, decodes WBCR, calls the existing peer decision and routes the operation. It encodes WBRS, writes within the deadline and closes. A single process serializes both endpoints. |
+| Prepare, confirm and denial | Same-named High procedures in `src/custody/linux/service_linux.odin` reuse the pure codecs and validated history. `append_record` encodes a frame, then `wb_append` completes the write and syncs history. Before enrollment it also syncs the directory to settle any uncertain first creation. Confirm publishes the head after the commit frame is durable. |
+| Enroll and change epoch | Both procedures call `wb_peer` again on the accepted descriptor. `wb_empty_journal` inspects the operator-owned, read-only journal directory at enrollment. The isolated fixture grants the runtime no write access there. The trusted operator keeps the journal quiescent through the decision. Authorization replay compares the whole request and observed UID against validated history. |
+| Verify and recover | `wb_size` and `wb_read` read bounded history and head files. Verify selects the earliest eligible receipt. Startup recovery uses `wb_sync_history` for a proven torn suffix and file sync. `publish_head` uses `wb_publish` to create, write and sync the temporary head, rename it and sync the directory. Explicit operator restart revalidates history and republishes an enrolled head to settle an uncertain prior rename. |
+
+The C adapters in `src/custody/linux/native.c` use the pinned compiler and system libc. [Target evidence and reproduction](../verification/isolated-linux-custodian.md) cover real identity separation, first-create failure and recovery after process termination. The custody process supplies no event-store transaction or user-facing task execution.
+
 #### Pinned SHA-256 library startup qualification — approved 2026-11-12
 
 After review identified automatic CPU observations, the owner explicitly approved the narrow CPU checks/cache-write exception for the standard SHA-256 library. At pinned Odin source `8b35c86efb78e9ab5223673a07e02fc2a6884191`, language startup may invoke only these additional Low technical initializers through `core:crypto/sha2` → `core:sys/info`; this is not a general application startup or High-to-Low permission.

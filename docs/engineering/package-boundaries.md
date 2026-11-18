@@ -50,7 +50,7 @@ Implements bounded actions. Tools may not call each other unless a documented ex
 
 ## Implemented pure custody codec
 
-`src/custody` owns the fixed pledge representation/link hash, PENDING/COMMITTED frame representation and materialized head bytes under Proto's bounded Phase 2 authorization. Its supplied-value codecs and technical endian/SHA-256 helpers do not authenticate, store, mutate custody or accept facts. All five frame kinds now use a [shared core with payload delegation](../decisions/0005-event-integrity-acceptance-and-recovery.md#all-kind-custody-framing-authorized-2026-11-16); runtime custody procedures remain planned; [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#pledge-encoding-and-link-hashing-recorded-2026-11-12) records the exact dependency and verification boundary.
+`src/custody` owns the fixed pledge representation/link hash, PENDING/COMMITTED frame representation and materialized head bytes under Proto's bounded Phase 2 authorization. Its supplied-value codecs and technical endian/SHA-256 helpers do not authenticate, store, mutate custody or accept facts. All five frame kinds now use a [shared core with payload delegation](../decisions/0005-event-integrity-acceptance-and-recovery.md#all-kind-custody-framing-authorized-2026-11-16); the isolated Linux process and its private adapter package are mapped in the [custodian implementation record](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-linux-custodian-implementation-2026-11-18); [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#pledge-encoding-and-link-hashing-recorded-2026-11-12) records the exact dependency and verification boundary.
 
 ## Implemented event codecs
 

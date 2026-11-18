@@ -48,6 +48,13 @@ jobs:
         run: python3 scripts/run_odin_tests.py --odin .local/toolchains/odin-linux_amd64/odin --output out/linux_amd64/tests 2>&1 | tee out/linux_amd64/odin-tests.log
       - name: Verify CLI behavior
         run: python3 scripts/verify_cli.py out/linux_amd64/warband 2>&1 | tee out/linux_amd64/smoke.log
+      - name: Verify isolated Linux custodian with distinct UIDs
+        run: |
+          bash scripts/build_custodian.sh 2>&1 | tee out/linux_amd64/custodian-build.log
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_custody_denial.py \
+            out/linux_amd64/custodian/normal/custodian \
+            out/linux_amd64/custodian/dirsync-fault/custodian 2>&1 | tee out/linux_amd64/custody-denial.log
       - name: Summarize evidence
         if: always()
         run: |

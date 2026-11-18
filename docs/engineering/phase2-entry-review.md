@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Phase 2 pure slices include WBCR/WBRS and peer decisions. The latest slice extends [custody history validation to epoch changes and denials](../decisions/0005-event-integrity-acceptance-and-recovery.md#multi-epoch-history-validation-authorized-2026-11-17).
+- **Status:** Isolated Linux slice 3b is active. The [custodian verification record](../verification/isolated-linux-custodian.md) identifies the tested behavior and remaining evidence.
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -11,7 +11,7 @@
 
 Slice 3a closed at `67d55f6`. On 2026-11-18 the owner directed the [custodian-only §6 amendment](../decisions/0005-event-integrity-acceptance-and-recovery.md#gate-0-custodian-amendment-2026-11-18). Its eleven High procedures define the exact 3b implementation scope.
 
-Proto completed the WB-EXC-001 pre-implementation review on 2026-11-18 in [ADR-0008](../decisions/0008-phase2-resource-limits.md). After reviewing the observations below, Proto selected the project-local `x64-review` VM and explicitly authorized activation of isolated 3b on 2026-11-18. This entry activates exactly the three cmd/custodian and eight src/custody procedures and their listed call edges in the Gate 0 amendment, together with the Linux denial harness. Implementation and target-specific proof remain pending. Changes to the target or effect boundary require review of the affected evidence.
+Proto completed the WB-EXC-001 pre-implementation review on 2026-11-18 in [ADR-0008](../decisions/0008-phase2-resource-limits.md). After reviewing the observations below, Proto selected the project-local `x64-review` VM and explicitly authorized activation of isolated 3b on 2026-11-18. This entry activates exactly the three cmd/custodian and eight src/custody procedures and their listed call edges in the Gate 0 amendment, together with the Linux denial harness. Changes to the target or effect boundary require review of the affected evidence.
 
 ### Linux development target observed 2026-11-18
 

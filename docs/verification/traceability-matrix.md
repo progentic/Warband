@@ -19,6 +19,8 @@ This matrix links constitutional rules to contracts, planned implementation, ver
 | WB-CON-009 | `docs/contracts/authoritative-state.md` | `src/recovery/` | `tests/negative/missing_recovery_policy_test.odin` | Unsafe actions stop before execution. | planned |
 | WB-CON-010 | `docs/contracts/model-proposals.md` | `src/model/provider.odin` | `tests/integration/provider_independence_test.odin` | Safety does not depend on one AI provider. | planned |
 
+[Isolated custodian evidence](isolated-linux-custodian.md) exercises the custody portion of WB-CON-007/008/009 through kernel identity checks, receipt persistence, exact replay and startup reconciliation. Exactly-once event-store import and cross-store recovery remain open.
+
 ## Historical Phase 1 implementation evidence
 
 The constitutional rows above remain planned. Foundation tests do not establish runtime authority, model isolation, evidence acceptance, or replay.
