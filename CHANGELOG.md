@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.20 - 2026-11-18
+
+### Changed
+
+- Updated the developer and maintainer guides to cover the current audit codecs, custody protocol and slice 3b prerequisites. [PR #47](https://github.com/progentic/Warband/pull/47)
+
 ## 0.0.19 - 2026-11-18
 
 ### Changed
