@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.21 - 2026-11-18
+
+### Changed
+
+- Activated isolated slice 3b on the verified Linux target after the owner reviewed the open denial-history growth exception, WB-EXC-001. [PR #48](https://github.com/progentic/Warband/pull/48)
+
 ## 0.0.20 - 2026-11-18
 
 ### Changed
