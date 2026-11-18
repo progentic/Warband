@@ -9,9 +9,24 @@
 
 ## Slice 3b Gate 0
 
-Slice 3a closed at `67d55f6`. On 2026-11-18 the owner directed the [custodian-only §6 amendment](../decisions/0005-event-integrity-acceptance-and-recovery.md#gate-0-custodian-amendment-2026-11-18). Its eleven High procedures define the exact 3b implementation scope. Socket and filesystem effects and the Linux denial harness are pending activation and verification.
+Slice 3a closed at `67d55f6`. On 2026-11-18 the owner directed the [custodian-only §6 amendment](../decisions/0005-event-integrity-acceptance-and-recovery.md#gate-0-custodian-amendment-2026-11-18). Its eleven High procedures define the exact 3b implementation scope.
 
-Before activating those rows, Proto must record the [ADR-0008](../decisions/0008-phase2-resource-limits.md) pre-implementation review of WB-EXC-001 and the selected target's exact Ubuntu image/kernel, disk, mount options, VM cache/flush profile and cgroup enforcement configuration. The target recipe identifies an image pin; the current record lacks the complete target observations and review disposition. Record those references and the activation decision here. WB-EXC-001 remains open with its existing Phase 2 exit deadline.
+Proto completed the WB-EXC-001 pre-implementation review on 2026-11-18 in [ADR-0008](../decisions/0008-phase2-resource-limits.md). After reviewing the observations below, Proto selected the project-local `x64-review` VM and explicitly authorized activation of isolated 3b on 2026-11-18. This entry activates exactly the three cmd/custodian and eight src/custody procedures and their listed call edges in the Gate 0 amendment, together with the Linux denial harness. Implementation and target-specific proof remain pending. Changes to the target or effect boundary require review of the affected evidence.
+
+### Linux development target observed 2026-11-18
+
+The existing project-local Lima `x64-review` guest was inspected on baseline `6700e09`. Its [recipe](../../vm/x64-review.yaml) and [image selection](../../vm/x64-review-selection.json) identify the original Phase 1 VM. The following observations identify the selected isolated 3b verification target.
+
+| Component | Observed configuration |
+| --- | --- |
+| Image and kernel | Ubuntu 24.04.5 LTS amd64 server image serial 20260926, verified base-image SHA-256 `6a81c37564db9b1ee84e141922625e1d7c5b389b99bb3c572e0243607d5bb4d2`; running x86_64 kernel `6.8.0-142-generic #142-Ubuntu` |
+| VM and disk | Lima 2.3.0, QEMU 11.1.3, q35/TCG, 4 vCPUs, 6144 MiB RAM. virtio-blk boot disk, 24 GiB qcow2 on host APFS. Project-local plain mode with no host mounts. |
+| Journal/custody test storage | Guest `/var/lib` resolves to local ext4 on `/dev/vda1` (24,694,996,480 bytes); options `rw,relatime,discard,errors=remount-ro,commit=30`. Use paths on this filesystem for the denial harness. |
+| Cache and flush | Guest block queue reports write back. QMP reports `writeback=true, direct=false, no-flush=false` at both qcow2 and host file nodes. Flush requests are enabled. Power-loss durability requires later matching fault evidence. |
+| Enforcement | Unified cgroup v2 with memory controller available; no guest swap active. Two transient systemd probes running as UID 65534 read back `memory.max` = 33554432 (custodian) and 268435456 (runtime) bytes, both with `memory.swap.max=0`. The 3b harness must apply and verify the limits on its actual process identities. Application arena limits remain implementation work. |
+| Toolchain | Locked Odin `8b35c86efb78e9ab5223673a07e02fc2a6884191`, local binary SHA-256 `21d959fe3b3b86423f5bb7404a8a34e48d688e1dd6858d9d7f9f86424765cc52`. LLVM/Clang 19.1.1, clang-19/llvm-19-dev/lld-19 revision `1:19.1.1-1ubuntu1~24.04.2`. |
+
+The read-only QMP queries, guest commands, toolchain observations and host launch details are retained under `.local/gate0-target/`. Evidence manifest SHA-256: `a48bf7b2d78777bff60f4e158050913958bbe510839ef3e42d824930a639451f`. SQLite's default Unix VFS with WAL/FULL is the selected later store profile; effective SQLite settings are due with slice 4. Hosted CI results have their own runner identities.
 
 ## Phase 2 entry recorded 2026-11-10
 

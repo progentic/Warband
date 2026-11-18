@@ -16,7 +16,7 @@ Warband is a policy-controlled execution runtime. Treat every model output as un
 
 ## Current phase
 
-`project.json` declares the phase. ADR-0004 accepts the foundation; [ADR-0005](docs/decisions/0005-event-integrity-acceptance-and-recovery.md) and the [entry review](docs/engineering/phase2-entry-review.md) record the authorized pure slices, including all five custody frame kinds. Keep code simple and tests focused on implemented behavior. Other event kinds, effectful custody/execution, persistence, providers, tools and deployment services remain outside these slices. Foundation debts remain open. Do not configure remotes, commit or publish without separate authorization.
+`project.json` declares the phase. ADR-0004 accepts the foundation; [ADR-0005](docs/decisions/0005-event-integrity-acceptance-and-recovery.md) and the [entry review](docs/engineering/phase2-entry-review.md) record the authorized pure slices, including all five custody frame kinds. Keep code simple and tests focused on implemented behavior. For isolated slice 3b, follow the [Gate 0 activation and target record](docs/engineering/phase2-entry-review.md#slice-3b-gate-0). Only the eleven listed custodian procedures, their enumerated effect edges and the Linux denial harness are authorized. SQLite integration, runtime execution, providers, tools and deployment services remain later work. Foundation debts remain open. Do not configure remotes, commit or publish without separate authorization.
 
 ## Working rules
 
