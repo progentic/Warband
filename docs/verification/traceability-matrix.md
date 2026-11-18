@@ -74,6 +74,8 @@ The [single-epoch custody history validator](../decisions/0005-event-integrity-a
 
 The [WBCR and peer-role increment](../decisions/0005-event-integrity-acceptance-and-recovery.md#pure-custodian-requests-and-peer-roles-authorized-2026-11-17) covers canonical request bytes and supplied-value role separation for partial WB-CON-005/007 and WB-NEG-003/012 evidence. The manifest declares 48 tests. Connected-socket credential acquisition and Linux permission denials remain future evidence.
 
+The [WBRS reply increment](../decisions/0005-event-integrity-acceptance-and-recovery.md#wbrs-replies-and-disclosure-authorized-2026-11-17) adds partial WB-CON-005/007 evidence for context-dependent disclosure and receipt representation. Three tests bring the inventory to five packages and 51 tests. Actual peer identity, durable acknowledgment and earliest-receipt selection require integration evidence.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |
