@@ -286,6 +286,16 @@ The peer decision takes resolved listener identities, configured UIDs, an option
 
 Independent Python/OpenSSL construction framed the published payloads and checked all five request digests before implementation. Two codec tests cover exact bytes, digests, round-trip, header and scope failures, and UID-suffixed enrollment/epoch data with a matching declared length. A table-driven peer test exercises all permitted operations and distinct denial paths. Local evidence and reproduction commands are in `.local/wbcr/`. WBRS disclosure rules, actual OS access denial and durable denial recording retain their own gates.
 
+## WBRS replies and disclosure authorized 2026-11-17
+
+Proto approved a pure WBRS codec within ten files and 450 added lines. The 13-byte header and 138-byte base payload permit exactly 151, 287, 354 or 490 bytes depending on the pending tuple and embedded REJECTION tags. The decoder checks total size before indexing, validates both tags against that size and compares the operation and request digest with caller-supplied expectations. Encoding uses a zero-initialized 490-byte buffer and explicit used length. The status registry spans 0–19.
+
+Authentication comes from the caller. For an unauthenticated denial, the encoder clears the committed Ref/head, omits both optional fields and writes tip zero. Decode rejects a nonzero tip or any other protected field in that context. This owner ruling closes an activity-counter disclosure. Authenticated replies carry the supplied real tip, including when no receipt frame is returned. The 32-byte receipt field can carry the denied caller's own durable receipt hash. CHECKPOINT_STORAGE_FAULT requires a zero receipt. The codec cannot determine whether a receipt was durably recorded.
+
+Only a successful authenticated Verify may carry a complete 203-byte REJECTION frame. Its ordinal must exceed the supplied cursor and be at most the returned tip. A successful verify also rejects a cursor beyond the tip when the embedded frame is absent. The existing frame decoder validates the record bytes and checksum against the expected store. Its ordinal, predecessor and receipt epoch are taken from the embedded frame for structural checking; trusted history must establish their provenance and choose the earliest eligible receipt. Pending tuples pass through the existing pledge codec. The expected epoch in the context identifies the committed reply scope.
+
+Independent Python field-table construction and OpenSSL request-digest checks preceded implementation. Six examples cover the four shapes and the caller's durable denial versus nondurable storage fault. Three focused tests cover exact vectors, zero tails, typed round-trips, header/tag/size errors, disclosure, request-digest binding, the cursor interval and embedded-frame corruption. These examples demonstrate wire semantics; socket authentication, receipt selection and persistence are later boundaries. The first compile failed on the reserved Odin keyword `context`; renaming the parameter to `ctx` allowed the custody package to pass. Local reproduction and verification records are in `.local/wbrs/`.
+
 ## Context
 
 The foundation has local Linux x64 and macOS ARM64 evidence. It does not yet execute proposals, consume capabilities, verify external observations, commit runtime facts, or replay an authoritative event store.
