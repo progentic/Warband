@@ -76,3 +76,11 @@ epoch_payload_head :: proc(bytes: []u8) -> [32]u8 {
 	copy(input[72:], bytes[112:len(bytes)-8])
 	return hash_metadata("warband.epoch.v1\x00", input[:len(bytes)-48])
 }
+
+// Only for a history payload that decode_epoch has fully validated.
+@(private)
+decoded_epoch_checkpoint :: proc(payload: []u8, store: events.StoreId) -> events.Checkpoint {
+	checkpoint := events.Checkpoint{store = store, epoch = events.Epoch(read_word(payload[64:72]))}
+	copy(checkpoint.head[:], payload[80:112])
+	return checkpoint
+}

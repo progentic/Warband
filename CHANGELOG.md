@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.18 - 2026-11-17
+
+### Added
+
+- Extended custody history validation to pre-enrollment denials and epoch changes, including pending-pledge binding and store-wide authorization ID uniqueness. [PR #45](https://github.com/progentic/Warband/pull/45)
+
 ## 0.0.17 - 2026-11-17
 
 ### Added

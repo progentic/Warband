@@ -76,6 +76,8 @@ The [WBCR and peer-role increment](../decisions/0005-event-integrity-acceptance-
 
 The [WBRS reply increment](../decisions/0005-event-integrity-acceptance-and-recovery.md#wbrs-replies-and-disclosure-authorized-2026-11-17) adds partial WB-CON-005/007 evidence for context-dependent disclosure and receipt representation. Three tests bring the inventory to five packages and 51 tests. Actual peer identity, durable acknowledgment and earliest-receipt selection require integration evidence.
 
+The [multi-epoch validator](../decisions/0005-event-integrity-acceptance-and-recovery.md#multi-epoch-history-validation-authorized-2026-11-17) extends partial WB-CON-007/008 and WB-NEG-006/009 evidence to pre-enrollment denials, pending-hash binding and store-wide authorization-ID uniqueness. The inventory declares 52 tests. Linux custody access controls, persisted ordering, repair and reconciliation remain future evidence.
+
 | Invariant | Constitutional link | Phase 1 status |
 |---|---|---|
 | WB-INV-001 | WB-CON-001 / WB-CON-002 | Runtime authority deferred |
