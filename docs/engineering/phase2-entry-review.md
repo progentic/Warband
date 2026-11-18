@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Isolated Linux slice 3b is active. The [custodian verification record](../verification/isolated-linux-custodian.md) identifies the tested behavior and remaining evidence.
+- **Status:** Isolated Linux slice 3b closed at `8146686`. Slice 4 requires separate scope authorization. [PR #49](https://github.com/progentic/Warband/pull/49)
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -27,6 +27,14 @@ The existing project-local Lima `x64-review` guest was inspected on baseline `67
 | Toolchain | Locked Odin `8b35c86efb78e9ab5223673a07e02fc2a6884191`, local binary SHA-256 `21d959fe3b3b86423f5bb7404a8a34e48d688e1dd6858d9d7f9f86424765cc52`. LLVM/Clang 19.1.1, clang-19/llvm-19-dev/lld-19 revision `1:19.1.1-1ubuntu1~24.04.2`. |
 
 The read-only QMP queries, guest commands, toolchain observations and host launch details are retained under `.local/gate0-target/`. Evidence manifest SHA-256: `a48bf7b2d78777bff60f4e158050913958bbe510839ef3e42d824930a639451f`. SQLite's default Unix VFS with WAL/FULL is the selected later store profile; effective SQLite settings are due with slice 4. Hosted CI results have their own runner identities.
+
+### Slice 3b closure, 2026-11-18
+
+The four-UID denial harness passed on the recorded `x64-review` storage stack and in the hosted Ubuntu 24.04 regression job. Independent review of `67195bf` found no blocking issues. Documentation checks, all 28 governance controls and all 52 Odin tests passed independently. All four hosted checks passed. [Custodian verification record](../verification/isolated-linux-custodian.md)
+
+Three items carry forward. Power-loss durability on the qcow2/APFS stack remains unproven. Revisit that claim if a deployment target requires it. WB-EXC-001 remains Open and expires at Phase 2 exit, before Phase 3 entry. The pre-existing `actionlint` warning for the `ubuntu-26.04` runner label awaits disposition. [Exception record](../decisions/0008-phase2-resource-limits.md)
+
+Slice 4 entry needs a store profile for the project-local static build of SQLite 3.54.1 and verification of WAL mode and FULL synchronization on each writing connection. Exactly-once import of custody denial receipts into event history belongs to that slice.
 
 ## Phase 2 entry recorded 2026-11-10
 
