@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.22 - 2026-11-18
+
+### Added
+
+- Added an isolated Linux custodian that authenticates local peers, persists checkpoints and denial receipts, and supports read-only verification. [PR #49](https://github.com/progentic/Warband/pull/49)
+
 ## 0.0.21 - 2026-11-18
 
 ### Changed
