@@ -296,6 +296,14 @@ Only a successful authenticated Verify may carry a complete 203-byte REJECTION f
 
 Independent Python field-table construction and OpenSSL request-digest checks preceded implementation. Six examples cover the four shapes and the caller's durable denial versus nondurable storage fault. Three focused tests cover exact vectors, zero tails, typed round-trips, header/tag/size errors, disclosure, request-digest binding, the cursor interval and embedded-frame corruption. These examples demonstrate wire semantics; socket authentication, receipt selection and persistence are later boundaries. The first compile failed on the reserved Odin keyword `context`; renaming the parameter to `ctx` allowed the custody package to pass. Local reproduction and verification records are in `.local/wbrs/`.
 
+## Multi-epoch history validation authorized 2026-11-17
+
+Proto approved seven files and up to 350 added lines for extending the pure validator to EPOCH and REJECTION records. Before enrollment, an absent published head and a valid denial-only prefix yield Unenrolled. GENESIS establishes epoch 1 even after denials. Once enrolled, a missing published head yields CheckpointInconsistent on a valid complete history. REJECTION frames must match the active epoch (zero before enrollment). They advance the custody ordinal and record hash independently of the event checkpoint and pending pledge.
+
+EPOCH validation compares the complete old checkpoint and the exact unresolved pending frame hash (zero when absent). The epoch codec checks advancement, sequence zero and the new head. The validator adopts the checked checkpoint, preserves the old evidence in the supplied history and starts the new segment with no live pledge. A local map retains each GENESIS/EPOCH authorization ID throughout the scan; a duplicate durable administrative record is a fault, and allocation failure withholds a usable view. The caller owns allocation policy, clock/scan limits and the decision to perform any physical recovery action.
+
+The focused test starts with an epoch-zero denial and checks delayed genesis, denial interleaved with a pledge, two epoch advances and a new-epoch commit. Re-encoded alternatives cover repeated genesis, wrong denial epoch, conflicting old checkpoint, wrong pending hash, and reuse of enrollment and epoch authorization IDs. Prior single-epoch checks remain in the custody package.
+
 ## Context
 
 The foundation has local Linux x64 and macOS ARM64 evidence. It does not yet execute proposals, consume capabilities, verify external observations, commit runtime facts, or replay an authoritative event store.
