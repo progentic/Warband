@@ -14,7 +14,7 @@ date. Draft candidates are documented in their PR and evidence record until then
 
 ### Added
 
-- Added an isolated Linux custodian that authenticates local peers, persists checkpoints and denial receipts, and supports read-only verification.
+- Added an isolated Linux custodian that authenticates local peers, persists checkpoints and denial receipts, and supports read-only verification. [PR #49](https://github.com/progentic/Warband/pull/49)
 
 ## 0.0.21 - 2026-11-18
 
