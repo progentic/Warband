@@ -7,6 +7,12 @@
 - **Design publication scope:** PRs #10–#14; these changes are later than either historical baseline and do not accept ADR-0005 or activate Phase 2
 - **Implementation phase:** `project.json` and the Odin manifest declare Phase 2
 
+## Slice 3b Gate 0
+
+Slice 3a closed at `67d55f6`. On 2026-11-18 the owner directed the [custodian-only §6 amendment](../decisions/0005-event-integrity-acceptance-and-recovery.md#gate-0-custodian-amendment-2026-11-18). Its eleven High procedures define the exact 3b implementation scope. Socket and filesystem effects and the Linux denial harness are pending activation and verification.
+
+Before activating those rows, Proto must record the [ADR-0008](../decisions/0008-phase2-resource-limits.md) pre-implementation review of WB-EXC-001 and the selected target's exact Ubuntu image/kernel, disk, mount options, VM cache/flush profile and cgroup enforcement configuration. The target recipe identifies an image pin; the current record lacks the complete target observations and review disposition. Record those references and the activation decision here. WB-EXC-001 remains open with its existing Phase 2 exit deadline.
+
 ## Phase 2 entry recorded 2026-11-10
 
 The project owner separately authorized the assistant to begin Phase 2 in the instruction quoted in ADR-0005, and approved an initial scope of about ten files and up to 250 added lines. This section records Gate 3 entry, not the Gate 2 acceptance decision.
