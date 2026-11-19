@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Isolated Linux slice 3b closed at `8146686`. Slice 4 requires separate scope authorization. [PR #49](https://github.com/progentic/Warband/pull/49)
+- **Status:** Isolated Linux slice 3b closed at `8146686`. The [SQLite build increment](#slice-4-build-entry) has separate authorization. [PR #49](https://github.com/progentic/Warband/pull/49)
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -35,6 +35,10 @@ The four-UID denial harness passed on the recorded `x64-review` storage stack an
 Three items carry forward. Power-loss durability on the qcow2/APFS stack remains unproven. Revisit that claim if a deployment target requires it. WB-EXC-001 remains Open and expires at Phase 2 exit, before Phase 3 entry. The pre-existing `actionlint` warning for the `ubuntu-26.04` runner label awaits disposition. [Exception record](../decisions/0008-phase2-resource-limits.md)
 
 Slice 4 entry needs a store profile for the project-local static build of SQLite 3.54.1 and verification of WAL mode and FULL synchronization on each writing connection. Exactly-once import of custody denial receipts into event history belongs to that slice.
+
+## Slice 4 build entry
+
+Proto approved the pinned SQLite 3.54.1 amalgamation as a build dependency and a native static-link probe on Ubuntu x64 and macOS ARM64. Both hosted jobs must pass on the same PR before merge. The [build record](../decisions/0005-event-integrity-acceptance-and-recovery.md#sqlite-static-build-evidence) identifies the inputs and local results. The next store-profile increment will record the settings a writing connection must report at open. Binding, database access and denial-receipt import require separate authorization.
 
 ## Phase 2 entry recorded 2026-11-10
 
