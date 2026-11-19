@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.24 - 2026-11-19
+
+### Added
+
+- Verify the SQLite library identity, schema version and connection settings before admitting a writer. [PR #53](https://github.com/progentic/Warband/pull/53)
+
 ## 0.0.23 - 2026-11-18
 
 ### Added
