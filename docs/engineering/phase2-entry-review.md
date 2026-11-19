@@ -38,7 +38,20 @@ Slice 4 entry needs a store profile for the project-local static build of SQLite
 
 ## Slice 4 build entry
 
-Proto approved the pinned SQLite 3.54.1 amalgamation as a build dependency and a native static-link probe on Ubuntu x64 and macOS ARM64. Both hosted jobs must pass on the same PR before merge. The [build record](../decisions/0005-event-integrity-acceptance-and-recovery.md#sqlite-static-build-evidence) identifies the inputs and local results. The next store-profile increment will record the settings a writing connection must report at open. Binding, database access and denial-receipt import require separate authorization.
+Proto approved the pinned SQLite 3.54.1 amalgamation as a build dependency and a native static-link probe on Ubuntu x64 and macOS ARM64. Both hosted jobs must pass on the same PR before merge. The [build record](../decisions/0005-event-integrity-acceptance-and-recovery.md#sqlite-static-build-evidence) identifies the inputs and local results. Both hosted probes passed and the independent Linux build reproduced the archive byte-for-byte. [PR #51](https://github.com/progentic/Warband/pull/51) Binding, database access and denial-receipt import require separate authorization.
+
+### SQLite store profile
+
+Before admitting application writes, the binding must set WAL mode, FULL synchronization and foreign-key enforcement, then read back all four values below on **each writing connection**. The application schema version comes from the existing database header. Opening a writer must read that version without assigning it.
+
+| Read-back query | Required result |
+| --- | --- |
+| `PRAGMA journal_mode` | `wal` |
+| `PRAGMA synchronous` | `2` (FULL) |
+| `PRAGMA foreign_keys` | `1` |
+| `PRAGMA user_version` | `1` (Warband schema v1) |
+
+If any query fails, returns no value or reports a different value, the binding must withhold write access. **All four checks are pending verification** until the binding and open increment exercises them against a real database.
 
 ## Phase 2 entry recorded 2026-11-10
 
