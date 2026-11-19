@@ -679,7 +679,7 @@ Only feature results select SHA acceleration; the incidental name cache grants n
 
 ### 7. SQLite source and integration profile
 
-**Decision candidate:** Pin the official SQLite 3.54.1 amalgamation, not a system SQLite or prebuilt vendor library. [Release notes](https://www.sqlite.org/releaselog/3_54_1.html) identify the release/source; [the download page](https://www.sqlite.org/download.html) publishes its SHA3 digest. Review found a 32-bit heap-buffer-overflow fix plus other reported corrections relative to 3.54.0; this is release review, not a source audit or a claim that no vulnerabilities exist.
+**Approved build input:** Use the official SQLite 3.54.1 amalgamation. [Release notes](https://www.sqlite.org/releaselog/3_54_1.html) identify the release/source; [the download page](https://www.sqlite.org/download.html) publishes its SHA3 digest. Review found a 32-bit heap-buffer-overflow fix plus other reported corrections relative to 3.54.0; this is release review, not a source audit or a claim that no vulnerabilities exist.
 
 | Input | Reviewed identity |
 |---|---|
@@ -692,11 +692,22 @@ Only feature results select SHA acceleration; the incidental name cache grants n
 
 The archive and source digests were independently checked against downloaded bytes; no SQLite code was compiled or executed in this documentation task. Future project-local static build: compile only sqlite3.c with the platform-pinned Clang C compiler, `-O2 -fPIC -DSQLITE_THREADSAFE=1 -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DQS=0`, and archive it as `.local/dependencies/sqlite/<source-id>/<target>/libsqlite3.a`. Record the complete compiler/version/flags, archive/object digests, target, compile options and final executable linkage. The proposed static archive is a new reviewed dependency; no runtime build is performed by this amendment. No host SQLite discovery or fallback. Keep the existing Odin/LLVM/runner pins unchanged. Check `sqlite3_libversion_number()==3054001`, exact `sqlite3_sourceid()` and required compile options at startup.
 
-Use a minimal reviewed Odin C-ABI binding to this explicit project-local archive, opaque sqlite3 handles only in Low, and prepared statements with bound values; no SQL from proposals. The pinned Odin source demonstrates `foreign import` and C calling conventions in [core/c/libc/stdlib.odin](https://github.com/odin-lang/Odin/blob/8b35c86efb78e9ab5223673a07e02fc2a6884191/core/c/libc/stdlib.odin#L5-L22). This verifies the available binding mechanism, not a working SQLite integration. A link/build check on Linux x64 and macOS ARM64 is still required before any compatibility claim; there is no existing Warband SQLite binding to reuse.
+Use a minimal reviewed Odin C-ABI binding to this explicit project-local archive, opaque sqlite3 handles only in Low, and prepared statements with bound values; no SQL from proposals. The pinned Odin source demonstrates `foreign import` and C calling conventions in [core/c/libc/stdlib.odin](https://github.com/odin-lang/Odin/blob/8b35c86efb78e9ab5223673a07e02fc2a6884191/core/c/libc/stdlib.odin#L5-L22). The static C link checks below exercise Linux x64 and macOS ARM64. The Odin binding requires its own implementation and verification.
 
 On every writing connection, set and query `journal_mode=WAL`, `synchronous=FULL`, `foreign_keys=ON`; reject any different effective value. Disable extension loading; use no custom VFS, optional extensions or unsafe synchronization settings. Pin the SQLite schema version at 1 and verify schema/constraints at open. The [SQLite synchronous documentation](https://www.sqlite.org/pragma.html#pragma_synchronous) describes WAL/FULL durability assumptions. Linux fault evidence must identify the actual filesystem, VFS, VM disk/cache/flush profile and SQLite compile options. macOS is functional/encoding development evidence only; it supplies no durability or Linux peer-credential claim. Source retention and clean rebuild proof remain release obligations.
 
-**Alternative:** Independently pinned distribution libraries on each OS. **Consequence:** Project-local source adds a build/patch obligation but avoids changing library behavior under host upgrades. This pin is a proposed input to a later build-tooling PR, not an installed dependency in this task.
+**Alternative:** Independently pinned distribution libraries on each OS. **Consequence:** Project-local source adds a build/patch obligation but avoids changing library behavior under host upgrades. The build authorization and native probe results follow.
+
+#### SQLite static build evidence
+
+On 2026-11-18 Proto approved a six-file, 250-added-line build-only increment. The build script `scripts/build_sqlite.sh` verifies both SHA3-256 digests and the full source ID before compiling. It uses the flags in §7 and deterministic `llvm-ar rcsD`. The archive directory uses the hash component of the source ID. A fresh temporary build must pass the linked identity probe in `scripts/verify_sqlite_build.c` before its archive is installed.
+
+| Native target | Clang | sqlite3.o SHA-256 | libsqlite3.a SHA-256 |
+| --- | --- | --- | --- |
+| Ubuntu 24.04 x64, x64-review | 19.1.1 | `edb9b0a0e35fb1af7b9c95a5e7ab7e452490ae37089f780a260aabbf7eeae689` | `7e4653fb2880a7262413d61da9fd21db8688c4c38f6da942b0757f3ef9dbc0fb` |
+| macOS ARM64 | 19.1.7 | `1eeb5648072f4bb07634402f77f58b0abd3f80a8053d6337995ff35582cf9d01` | `0ec0ba3b6da57cd84e593a301c64e7a3a3259c1a82b70d8a4222dacc5b2dd549` |
+
+Two fresh builds on each target reproduced its object and archive digests. Both native probes reported 3054001, the exact source ID above and all three required compile options. Linux linkage inspection showed libc and the loader. macOS showed only libSystem. Each CI job retains its compiler identity, flags, object and archive digests, complete option list and executable linkage in `out/<target>/sqlite-build.log`. A scratch build with an incorrect source digest stopped before compilation and archive installation. Three governance fixture checks initially reported broken links because their documentation-only trees omit scripts. The record now names the script paths directly. These results cover library identity and native linking. Connection settings and store behavior require separate evidence.
 
 ### Option A: bounded durable custody rejection receipt — selected by Proto, 2026-10-21
 

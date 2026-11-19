@@ -40,6 +40,8 @@ jobs:
         run: bash scripts/build_odin.sh linux_amd64 2>&1 | tee out/linux_amd64/compiler.log
       - name: Build Warband and verify ELF x86-64
         run: bash scripts/build_warband.sh linux_amd64 2>&1 | tee out/linux_amd64/build.log
+      - name: Build and verify the static SQLite archive
+        run: bash scripts/build_sqlite.sh linux_amd64 2>&1 | tee out/linux_amd64/sqlite-build.log
       - name: Verify governance and negative controls
         run: |
           python3 scripts/check_docs.py 2>&1 | tee out/linux_amd64/governance.log
@@ -99,6 +101,11 @@ jobs:
           export LLVM_CONFIG CXX
           bash scripts/build_odin.sh darwin_arm64 2>&1 | tee out/darwin_arm64/compiler.log
           bash scripts/build_warband.sh darwin_arm64 2>&1 | tee out/darwin_arm64/build.log
+      - name: Build and verify the static SQLite archive
+        run: |
+          LLVM_CONFIG="$(brew --prefix llvm@19)/bin/llvm-config"
+          export LLVM_CONFIG
+          bash scripts/build_sqlite.sh darwin_arm64 2>&1 | tee out/darwin_arm64/sqlite-build.log
       - name: Verify governance and test inventory
         run: |
           LLVM_CONFIG="$(brew --prefix llvm@19)/bin/llvm-config"
