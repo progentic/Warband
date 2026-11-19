@@ -63,3 +63,8 @@ Frame/head codecs reuse package-private endian operations and a shared metadata-
 Custody also owns the [WBCR codec and pure peer decision](../decisions/0005-event-integrity-acceptance-and-recovery.md#pure-custodian-requests-and-peer-roles-authorized-2026-11-17). The caller supplies listener identity and observed credentials; socket acquisition and filesystem effects require separate authorization.
 
 The [WBRS reply codec](../decisions/0005-event-integrity-acceptance-and-recovery.md#wbrs-replies-and-disclosure-authorized-2026-11-17) receives authentication and request expectations from the caller. It validates the wire representation and enforces disclosure before exposing a reply value.
+
+
+## SQLite writer open
+
+`src/store` owns the verified writer handle and its open-time profile. Only the private SQLite adapter in this package calls the C ABI. The caller receives an owned writer after all profile checks succeed, can inspect a copy of its observed settings, and closes it once. The integration fixture owns database creation. [Qualified procedures and evidence](../decisions/0005-event-integrity-acceptance-and-recovery.md#sqlite-writer-open-qualification)

@@ -38,7 +38,7 @@ Slice 4 entry needs a store profile for the project-local static build of SQLite
 
 ## Slice 4 build entry
 
-Proto approved the pinned SQLite 3.54.1 amalgamation as a build dependency and a native static-link probe on Ubuntu x64 and macOS ARM64. Both hosted jobs must pass on the same PR before merge. The [build record](../decisions/0005-event-integrity-acceptance-and-recovery.md#sqlite-static-build-evidence) identifies the inputs and local results. Both hosted probes passed and the independent Linux build reproduced the archive byte-for-byte. [PR #51](https://github.com/progentic/Warband/pull/51) Binding, database access and denial-receipt import require separate authorization.
+Proto approved the pinned SQLite 3.54.1 amalgamation as a build dependency and a native static-link probe on Ubuntu x64 and macOS ARM64. Both hosted jobs must pass on the same PR before merge. The [build record](../decisions/0005-event-integrity-acceptance-and-recovery.md#sqlite-static-build-evidence) identifies the inputs and local results. Both hosted probes passed and the independent Linux build reproduced the archive byte-for-byte. [PR #51](https://github.com/progentic/Warband/pull/51) The writer-open entry below qualifies database access for profile verification. Denial-receipt import requires separate authorization.
 
 ### SQLite store profile
 
@@ -51,7 +51,7 @@ Before admitting application writes, the binding must set WAL mode, FULL synchro
 | `PRAGMA foreign_keys` | `1` |
 | `PRAGMA user_version` | `1` (Warband schema v1) |
 
-If any query fails, returns no value or reports a different value, the binding must withhold write access. **All four checks are pending verification** until the binding and open increment exercises them against a real database.
+If any query fails, returns no value or reports a different value, the binding must withhold write access. Proto authorized the [writer-open qualification](../decisions/0005-event-integrity-acceptance-and-recovery.md#sqlite-writer-open-qualification) for nine files and 450 added lines. Local real-database verification passed on macOS ARM64 and Ubuntu x64. Each of two simultaneous writers reported all four values. An independent read-only connection confirmed that the rejected version-0 fixture retained its version and original delete journal mode.
 
 ## Phase 2 entry recorded 2026-11-10
 

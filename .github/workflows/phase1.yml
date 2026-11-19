@@ -42,6 +42,8 @@ jobs:
         run: bash scripts/build_warband.sh linux_amd64 2>&1 | tee out/linux_amd64/build.log
       - name: Build and verify the static SQLite archive
         run: bash scripts/build_sqlite.sh linux_amd64 2>&1 | tee out/linux_amd64/sqlite-build.log
+      - name: Verify Linux SQLite writer open
+        run: bash scripts/test_writer_open.sh linux_amd64 2>&1 | tee out/linux_amd64/writer-open.log
       - name: Verify governance and negative controls
         run: |
           python3 scripts/check_docs.py 2>&1 | tee out/linux_amd64/governance.log
@@ -106,6 +108,11 @@ jobs:
           LLVM_CONFIG="$(brew --prefix llvm@19)/bin/llvm-config"
           export LLVM_CONFIG
           bash scripts/build_sqlite.sh darwin_arm64 2>&1 | tee out/darwin_arm64/sqlite-build.log
+      - name: Verify macOS SQLite writer open
+        run: |
+          LLVM_CONFIG="$(brew --prefix llvm@19)/bin/llvm-config"
+          export LLVM_CONFIG
+          bash scripts/test_writer_open.sh darwin_arm64 2>&1 | tee out/darwin_arm64/writer-open.log
       - name: Verify governance and test inventory
         run: |
           LLVM_CONFIG="$(brew --prefix llvm@19)/bin/llvm-config"
