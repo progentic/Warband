@@ -53,6 +53,10 @@ Before admitting application writes, the binding must set WAL mode, FULL synchro
 
 If any query fails, returns no value or reports a different value, the binding must withhold write access. Proto authorized the [writer-open qualification](../decisions/0005-event-integrity-acceptance-and-recovery.md#sqlite-writer-open-qualification) for nine files and 450 added lines. Local real-database verification passed on macOS ARM64 and Ubuntu x64. Each of two simultaneous writers reported all four values. An independent read-only connection confirmed that the rejected version-0 fixture retained its version and original delete journal mode.
 
+### Schema v1 record
+
+On 2026-11-20 Proto approved the [schema v1 and operator provisioning contract](../decisions/0005-event-integrity-acceptance-and-recovery.md#schema-v1-for-events-and-denial-imports). This documentation increment defines the atomic store transaction and the restart acceptance case. Production provisioning, event append, receipt import and the process-kill harness require separate authorization.
+
 ## Phase 2 entry recorded 2026-11-10
 
 The project owner separately authorized the assistant to begin Phase 2 in the instruction quoted in ADR-0005, and approved an initial scope of about ten files and up to 250 added lines. This section records Gate 3 entry, not the Gate 2 acceptance decision.
