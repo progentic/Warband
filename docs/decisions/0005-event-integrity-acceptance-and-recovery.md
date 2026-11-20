@@ -648,6 +648,14 @@ In `src/store/writer.odin`, `open_writer` coordinates identity inspection, exist
 
 The two real-database cases passed locally on macOS ARM64 and the recorded Ubuntu x64 VM with the pinned static archive. Both live writers reported all four expected values. Independent read-only inspection after the version-zero refusal found version 0 and journal mode delete. The first macOS compile rejected an absolute foreign import path before running tests. A named Odin collection now resolves the exact pinned archive on both targets. The integration runner checks both named results and retains the report under `out/<target>/writer-open/`.
 
+#### Operator store provisioning qualification
+
+After successful custody enrollment observes the empty journal directory, the operator keeps that directory under exclusive control with the runtime quiesced. Run `provision-store <database-path>` there before handing the store to its writer. Ordering and directory ownership are operator preconditions. The command does not authenticate a custody peer or change directory permissions.
+
+`cmd/provision-store:main` reads one path, calls `src/store:provision_store`, reports failure and exits. Provisioning may exclusively create and close one owner-only file, inspect the pinned library identity, open that file read-write, enable and read back foreign keys, execute the fixed schema transaction below and close SQLite. A failed transaction is rolled back on close. On any failure after acquisition, retain the newly created path for operator inspection, including when commit or close is uncertain. An existing path always refuses a retry. No automatic deletion or adoption is authorized.
+
+The integration runner builds the operator executable at `out/<target>/provision-store` against the same project-local archive as the writer. Its two provisioning cases passed on native macOS ARM64 and the Ubuntu x64 review VM, alongside both existing writer-open cases. A freshly provisioned file admitted the verified writer and SQLite returned extended error 787 for an unbound watermark. The refused existing file matched its original bytes and retained its fixture row and version zero. The embedded SQL file matches the reviewed DDL byte-for-byte. The first macOS build stopped before tests because the compiler required an explicit NUL-terminated C string for the embedded SQL.
+
 #### Gate 0 custodian amendment (2026-11-18)
 
 The owner directed Gate 0 after slice 3a landed at `67d55f6`. The 3b qualification covers exactly the three `cmd/custodian` rows and the eight `src/custody` rows in this table, with only their listed call edges. Activation requires the entry conditions in the [3b entry record](../engineering/phase2-entry-review.md#slice-3b-gate-0). Runtime audit import, SQLite and no-op execution retain separate entry gates.

@@ -1,5 +1,7 @@
 package writer_open_test
 
+import "core:bytes"
+import "core:os"
 import "core:testing"
 import "../../../src/store"
 
@@ -11,6 +13,7 @@ Callback :: #type proc "c" (rawptr, i32, [^]cstring, [^]cstring) -> i32
 foreign fixture_sqlite {
 	sqlite3_open_v2 :: proc(path: cstring, db: ^rawptr, flags: i32, vfs: cstring) -> i32 ---
 	sqlite3_exec :: proc(db: rawptr, sql: cstring, callback: Callback, arg: rawptr, error: ^cstring) -> i32 ---
+	sqlite3_extended_errcode :: proc(db: rawptr) -> i32 ---
 	sqlite3_close :: proc(db: rawptr) -> i32 ---
 }
 
@@ -58,6 +61,62 @@ unversioned_database_keeps_original_journal_mode :: proc(t: ^testing.T) {
 	if !testing.expect(t, rc == 0) { return }
 	rows := 0
 	query: cstring = "SELECT user_version,journal_mode FROM pragma_user_version,pragma_journal_mode"
+	testing.expect(t, sqlite3_exec(db, query, check_original_settings, &rows, nil) == 0)
+	testing.expect_value(t, rows, 1)
+}
+
+
+PROVISION :: #config(WARBAND_PROVISION_COMMAND, "")
+#assert(len(PROVISION) > 0)
+
+run_provision :: proc(t: ^testing.T, path: cstring, expect_success: bool) -> bool {
+	command := [?]string{PROVISION, string(path)}
+	state, stdout, stderr, err := os.process_exec({command=command[:]}, context.allocator)
+	defer delete(stdout)
+	defer delete(stderr)
+	if !testing.expect(t, err == nil && state.exited) { return false }
+	if expect_success { return testing.expect(t, state.exit_code == 0, string(stderr)) }
+	return testing.expect(t, state.exit_code == 1 && string(stderr) == "provision-store: AlreadyExists\n")
+}
+
+@(test)
+provisioned_database_accepts_writer_and_rejects_unbound_watermark :: proc(t: ^testing.T) {
+	path: cstring = DIRECTORY + "/provisioned.db"
+	if !run_provision(t, path, true) { return }
+	writer, err := store.open_writer(path)
+	if !testing.expect_value(t, err, .None) || !testing.expect(t, writer != nil) { return }
+	defer testing.expect(t, store.close_writer(&writer))
+
+	// Independent inspection connection. Enforcement must also be enabled here.
+	db: rawptr
+	rc := sqlite3_open_v2(path, &db, 2, nil)
+	defer if db != nil { testing.expect(t, sqlite3_close(db) == 0) }
+	if !testing.expect(t, rc == 0) { return }
+	if !testing.expect(t, sqlite3_exec(db, "PRAGMA foreign_keys=ON", nil, nil, nil) == 0) { return }
+	insert: cstring = "INSERT INTO import_watermarks VALUES(x'01010101010101010101010101010101',x'0100000000000000')"
+	testing.expect_value(t, sqlite3_exec(db, insert, nil, nil, nil), 19)
+	testing.expect_value(t, sqlite3_extended_errcode(db), 787) // SQLITE_CONSTRAINT_FOREIGNKEY
+}
+
+@(test)
+existing_database_survives_provisioning :: proc(t: ^testing.T) {
+	path: cstring = DIRECTORY + "/existing.db"
+	if !create_fixture(t, path, "CREATE TABLE fixture(id INTEGER); INSERT INTO fixture VALUES(42);") { return }
+	before, ok := os.read_entire_file(string(path), context.allocator)
+	if !testing.expect(t, ok == nil) { return }
+	defer delete(before)
+	if !run_provision(t, path, false) { return }
+	after, read_error := os.read_entire_file(string(path), context.allocator)
+	if !testing.expect(t, read_error == nil) { return }
+	defer delete(after)
+	testing.expect(t, bytes.equal(before, after))
+
+	db: rawptr
+	rc := sqlite3_open_v2(path, &db, 1, nil)
+	defer if db != nil { testing.expect(t, sqlite3_close(db) == 0) }
+	if !testing.expect(t, rc == 0) { return }
+	rows := 0
+	query: cstring = "SELECT user_version,journal_mode FROM pragma_user_version,pragma_journal_mode,fixture WHERE fixture.id=42"
 	testing.expect(t, sqlite3_exec(db, query, check_original_settings, &rows, nil) == 0)
 	testing.expect_value(t, rows, 1)
 }

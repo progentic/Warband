@@ -14,6 +14,7 @@ foreign sqlite {
 	sqlite3_compileoption_used :: proc(option: cstring) -> i32 ---
 	sqlite3_open_v2 :: proc(path: cstring, db: ^Database, flags: i32, vfs: cstring) -> i32 ---
 	sqlite3_db_readonly :: proc(db: Database, name: cstring) -> i32 ---
+	sqlite3_exec :: proc(db: Database, sql: cstring, callback: #type proc "c" (rawptr, i32, [^]cstring, [^]cstring) -> i32, arg: rawptr, error: ^cstring) -> i32 ---
 	sqlite3_close :: proc(db: Database) -> i32 ---
 	sqlite3_prepare_v2 :: proc(db: Database, sql: cstring, length: i32, stmt: ^Statement, tail: ^cstring) -> i32 ---
 	sqlite3_step :: proc(stmt: Statement) -> i32 ---
@@ -89,4 +90,12 @@ set_connection_option :: proc(state: ^WriterState, sql: cstring) -> bool {
 	if sqlite3_prepare_v2(state.db, sql, -1, &stmt, nil) != 0 { return false }
 	completed := sqlite3_step(stmt) == DONE
 	return sqlite3_finalize(stmt) == 0 && completed
+}
+
+
+// sqlite3_exec stops at the first failed statement. Closing the connection
+// rolls back any transaction still open after an error.
+install_schema_v1 :: proc(state: ^WriterState) -> bool {
+	schema :: #load("schema_v1.sql", string) + "\x00"
+	return sqlite3_exec(state.db, cstring(raw_data(schema)), nil, nil, nil) == 0
 }

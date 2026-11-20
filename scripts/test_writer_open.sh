@@ -13,15 +13,18 @@ mkdir -p "$out"
 fixture="$(mktemp -d "$out/fixture.XXXXXXXX")"
 trap 'rm -rf "$fixture"' EXIT
 report="$fixture/report.json"
+operator_cmd="$PWD/out/$target/provision-store"
+odin build cmd/provision-store -vet -warnings-as-errors "-out:$operator_cmd" "-collection:warband_sqlite=${archive%/*}"
 odin test tests/integration/writer_open -vet -warnings-as-errors "-out:$fixture/test" \
-    "-collection:warband_sqlite=${archive%/*}" "-define:WARBAND_FIXTURE_DIR=$fixture" \
+    "-collection:warband_sqlite=${archive%/*}" "-define:WARBAND_FIXTURE_DIR=$fixture" "-define:WARBAND_PROVISION_COMMAND=$operator_cmd" \
     -define:ODIN_TEST_FANCY=false -define:ODIN_TEST_RANDOM_SEED=1 "-define:ODIN_TEST_JSON_REPORT=$report"
 PYTHONPATH=scripts python3 - "$report" <<'PY'
 from pathlib import Path
 import json
 import sys
 from test_inventory import TestPackage, validate_report
-names = ("two_connections_report_verified_profiles", "unversioned_database_keeps_original_journal_mode")
+names = ("existing_database_survives_provisioning", "provisioned_database_accepts_writer_and_rejects_unbound_watermark",
+         "two_connections_report_verified_profiles", "unversioned_database_keeps_original_journal_mode")
 validate_report(TestPackage("tests/integration/writer_open", names), json.loads(Path(sys.argv[1]).read_text()))
 PY
 mv "$report" "$out/report.json"
