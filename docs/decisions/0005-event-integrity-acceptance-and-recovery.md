@@ -719,6 +719,47 @@ On 2026-11-18 Proto approved a six-file, 250-added-line build-only increment. Th
 
 Two fresh builds on each target reproduced its object and archive digests. Both native probes reported 3054001, the exact source ID above and all three required compile options. Linux linkage inspection showed libc and the loader. macOS showed only libSystem. Each CI job retains its compiler identity, flags, object and archive digests, complete option list and executable linkage in `out/<target>/sqlite-build.log`. A scratch build with an incorrect source digest stopped before compilation and archive installation. Three governance fixture checks initially reported broken links because their documentation-only trees omit scripts. The record now names the script paths directly. These results cover library identity and native linking. Connection settings and store behavior require separate evidence.
 
+#### Schema v1 for events and denial imports
+
+Operator provisioning requires exclusive creation of a new database at the selected store path. With foreign keys enabled, run the following as one transaction. On any error roll back and withhold the store from use. An existing file, including an unversioned file, is ineligible for provisioning. Ordinary writer open continues to require an existing version-1 database.
+
+```sql
+BEGIN IMMEDIATE;
+CREATE TABLE events (
+  store_id BLOB NOT NULL CHECK(length(store_id)=16 AND store_id<>zeroblob(16)),
+  epoch BLOB NOT NULL CHECK(length(epoch)=8 AND epoch<>zeroblob(8)),
+  sequence BLOB NOT NULL CHECK(length(sequence)=8 AND sequence<>zeroblob(8)),
+  canonical_event BLOB NOT NULL,
+  PRIMARY KEY (store_id, epoch, sequence)
+) STRICT, WITHOUT ROWID;
+CREATE TABLE denial_imports (
+  store_id BLOB NOT NULL,
+  custody_ordinal BLOB NOT NULL CHECK(length(custody_ordinal)=8 AND custody_ordinal<>zeroblob(8)),
+  record_hash BLOB NOT NULL CHECK(length(record_hash)=32),
+  epoch BLOB NOT NULL, sequence BLOB NOT NULL,
+  PRIMARY KEY (store_id, custody_ordinal),
+  UNIQUE (store_id, epoch, sequence),
+  FOREIGN KEY (store_id, epoch, sequence) REFERENCES events(store_id, epoch, sequence)
+) STRICT, WITHOUT ROWID;
+CREATE TABLE import_watermarks (
+  store_id BLOB PRIMARY KEY,
+  last_imported_ordinal BLOB NOT NULL,
+  FOREIGN KEY (store_id, last_imported_ordinal) REFERENCES denial_imports(store_id, custody_ordinal)
+) STRICT, WITHOUT ROWID;
+PRAGMA user_version=1;
+COMMIT;
+```
+
+Store complete canonical event bytes and require their decoded Ref to match the row key. Encode epoch, sequence and ordinal keys as the existing eight-byte little-endian u64 representation. Compare decoded numbers for ordering. The receipt ordinal spans epochs within a store. An absent watermark row means zero imports.
+
+Hold the writer gate across **custody prepare → SQLite commit → custody confirm**. In the single SQLite transaction append the event, bind its full Ref to the receipt identity and advance the watermark to that receipt's ordinal. On retry compare the stored hash at the same store and ordinal. A different hash is a conflict. An exact identity still requires verifying the bound event bytes and custody confirmation before reporting success. Never overwrite a conflicting binding.
+
+At pass start snapshot the custody tip. Page by authenticated verify over validated custody history through that fixed tip. PENDING and COMMITTED frames consume ordinals too, so eligible receipt ordinals can have gaps. Only a verified response covering the interval can establish that it has no eligible receipt. A missing interval blocks protected progress. Leave later receipts for the next pass. The watermark tracks the last imported receipt and may be below the tip of a completed pass.
+
+Rebuild the derived rows from the confirmed event prefix and verified custody history. In custody order, match each eligible 203-byte REJECTION frame to its audit event by SHA-256 of the entire frame, including its record hash. Require kind 8, producer 5, stage 7, reason 13, absent related Ref, and a unique matching event in the same store. Bind the event Ref to the ordinal and record hash from custody. Reconstruct the watermark through the last consecutively accounted-for eligible receipt. Conflicting, duplicate or unexplained bindings block progress. A SQLite watermark alone cannot establish custody confirmation.
+
+**Pending implementation evidence.** Kill the importer after SQLite COMMIT returns and before it sends confirm. On restart, require `PENDING_CONFIRMATION`, validate the confirmed prefix and exact pending pledge, then resume confirm. Withhold protected progress until confirmation and reconciliation through the snapshot tip. Assert one event, one receipt binding and the receipt ordinal as watermark. A second pass must leave all three unchanged. If confirmation already completed, `CONFIRMED_RESPONSE_PENDING` returns the compared result. `PENDING_EVENT_MISSING` and `UNATTESTED_TAIL` preserve evidence and halt for the operator. An interruption after prepare alone can cause `PENDING_EVENT_MISSING` during normal operation.
+
 ### Option A: bounded durable custody rejection receipt — selected by Proto, 2026-10-21
 
 **Operator decision:** Proto selected Option A at Gate 1 on 2026-10-21 and explicitly accepted unbounded total denial-history growth as a Phase 2 limitation. At that Gate 1 decision, ADR-0005 acceptance and Phase 2 entry were still pending. The acceptance metadata and dated entry records above govern current status. This historical selection established the denial-receipt design; the later codec slices implement representation only. Operational custody and receipt import remain deferred.
