@@ -55,7 +55,7 @@ If any query fails, returns no value or reports a different value, the binding m
 
 ### Schema v1 record
 
-On 2026-11-20 Proto approved the [schema v1 and operator provisioning contract](../decisions/0005-event-integrity-acceptance-and-recovery.md#schema-v1-for-events-and-denial-imports). This documentation increment defines the atomic store transaction and the restart acceptance case. Production provisioning, event append, receipt import and the process-kill harness require separate authorization.
+On 2026-11-20 Proto approved the [schema v1 and operator provisioning contract](../decisions/0005-event-integrity-acceptance-and-recovery.md#schema-v1-for-events-and-denial-imports). This documentation increment defines the atomic store transaction and the restart acceptance case. Proto authorized only [operator provisioning](../decisions/0005-event-integrity-acceptance-and-recovery.md#operator-store-provisioning-qualification) for nine files and 350 added lines on 2026-11-20. Event append, receipt import and the process-kill harness require separate authorization.
 
 ## Phase 2 entry recorded 2026-11-10
 
