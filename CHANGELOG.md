@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.25 - 2026-11-20
+
+### Added
+
+- Added `provision-store` to create a new SQLite store with schema v1 and refuse existing paths. [PR #55](https://github.com/progentic/Warband/pull/55)
+
 ## 0.0.24 - 2026-11-19
 
 ### Added
