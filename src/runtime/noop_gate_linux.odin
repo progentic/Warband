@@ -10,7 +10,7 @@ import store "../store"
 import client "client"
 
 GateResult :: enum {EvidenceInvalid, Unavailable, ReconciliationRequired, MissingClaim, NoLiveGrantEntry,
-                    ExpiredCapability, InvalidClock, TaskDeadlineExceeded, RefusalUnconfirmed, Eligible, Dispatched}
+                    ExpiredCapability, InvalidClock, TaskDeadlineExceeded, RefusalUnconfirmed, Eligible, Dispatched, EvaluationVerified, EvaluationRejected}
 
 @(private)
 PROOF :: #config(WARBAND_TEST_CLAIM_BARRIER,false)
@@ -110,17 +110,27 @@ invoke_noop :: proc() -> [4]u8 {
 }
 
 @(private)
-dispatch :: proc(w: store.VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,h: store.NoopHistory,
-                 task: a.TaskCreated, proposal: a.ProposalRecorded,live: ^Maybe(LiveGrant)) -> GateResult {
+bound_claim :: proc(h: store.NoopHistory, requested: e.EventRef) -> bool {
+	task, created := h.task.(a.TaskCreated)
+	proposal, proposed := h.proposal.(a.ProposalRecorded)
 	auth, permitted := h.permit.(a.AuthorizationRecorded)
 	claim, claimed := h.claim.(a.DispatchClaimed)
+	if !created || !proposed || !permitted || !claimed || proposal.reference != requested { return false }
+	fp, err := a.fingerprint_proposal(proposal,requested.store,requested.epoch)
+	return valid_proposal(task,proposal) && auth.decision == .Permit && auth.use_limit == 1 &&
+	       auth.proposal == requested && auth.expected_control_revision == 0 &&
+	       claim.authorization == auth.reference && claim.capability == auth.capability &&
+	       claim.expected_task_version == 1 && claim.expected_control_revision == 1 &&
+	       err == .None && claim.proposal_fingerprint == fp
+}
+
+@(private)
+dispatch :: proc(w: store.VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,h: store.NoopHistory,
+                 requested: e.EventRef,live: ^Maybe(LiveGrant),returned: ^Maybe([4]u8)) -> GateResult {
+	claim, claimed := h.claim.(a.DispatchClaimed)
 	if !claimed { return .MissingClaim }
-	fp, err := a.fingerprint_proposal(proposal,cp.store,cp.epoch)
-	if !valid_proposal(task,proposal) || !permitted || auth.decision != .Permit || auth.use_limit != 1 ||
-	   auth.proposal != proposal.reference || auth.expected_control_revision != 0 ||
-	   claim.authorization != auth.reference || claim.capability != auth.capability ||
-	   claim.expected_task_version != 1 || claim.expected_control_revision != 1 ||
-	   err != .None || claim.proposal_fingerprint != fp { return .EvidenceInvalid }
+	if !bound_claim(h,requested) { return .EvidenceInvalid }
+	auth := h.permit.(a.AuthorizationRecorded)
 
 	when PROOF { fmt.println("confirmed_evidence", u64(auth.reference.sequence), u64(claim.reference.sequence)) }
 	result := GateResult.NoLiveGrantEntry
@@ -135,8 +145,12 @@ dispatch :: proc(w: store.VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,h: 
 		if result == .Eligible {
 			live^ = nil
 			value := invoke_noop()
+			returned^ = value
 			when PROOF { fmt.println("dispatch_ms",tick) }
 			fmt.println("returned",string(value[:]))
+			when PROOF {
+				if linux.kill(linux.getpid(),.SIGSTOP) != .NONE { return .Unavailable }
+			}
 			return .Dispatched
 		}
 	}
@@ -187,6 +201,46 @@ run_noop_gate :: proc(path: cstring,s: ^client.Session,archives: []Archive,reque
 			if issued != .Eligible { return issued }
 			continue // reconcile the pre-dispatch receipt snapshot and read durable evidence again
 		}
-		return dispatch(w,s,page.committed,h,task,proposal,&live)
+		if obs, found := h.observation.(a.ObservationRecorded); found {
+			return evaluate_confirmed(w,s,requested,obs.reference)
+		}
+		returned: Maybe([4]u8)
+		gate := dispatch(w,s,page.committed,h,requested,&live,&returned)
+		if gate != .Dispatched && gate != .NoLiveGrantEntry { return gate }
+		ref, recorded := record_observation(w,s,requested,h.claim.(a.DispatchClaimed).reference,returned)
+		if !recorded { return .Unavailable }
+		when PROOF {
+			if returned != nil && linux.kill(linux.getpid(),.SIGSTOP) != .NONE { return .Unavailable }
+		}
+		evaluated := evaluate_confirmed(w,s,requested,ref)
+		if evaluated == .EvaluationVerified && gate == .Dispatched { return .Dispatched }
+		if evaluated == .EvaluationRejected && gate == .NoLiveGrantEntry { return .NoLiveGrantEntry }
+		return evaluated
 	}
+}
+
+@(private)
+record_observation :: proc(w: store.VerifiedWriter,s: ^client.Session,requested,claim: e.EventRef,
+                           returned: Maybe([4]u8)) -> (e.EventRef,bool) {
+	page, ok := client.verify(s,0)
+	if !ok || page.pending != nil { return {},false }
+	cp := page.committed
+	h, valid := store.noop_history(w,cp,s)
+	if !valid || !bound_claim(h,requested) || h.claim.(a.DispatchClaimed).reference != claim || h.observation != nil { return {},false }
+	id, fresh := new_evidence(h)
+	stamp := client.wb_recorded_us()
+	if !fresh || stamp < 0 { return {},false }
+	outcome := a.ObservationOutcome.Indeterminate
+	if value, present := returned.([4]u8); present && value == ([4]u8{'N','O','O','P'}) { outcome = .Returned }
+	obs := a.ObservationRecorded{reference={cp.store,cp.epoch,cp.sequence+1}, previous_head=cp.head,
+		recorded_time=u64(stamp),claim=claim,evidence=id,outcome=outcome}
+	_, confirmed := store.append_noop(w,s,cp,h.mark,obs,s.deadline)
+	return obs.reference,confirmed
+}
+
+@(private)
+new_evidence :: proc(h: store.NoopHistory) -> (e.EvidenceId,bool) {
+	id: e.EvidenceId
+	count, err := linux.getrandom(id[:],{})
+	return id,err == .NONE && count == len(id) && store.available_evidence(h,id)
 }

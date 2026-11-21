@@ -76,3 +76,5 @@ The [WBRS reply codec](../decisions/0005-event-integrity-acceptance-and-recovery
 ## Linux live no-op gate
 
 `cmd/noop-gate` accepts a named proposal and the isolated store/custody configuration. `src/runtime/noop_gate_linux.odin` owns the executing process’s private live grant and the sole call to the fixed primitive. `src/domain/timing` still receives supplied ticks. The store owns the pledged append and consistent reads of confirmed bindings. [Qualified calls and evidence](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-live-dispatch-qualification)
+
+The observer in `src/runtime/noop_gate_linux.odin` owns the comparison with the primitive's return. The evaluator in `src/runtime/noop_evaluator_linux.odin` receives a confirmed observation Ref and reads the persisted evidence under the writer gate. Its verdict is audit evidence for the state boundary. [Observation and evaluation qualification](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-observation-and-evaluation-qualification)
