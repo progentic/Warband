@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.27 - 2026-11-20
+
+### Added
+
+- Added a Linux process-kill test showing that restart confirms a committed receipt import exactly once and preserves its SQLite rows. [PR #57](https://github.com/progentic/Warband/pull/57)
+
 ## 0.0.26 - 2026-11-20
 
 ### Added
