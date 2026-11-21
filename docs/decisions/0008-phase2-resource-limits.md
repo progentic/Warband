@@ -46,6 +46,31 @@ For each reachable history at the trigger, price the in-flight outcome, every re
 
 **Decision pending.** Approve a numerical hard bound only when all four reserves fit for the same declared envelope, including a safe way to complete the drain under sustained offered input. The 80,000 warning threshold is an estimate in visits. Its distance from the 100,000 per-invocation limit supplies no disk, time or memory guarantee. Record unknown terms as blockers. Storage faults retain the zero-receipt, no-progress disposition until reconciliation. Saturation and fault runs follow review of the bound.
 
+#### Candidate cutoff calculation for Meta (paper review)
+
+**Meta’s paper-review decision (2026-11-21): numerical approval withheld.** Meta accepted this calculation as a review record. Evaluate 90,000 as a candidate ceiling on projected production debits for the most expensive required invocation after admission. Before accepting a connection, include the worst permitted result of that connection. Refuse general admission if the projection would exceed the candidate or any required input is unknown. The existing 100,000 ceiling applies to each invocation. For this candidate, anchor the warning to exact successful-recovery work and validated metadata, then project in the same charged-debit units as the cutoff. Keep the actual examination count separately identifiable.
+
+The following worked case prices an enrolled epoch-1 store with only GENESIS and n durable, unimported denials, no pending pledge, no accepted task and no new external traffic during drain. After import it holds n events and 1+3n custody frames. For n ≥ 1 the first pass verifies once, then prepares, confirms and verifies once per denial. The final clean pass verifies n+1 times at the final tip. Counting the [Slice 4 loops](../verification/slice4-capacity.md) gives import examinations (13n²+27n)/2+1 and import debits (25n²+33n)/2+3. Clean-pass examinations are (7n²+25n)/2+2 and debits are (n+1)(6n+3)+n. These reproduce the recorded one- and fifty-receipt results. Larger rows are calculations only.
+
+| n after drain of admitted handler | Import actual / debits | Final clean pass actual / debits | Candidate visit gate |
+| ---: | ---: | ---: | --- |
+| 80 | 42,681 / 81,323 | 23,402 / 39,203 | Within 90,000 charged |
+| 84 | 46,999 / 89,589 | 25,748 / 43,179 | Last admissible n for this case |
+| 85 | 48,111 / 91,718 | 26,352 / 44,203 | Refuse before accepting the 85th potential denial |
+| 89 | 52,689 / 100,484 | 28,838 / 48,419 | Import would exceed the existing ceiling |
+
+At 83 prior denials the single accepted handler could consume 203 more bytes and examine 84 history frames to record denial 84. Import then adds 42,168 bytes (168 pledge frames). Final custody history occupies 59,391 logical bytes including the 171-byte fixture genesis. The import and final clean pass together cost 132,768 debits across two invocations. Each must finish within its own limits. At 84 denials the import examinations are still below 80,000 even as debits approach 90,000. A warning calibrated only to examinations would arrive too late. In this shape projected import debits first cross 80,000 at denial 80 (79,319 at 79). Re-review requires proof of conservative charged-unit projection and notice before general admission closes.
+
+| Reserve term | Evidence needed for a pass |
+| --- | --- |
+| Admission and drain | Specify how both general listeners stop before accept, how queued clients are disconnected, and how an exclusive drain path completes outstanding imports without admitting new denial-generating traffic. Account for interrupted accepted requests before the first durable receipt byte exists. A zero-receipt storage fault withholds acknowledgment but cannot reconstruct lost request bytes. Open design terms. |
+| Visits | The worked case fits two separate invocations. Bound custodian startup scanning and all permitted histories, including valid non-denial operations, mixed task/denial traffic, live pledges and retained segments, or enforce a narrower declared envelope before admission. The custodian needs validated local bounds for each input. Unknown for the full envelope. |
+| Disk | Reserve allocated blocks for growth on both stores, peak WAL and its companion, indexes, temporary publication and interrupted writes. The endpoint measurements and 59,391-byte custody calculation do not bound peak allocation or guarantee free space. Unknown. |
+| Time | Establish that supported drain and recovery complete within the operation and recovery deadlines on the selected stack. A timed-out or blocked fsync requires the storage-fault disposition. Unknown at saturation. |
+| Memory | Bound peak simultaneous buffers, decoded metadata, process overhead, and SQLite heap/cache against each component and cgroup ceiling. A small final file length and configured memory limits alone do not demonstrate successful recovery. Unknown at saturation. |
+
+Meta's review gate is a bound covering every permitted state in all four resource dimensions, plus an auditable drain under sustained offered input. Until those conditions hold, the candidate and the 84-denial example grant no admission authority. Settle the durable observation boundary, drain isolation and reachable history shapes by design before submitting a physical saturation measurement plan. This review authorizes neither implementation nor fault runs.
+
 ## Provisional limits and outcomes
 
 Acceptance records these values as provisional development limits. Before Phase 2 exit, measured evidence must confirm or revise every value through a recorded amendment, including target identity and rationale. Changes before that gate also require an amendment. Pure decisions receive supplied time, counters and limits; effectful coordinators enforce them.
