@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.31 - 2026-11-21
+
+### Added
+
+- Added a Linux no-op dispatch gate that requires a confirmed claim and a live grant from the issuing runtime. A fresh runtime records a refusal against the claim. [PR #63](https://github.com/progentic/Warband/pull/63)
+
 ## 0.0.30 - 2026-11-21
 
 ### Changed
