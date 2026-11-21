@@ -6,7 +6,7 @@
 - **Exception owner:** Proto
 - **Expires before phase:** 3
 - **Independent reviewer:** Meta
-- **Disposition record:** Pending
+- **Disposition record:** Stop at expiry — https://github.com/progentic/Warband/commit/50f1bd4fc1e171b7da07d04970a94afba704d2fd
 - **Review date:** 2026-11-21
 - **Scope:** Phase 2 no-op custody, recovery and measurement
 - **Supersedes:** None

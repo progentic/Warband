@@ -65,8 +65,10 @@ class GovernanceTests(unittest.TestCase):
             reviewed = candidate.replace('Status:** Proposed', 'Status:** Accepted')
             reviewer = next(line for line in reviewed.splitlines() if line.startswith('- **Independent reviewer:** '))
             reviewed = reviewed.replace(reviewer, '- **Independent reviewer:** Reviewer B')
-            reviewed = reviewed.replace('Disposition record:** Pending',
-                                        'Disposition record:** https://github.com/progentic/Warband/commit/' + 'a' * 40)
+            disposition = next(line for line in candidate.splitlines() if line.startswith('- **Disposition record:** '))
+            decision.write_text(candidate.replace(disposition, '- **Disposition record:** Pending'))
+            self.assertIn('invalid_resource_exception', self.codes())
+            reviewed = reviewed.replace(disposition, '- **Disposition record:** https://github.com/progentic/Warband/commit/' + 'a' * 40)
             decision.write_text(reviewed)
             self.assertNotIn('invalid_resource_exception', self.codes())
             self.assertNotIn('expired_resource_exception', self.codes())
