@@ -71,7 +71,11 @@ Slice 5 covers the no-op authority path and competing-acceptor rejection. Slice 
 
 ## Slice 5 supplied-clock entry
 
-Proto approved six files and 180 added lines for the [pure timing decisions](../decisions/0008-phase2-resource-limits.md#slice-5-supplied-clock-decisions). The portable package takes supplied ticks and performs no I/O. Proto accepted the [Linux live capability clock and incarnation rule](../decisions/0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment) on 2026-11-21. The adapter, dispatch wiring and fresh-runtime denial proof remain separately gated.
+Proto approved six files and 180 added lines for the [pure timing decisions](../decisions/0008-phase2-resource-limits.md#slice-5-supplied-clock-decisions). The portable package takes supplied ticks and performs no I/O. Proto accepted the [Linux live capability clock and incarnation rule](../decisions/0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment) on 2026-11-21. The bounded live gate and its proof have a separate entry below.
+
+## Slice 5 isolated no-op dispatch
+
+Proto approved the Linux capability gate and the [paired issuer/restart proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-live-dispatch-qualification). The issuer confirmed the permit and claim and dispatched once. A fresh execution verified both durable events inside the original lifetime, withheld dispatch and confirmed its reason-9 rejection. These results are local x64-review evidence. Observation, evaluation, state acceptance and competing-acceptor rejection remain future increments.
 
 ## Phase 2 entry recorded 2026-11-10
 

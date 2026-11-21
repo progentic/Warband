@@ -59,7 +59,7 @@ change :: proc(db: Database, sql: cstring, args: ..[]u8) -> bool {
 }
 
 @(private)
-event_row :: proc(db: Database, ref: e.EventRef) -> (Row, bool) {
+event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) -> (Row, bool) {
 	ref := ref
 	epoch, sequence := word(u64(ref.epoch)), word(u64(ref.sequence))
 	query :: "SELECT canonical_event,custody_ordinal,record_hash FROM events LEFT JOIN denial_imports USING(store_id,epoch,sequence) WHERE store_id=? AND epoch=? AND sequence=?"
@@ -71,19 +71,36 @@ event_row :: proc(db: Database, ref: e.EventRef) -> (Row, bool) {
 	if len(b) < 88 || len(b) > 65536+88 { return {},false }
 	kind, _ := endian.get_u16(b[6:8],.Little)
 	imported := false
+	if history != nil && kind != 1 && kind != 2 && kind != 3 && kind != 4 && kind != 8 { return {},false }
 	switch kind {
 	case 1:
 		v, decode_err := a.decode_task_created(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
+		if history != nil {
+			if history.task != nil { return {},false }
+			history.task = v
+		}
 	case 2:
 		v, decode_err := a.decode_proposal_recorded(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
+		if history != nil {
+			if history.proposal != nil { return {},false }
+			history.proposal = v
+		}
 	case 3:
 		v, decode_err := a.decode_authorization_recorded(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
+		if history != nil {
+			if history.permit != nil { return {},false }
+			history.permit = v
+		}
 	case 4:
 		v, decode_err := a.decode_dispatch_claimed(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
+		if history != nil {
+			if history.claim != nil { return {},false }
+			history.claim = v
+		}
 	case 5:
 		v, decode_err := a.decode_observation_recorded(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
@@ -145,7 +162,7 @@ mark_matches :: proc(state: ^WriterState, id: e.StoreId, expected: u64) -> bool 
 // Check every row in the installed epoch segment, including the checkpoint-covered prefix.
 // Numbered primary-key lookups preserve numeric order with little-endian BLOB keys.
 @(private)
-inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([32]u8), imports: ^[dynamic]Import, s: ^client.Session) -> (Segment,bool) {
+inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([32]u8), imports: ^[dynamic]Import, s: ^client.Session, history: ^NoopHistory = nil) -> (Segment,bool) {
 	total, ok := read_scalar(state,"SELECT count(*) FROM events").(i64)
 	if !ok || total < 0 || !client.within_budget(s,u64(total)) { return {},false }
 	result := Segment{journal={store=cp.store,epoch=cp.epoch}}
@@ -153,7 +170,7 @@ inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([3
 	} else if cp.sequence == 0 { result.journal.head = cp.head }
 	start_count := len(imports)
 	for n in 1..=total {
-		row, found := event_row(state.db,{cp.store,cp.epoch,e.Sequence(n)})
+		row, found := event_row(state.db,{cp.store,cp.epoch,e.Sequence(n)},history)
 		if !found || !client.within_budget(s) { return {},false }
 		p := row.pledge
 		if n == 1 && genesis == nil && cp.sequence != 0 { result.journal.head = p.previous_head }
@@ -214,9 +231,9 @@ limit_sqlite :: proc() -> bool {
 }
 
 @(private)
-commit_import :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, entry: Import, bytes: []u8) -> bool {
+commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: Maybe(Import), bytes: []u8) -> bool {
 	state := cast(^WriterState)w
-	cp, entry := cp, entry
+	cp := cp
 	db := state.db
 	if !change(db,"BEGIN IMMEDIATE") { return false }
 	committed := false
@@ -227,10 +244,35 @@ commit_import :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, entry: Im
 		last, ok := event_row(db,{cp.store,cp.epoch,cp.sequence})
 		if !ok || last.pledge.head != cp.head { return false }
 	}
-	epoch, seq, ord := word(u64(cp.epoch)),word(u64(entry.ref.sequence)),word(entry.id.ordinal)
-	if !change(db,"INSERT INTO events(store_id,epoch,sequence,canonical_event) VALUES(?,?,?,?)",cp.store[:],epoch[:],seq[:],bytes) ||
-	   !change(db,"INSERT INTO denial_imports(store_id,custody_ordinal,record_hash,epoch,sequence) VALUES(?,?,?,?,?)",cp.store[:],ord[:],entry.id.hash[:],epoch[:],seq[:]) ||
-	   !change(db,"INSERT INTO import_watermarks(store_id,last_imported_ordinal) VALUES(?,?) ON CONFLICT(store_id) DO UPDATE SET last_imported_ordinal=excluded.last_imported_ordinal",cp.store[:],ord[:]) { return false }
+	epoch, seq := word(u64(cp.epoch)), word(u64(cp.sequence)+1)
+	if !change(db,"INSERT INTO events(store_id,epoch,sequence,canonical_event) VALUES(?,?,?,?)",cp.store[:],epoch[:],seq[:],bytes) { return false }
+	if entry, present := receipt.(Import); present {
+		ord := word(entry.id.ordinal)
+		if !change(db,"INSERT INTO denial_imports(store_id,custody_ordinal,record_hash,epoch,sequence) VALUES(?,?,?,?,?)",cp.store[:],ord[:],entry.id.hash[:],epoch[:],seq[:]) ||
+		   !change(db,"INSERT INTO import_watermarks(store_id,last_imported_ordinal) VALUES(?,?) ON CONFLICT(store_id) DO UPDATE SET last_imported_ordinal=excluded.last_imported_ordinal",cp.store[:],ord[:]) { return false }
+	}
 	committed = change(db,"COMMIT")
 	return committed
+}
+
+// This increment admits exactly one task/proposal. Any additional state-changing kind
+// or duplicate binding withholds dispatch. Audit-only records may share the prefix.
+NoopHistory :: struct {
+	task: Maybe(a.TaskCreated),
+	proposal: Maybe(a.ProposalRecorded),
+	permit: Maybe(a.AuthorizationRecorded),
+	claim: Maybe(a.DispatchClaimed),
+	mark: u64,
+}
+
+noop_history :: proc(w: VerifiedWriter, cp: e.Checkpoint, session: ^client.Session) -> (NoopHistory,bool) {
+	state := cast(^WriterState)w
+	if !change(state.db,"BEGIN") { return {},false }
+	defer change(state.db,"ROLLBACK") // end this read snapshot
+	imports: [dynamic]Import
+	defer delete(imports)
+	history: NoopHistory
+	segment, ok := inspect_segment(state,cp,nil,&imports,session,&history)
+	history.mark = segment.last_import
+	return history,ok && segment.journal == cp && mark_matches(state,cp.store,history.mark)
 }
