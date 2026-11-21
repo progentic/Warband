@@ -23,3 +23,5 @@ Tests must prove that event alteration, broken parent links, duplicate full even
 ## Failure behavior
 
 A failed audit-chain check must block replay-based trust and trigger an integrity warning. Preserve evidence and use ADR-0005's named fault/recovery disposition. A missing pledged event requires operator reconciliation; no automatic cancellation or chain-only re-attestation is permitted. While storage is unavailable, report failure without falsely claiming that a fault event was durably recorded.
+
+On the isolated Phase 2 target, a custodian crash can lose the active request’s volatile denial observation before durable recording. Withhold a durable acknowledgment in that window. Preserve and import every complete denial receipt validated through custody recovery, including a receipt whose reply was lost. [Rule A and recovery cases](../decisions/0005-event-integrity-acceptance-and-recovery.md#rule-a-interrupted-denial-recording-on-x64-review)
