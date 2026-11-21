@@ -98,6 +98,10 @@ The capability tests cover supplied-clock boundaries and the live-deadline API d
 
 **Verified on x64-review for the isolated no-op gate.** The issuing runtime dispatched once. In the paired restart case the issuer exited after claim confirmation. The fresh runtime verified the durable permit and claim 62 ms into the original 90-second interval, invoked the primitive zero times and recorded a custody-confirmed reason-9 rejection bound to that claim. [Paired BOOTTIME observations and proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-live-dispatch-qualification)
 
+### No-op observed return and verdict
+
+Verified on x64-review through the real primitive, custodian and SQLite store. A returned result produced Verified. Killing the issuer after return and before observation produced Indeterminate and Rejected on restart. Killing it after confirmed observation produced exactly one evaluation on restart, and another restart preserved the rows and custody tip. The harness independently checks the persisted digest, claim binding and criterion. [Target evidence](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-observation-and-evaluation-qualification)
+
 ### Implementation slices
 
 | Slice | Deliverable | Prerequisite and review gate |

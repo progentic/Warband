@@ -39,5 +39,5 @@ main :: proc() {
 	requested := e.EventRef{session.store,session.epoch,e.Sequence(sequence)}
 	result := r.run_noop_gate(strings.clone_to_cstring(args[1]),&session,segments[:],requested)
 	fmt.println("gate_result",result)
-	if result != .Dispatched { os.exit(1) }
+	if result != .Dispatched && result != .EvaluationVerified { os.exit(1) }
 }

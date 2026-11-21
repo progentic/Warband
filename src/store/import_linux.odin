@@ -71,7 +71,7 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) ->
 	if len(b) < 88 || len(b) > 65536+88 { return {},false }
 	kind, _ := endian.get_u16(b[6:8],.Little)
 	imported := false
-	if history != nil && kind != 1 && kind != 2 && kind != 3 && kind != 4 && kind != 8 { return {},false }
+	if history != nil && kind != 1 && kind != 2 && kind != 3 && kind != 4 && kind != 5 && kind != 6 && kind != 8 { return {},false }
 	switch kind {
 	case 1:
 		v, decode_err := a.decode_task_created(b,ref.store,ref.epoch)
@@ -104,9 +104,21 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) ->
 	case 5:
 		v, decode_err := a.decode_observation_recorded(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
+		if history != nil {
+			claim, found := history.claim.(a.DispatchClaimed)
+			if !found || v.claim != claim.reference || history.observation != nil || !available_evidence(history^,v.evidence) { return {},false }
+			history.observation = v
+			copy(history.observation_bytes[:],b)
+		}
 	case 6:
 		v, decode_err := a.decode_evaluation_recorded(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
+		if history != nil {
+			obs, found := history.observation.(a.ObservationRecorded)
+			if !found || v.observation != obs.reference || v.claim != obs.claim ||
+			   v.observed_event_digest != history.observation_digest || history.evaluation != nil || !available_evidence(history^,v.evidence) { return {},false }
+			history.evaluation = v
+		}
 	case 7:
 		v, decode_err := a.decode_transition_accepted(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
@@ -130,6 +142,7 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) ->
 	sha2.update(&hash,b[:len(b)-32])
 	digest: [32]u8
 	sha2.final(&hash,digest[:])
+	if history != nil && kind == 5 { history.observation_digest = digest }
 	p := e.Pledge{store=ref.store,epoch=ref.epoch,sequence=ref.sequence,previous_sequence=ref.sequence-1,digest=digest}
 	copy(p.previous_head[:],b[len(b)-32:])
 	p.head = c.derive_head(p)
@@ -262,7 +275,19 @@ NoopHistory :: struct {
 	proposal: Maybe(a.ProposalRecorded),
 	permit: Maybe(a.AuthorizationRecorded),
 	claim: Maybe(a.DispatchClaimed),
+	observation: Maybe(a.ObservationRecorded),
+	observation_bytes: a.ObservationRecordedBytes,
+	observation_digest: [32]u8,
+	evaluation: Maybe(a.EvaluationRecorded),
 	mark: u64,
+}
+
+available_evidence :: proc(h: NoopHistory,id: e.EvidenceId) -> bool {
+	task, created := h.task.(a.TaskCreated)
+	auth, permitted := h.permit.(a.AuthorizationRecorded)
+	obs, observed := h.observation.(a.ObservationRecorded)
+	return id != (e.EvidenceId{}) && created && permitted && id != task.evidence && id != auth.evidence &&
+	       (!observed || id != obs.evidence)
 }
 
 noop_history :: proc(w: VerifiedWriter, cp: e.Checkpoint, session: ^client.Session) -> (NoopHistory,bool) {

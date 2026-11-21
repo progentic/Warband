@@ -51,8 +51,8 @@ append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,pri
 	return {p.store,p.epoch,p.sequence,p.head},true
 }
 
-// The live gate supplies a typed event. Only the three qualified shapes reach SQLite.
-NoopEvent :: union {a.AuthorizationRecorded, a.DispatchClaimed, a.RejectionRecorded}
+// The coordinator supplies only event types qualified for this isolated path.
+NoopEvent :: union {a.AuthorizationRecorded, a.DispatchClaimed, a.RejectionRecorded, a.ObservationRecorded, a.EvaluationRecorded}
 append_noop :: proc(w: VerifiedWriter, session: ^client.Session, cp: e.Checkpoint, mark: u64, event: NoopEvent, cutoff: i64) -> (e.Checkpoint,bool) {
 	start := client.wb_elapsed_ms()
 	next := e.EventRef{cp.store,cp.epoch,cp.sequence+1}
@@ -67,6 +67,25 @@ append_noop :: proc(w: VerifiedWriter, session: ^client.Session, cp: e.Checkpoin
 		if v.reference != next || v.previous_head != cp.head { return {},false }
 		b, err := a.encode_dispatch_claimed(v,cp.store,cp.epoch)
 		d, de := a.digest_dispatch_claimed(v,cp.store,cp.epoch)
+		if err != .None || de != .None { return {},false }
+		return append_pledged(w,session,cp,mark,nil,b[:],d,start,cutoff)
+	case a.ObservationRecorded:
+		if v.reference != next || v.previous_head != cp.head { return {},false }
+		h, ok := noop_history(w,cp,session)
+		claim, claimed := h.claim.(a.DispatchClaimed)
+		if !ok || !claimed || claim.reference != v.claim || h.observation != nil || !available_evidence(h,v.evidence) { return {},false }
+		b, err := a.encode_observation_recorded(v,cp.store,cp.epoch)
+		d, de := a.digest_observation_recorded(v,cp.store,cp.epoch)
+		if err != .None || de != .None { return {},false }
+		return append_pledged(w,session,cp,mark,nil,b[:],d,start,cutoff)
+	case a.EvaluationRecorded:
+		if v.reference != next || v.previous_head != cp.head { return {},false }
+		h, ok := noop_history(w,cp,session)
+		obs, found := h.observation.(a.ObservationRecorded)
+		if !ok || !found || obs.reference != v.observation || obs.claim != v.claim || v.observed_event_digest != h.observation_digest ||
+		   h.evaluation != nil || !available_evidence(h,v.evidence) { return {},false }
+		b, err := a.encode_evaluation_recorded(v,cp.store,cp.epoch)
+		d, de := a.digest_evaluation_recorded(v,cp.store,cp.epoch)
 		if err != .None || de != .None { return {},false }
 		return append_pledged(w,session,cp,mark,nil,b[:],d,start,cutoff)
 	case a.RejectionRecorded:

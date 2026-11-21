@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.32 - 2026-11-21
+
+### Added
+
+- Record Linux no-op observations and independently evaluate their confirmed bytes. On restart, a lost return is recorded as indeterminate and receives a rejected verdict. [PR #64](https://github.com/progentic/Warband/pull/64)
+
 ## 0.0.31 - 2026-11-21
 
 ### Added

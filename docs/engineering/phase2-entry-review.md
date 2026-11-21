@@ -75,7 +75,11 @@ Proto approved six files and 180 added lines for the [pure timing decisions](../
 
 ## Slice 5 isolated no-op dispatch
 
-Proto approved the Linux capability gate and the [paired issuer/restart proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-live-dispatch-qualification). The issuer confirmed the permit and claim and dispatched once. A fresh execution verified both durable events inside the original lifetime, withheld dispatch and confirmed its reason-9 rejection. These results are local x64-review evidence. Observation, evaluation, state acceptance and competing-acceptor rejection remain future increments.
+Proto approved the Linux capability gate and the [paired issuer/restart proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-live-dispatch-qualification). The issuer confirmed the permit and claim and dispatched once. A fresh execution verified both durable events inside the original lifetime, withheld dispatch and confirmed its reason-9 rejection. These results are local x64-review evidence. Observation and evaluation have a separate entry below.
+
+## Slice 5 observation and evaluation
+
+Proto approved twelve files and 480 added lines for the [registered observer and independent evaluator](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-observation-and-evaluation-qualification). All three acceptance cases passed on the isolated Linux target. A confirmed verdict is available for a future state-boundary check. Transition acceptance and competing-acceptor rejection still require separate authorization.
 
 ## Phase 2 entry recorded 2026-11-10
 
