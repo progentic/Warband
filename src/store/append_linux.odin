@@ -13,6 +13,11 @@ confirm_stored :: proc(w: VerifiedWriter, s: ^client.Session, p: e.Pledge, expec
 	if !client.within_budget(s,1) { return false }
 	row, ok := event_row((cast(^WriterState)w).db, {p.store,p.epoch,p.sequence})
 	if !ok || row.pledge != p || row.receipt != expected { return false }
+	if row.acceptance != nil {
+		checkpoint := e.Checkpoint{p.store,p.epoch,p.sequence,p.head}
+		_, checked := acceptance_snapshot(w,checkpoint,s)
+		if !checked { return false }
+	}
 	reply, confirmed := client.exchange(s,{.Confirm,p},deadline)
 	head := e.Checkpoint{p.store,p.epoch,p.sequence,p.head}
 	return confirmed && reply.committed == head && reply.pending == nil && reply.receipt != [32]u8{}
@@ -33,7 +38,7 @@ append_verified_event :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpo
 }
 
 @(private)
-append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,prior: u64,entry: Maybe(Import),bytes: []u8,digest: [32]u8,start,cutoff: i64) -> (e.Checkpoint,bool) {
+append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,prior: u64,entry: Maybe(Import),bytes: []u8,digest: [32]u8,start,cutoff: i64, acceptance: ^AcceptanceCheck = nil) -> (e.Checkpoint,bool) {
 	if start < 0 || cp.sequence == max(e.Sequence) { return {},false }
 	p := e.Pledge{store=cp.store,epoch=cp.epoch,previous_sequence=cp.sequence,previous_head=cp.head,sequence=cp.sequence+1,digest=digest}
 	p.head = c.derive_head(p)
@@ -41,7 +46,7 @@ append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,pri
 	reply, prepared := client.exchange(s,{.Prepare,p},deadline)
 	if !prepared || reply.committed != cp || reply.pending != p || reply.receipt == ([32]u8{}) { return {},false }
 	now := client.wb_elapsed_ms()
-	if now < start || now >= deadline || !client.within_budget(s,u64(cp.sequence)+1) || !commit_event(w,cp,prior,entry,bytes) { return {},false }
+	if now < start || now >= deadline || !client.within_budget(s,u64(cp.sequence)+1) || !commit_event(w,cp,prior,entry,bytes,acceptance) { return {},false }
 	when STOP_AFTER_COMMIT {
 		if entry != nil && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return {},false }
 	}

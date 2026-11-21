@@ -23,7 +23,7 @@ This matrix links constitutional rules to contracts, planned implementation, ver
 
 WB-CON-005/008 and WB-INV-003 require a [fresh-runtime dispatch denial](phase2-verification-plan.md#fresh-runtime-dispatch-denial). The paired Linux proof verified this boundary on x64-review. The issuer dispatched once and the fresh process withheld dispatch with a confirmed rejection while the original interval was still open.
 
-For WB-CON-003/006/008 and WB-INV-005, the [isolated no-op observation and evaluation proof](phase2-verification-plan.md#no-op-observed-return-and-verdict) covers confirmed evidence and idempotent evaluation. State acceptance and competing-acceptor evidence remain pending.
+For WB-CON-003/006/008 and WB-INV-005, the [isolated no-op observation and evaluation proof](phase2-verification-plan.md#no-op-observed-return-and-verdict) covers confirmed evidence and idempotent evaluation. For this path, WB-CON-001/006/008 and WB-INV-001/005/008 also have [state acceptance and competing-acceptor evidence](phase2-verification-plan.md#isolated-state-acceptance-and-contention).
 
 ## Historical Phase 1 implementation evidence
 
@@ -70,7 +70,7 @@ The [DispatchClaimed codec](../decisions/0005-event-integrity-acceptance-and-rec
 
 The [ObservationRecorded codec](../decisions/0005-event-integrity-acceptance-and-recovery.md#observationrecorded-codec-authorized-2026-11-17) adds canonical kind-5 bytes and outcome/byte-pairing rejection coverage for partial WB-CON-007/008 and applicable WB-NEG-001/012 cases. Two tests bring the manifest to five packages/thirty-four tests. Observer authenticity, claim/attempt binding, observation uniqueness, independent evaluation and completion remain future boundaries.
 
-The [evaluation and transition codecs](../decisions/0005-event-integrity-acceptance-and-recovery.md#evaluationrecorded-and-transitionaccepted-codecs-authorized-2026-11-17) add partial WB-CON-007/008 representation evidence. Four focused tests cover canonical bytes, references, verdict and checked task-version advancement. The manifest declares five packages and 38 tests. The later [no-op evaluation proof](phase2-verification-plan.md#no-op-observed-return-and-verdict) covers the isolated runtime verdict. Transactional acceptance evidence remains pending for WB-CON-003/006 and WB-INV-005/009.
+The [evaluation and transition codecs](../decisions/0005-event-integrity-acceptance-and-recovery.md#evaluationrecorded-and-transitionaccepted-codecs-authorized-2026-11-17) add partial WB-CON-007/008 representation evidence. Four focused tests cover canonical bytes, references, verdict and checked task-version advancement. The manifest declares five packages and 38 tests. The later [no-op evaluation proof](phase2-verification-plan.md#no-op-observed-return-and-verdict) covers the isolated runtime verdict. The isolated state acceptance qualification adds transactional evidence for WB-CON-003/006. Phase exit traceability remains pending.
 
 The [revocation and disposition codecs](../decisions/0005-event-integrity-acceptance-and-recovery.md#capabilityrevoked-and-attemptdisposition-authorized-2026-11-17) extend partial WB-CON-007/008 encoding and rejection evidence. Four tests cover the two fixed representations. Grant-state checks, claim termination and transactional updates require runtime verification. The manifest declares five packages and 42 tests.
 
@@ -92,7 +92,7 @@ The [3b Gate 0 amendment](../decisions/0005-event-integrity-acceptance-and-recov
 | WB-INV-002 | WB-CON-002 / WB-CON-004 | Proposal schema/policy deferred |
 | WB-INV-003 | WB-CON-005 | Capability enforcement deferred |
 | WB-INV-004 | WB-CON-009 | Recovery policy deferred |
-| WB-INV-005 | WB-CON-003 / WB-CON-006 | Isolated no-op verdict verified on x64-review. State acceptance pending. |
+| WB-INV-005 | WB-CON-003 / WB-CON-006 | Isolated no-op verdict and state acceptance verified on x64-review. |
 | WB-INV-006 | WB-CON-007 | Audit completeness deferred |
 | WB-INV-007 | WB-CON-004 / WB-CON-005 / WB-CON-009 | Approval binding deferred |
 | WB-INV-008 | WB-CON-008 | Duplicate/stale acceptance deferred |

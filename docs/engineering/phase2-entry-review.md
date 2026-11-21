@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Phase 2 remains open. [Slice 4 implementation is complete](#slice-4-implementation-closure), and its [capacity checkpoint has been measured on x64-review](../verification/slice4-capacity.md).
+- **Status:** Phase 2 remains open. The [Slice 5 isolated acceptance path](#slice-5-isolated-state-acceptance) has passed on x64-review. Its capacity checkpoint is pending.
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -79,7 +79,11 @@ Proto approved the Linux capability gate and the [paired issuer/restart proof](.
 
 ## Slice 5 observation and evaluation
 
-Proto approved twelve files and 480 added lines for the [registered observer and independent evaluator](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-observation-and-evaluation-qualification). All three acceptance cases passed on the isolated Linux target. A confirmed verdict is available for a future state-boundary check. Transition acceptance and competing-acceptor rejection still require separate authorization.
+Proto approved twelve files and 480 added lines for the [registered observer and independent evaluator](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-observation-and-evaluation-qualification). All three acceptance cases passed on the isolated Linux target. A confirmed verdict is available for a future state-boundary check. The state acceptance entry below follows this verdict.
+
+## Slice 5 isolated state acceptance
+
+Proto approved fourteen files and 600 added lines for [acceptance, the derived index and competing-acceptor proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-state-acceptance-qualification). Local x64-review evidence covers one winning transition, a refused contender and exact retry, plus stale, revoked and rejected inputs. Phase 2 stays open. Visits per task, fixed startup work and concurrent-denial overhead are due in a separate Slice 5 capacity checkpoint.
 
 ## Phase 2 entry recorded 2026-11-10
 

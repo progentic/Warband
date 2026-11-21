@@ -6,6 +6,7 @@ import "core:sys/linux"
 import a "../audit"
 import e "../domain/events"
 import t "../domain/timing"
+import state "../state"
 import store "../store"
 import client "client"
 
@@ -41,23 +42,6 @@ check_window :: proc(grant: ^LiveGrant, now: i64) -> Window {
 		return {.Eligible,now+i64(decision.remaining_ms),now}
 	case: return {result=.InvalidClock,observed=now}
 	}
-}
-
-@(private)
-valid_proposal :: proc(task: a.TaskCreated, proposal: a.ProposalRecorded) -> bool {
-	task := task
-	ctx: sha2.Context_256
-	sha2.init_256(&ctx)
-	domain: string = "warband.task.v1\x00"
-	sha2.update(&ctx,transmute([]u8)domain)
-	sha2.update(&ctx,task.task[:])
-	sha2.update(&ctx,task.run[:])
-	sha2.update(&ctx,task.command[:])
-	digest: [32]u8
-	sha2.final(&ctx,digest[:])
-	return task.input_digest == digest && task.reference.sequence < proposal.reference.sequence &&
-	       task.task == proposal.task && task.run == proposal.run && proposal.expected_task_version == 1 &&
-	       proposal.policy_version == 1 && !proposal.approval_required
 }
 
 @(private)
@@ -111,17 +95,7 @@ invoke_noop :: proc() -> [4]u8 {
 
 @(private)
 bound_claim :: proc(h: store.NoopHistory, requested: e.EventRef) -> bool {
-	task, created := h.task.(a.TaskCreated)
-	proposal, proposed := h.proposal.(a.ProposalRecorded)
-	auth, permitted := h.permit.(a.AuthorizationRecorded)
-	claim, claimed := h.claim.(a.DispatchClaimed)
-	if !created || !proposed || !permitted || !claimed || proposal.reference != requested { return false }
-	fp, err := a.fingerprint_proposal(proposal,requested.store,requested.epoch)
-	return valid_proposal(task,proposal) && auth.decision == .Permit && auth.use_limit == 1 &&
-	       auth.proposal == requested && auth.expected_control_revision == 0 &&
-	       claim.authorization == auth.reference && claim.capability == auth.capability &&
-	       claim.expected_task_version == 1 && claim.expected_control_revision == 1 &&
-	       err == .None && claim.proposal_fingerprint == fp
+	return state.bound_claim(h.evidence,requested)
 }
 
 @(private)
@@ -195,7 +169,7 @@ run_noop_gate :: proc(path: cstring,s: ^client.Session,archives: []Archive,reque
 		h, valid := store.noop_history(w,page.committed,s)
 		task, created := h.task.(a.TaskCreated)
 		proposal, proposed := h.proposal.(a.ProposalRecorded)
-		if !valid || !created || !proposed || proposal.reference != requested || !valid_proposal(task,proposal) { return .EvidenceInvalid }
+		if !valid || !created || !proposed || proposal.reference != requested || !state.valid_proposal(task,proposal) { return .EvidenceInvalid }
 		if h.permit == nil && h.claim == nil && live == nil {
 			issued := issue_and_claim(w,s,page.committed,h.mark,proposal,task.evidence,admission,&live)
 			if issued != .Eligible { return issued }
@@ -243,4 +217,62 @@ new_evidence :: proc(h: store.NoopHistory) -> (e.EvidenceId,bool) {
 	id: e.EvidenceId
 	count, err := linux.getrandom(id[:],{})
 	return id,err == .NONE && count == len(id) && store.available_evidence(h,id)
+}
+
+AcceptResult :: enum {Unavailable, LockUnavailable, StoreUnavailable, ReconciliationRequired, CustodyUnavailable,
+                      IndexRefused, IndexVerified, IndexOrHistoryInvalid, InvalidEvidence, RejectedEvaluation,
+                      Revoked, Terminal, StaleVersions, AcceptanceUnconfirmed, Accepted, Recorded}
+
+// The operator explicitly selects provisioning. Normal acceptance can only check the index.
+run_acceptor :: proc(path: cstring,s: ^client.Session,archives: []Archive,requested: e.EventRef,
+                     task,control: u64,provision: bool) -> (result: AcceptResult, event: a.TransitionAccepted) {
+	start := client.wb_elapsed_ms()
+	if start<0 || !store.limit_sqlite() { return .Unavailable,{} }
+	s.deadline = start+60_000
+	fd := client.wb_writer_gate(path)
+	if fd<0 { return .LockUnavailable,{} }
+	defer client.wb_release_gate(fd)
+	locked := client.wb_elapsed_ms()
+	if locked<start || locked-start>=5_000 { return .LockUnavailable,{} }
+	w,err := store.open_writer(path)
+	if err!=.None { return .StoreUnavailable,{} }
+	defer if !store.close_writer(&w) { result = .StoreUnavailable; event = {} }
+	if !store.limit_writer_cache(w) { return .StoreUnavailable,{} }
+	if !provision {
+		compared: e.EventRef
+		recovery := reconcile_locked(w,s,archives,nil,&compared)
+		if recovery!=.Ready && recovery!=.PendingConfirmation { return .ReconciliationRequired,{} }
+	}
+	page,ok := client.verify(s,0)
+	if !ok || page.pending!=nil || page.committed.store!=s.store || page.committed.epoch!=s.epoch { return .CustodyUnavailable,{} }
+	cp := page.committed
+	if provision {
+		if !store.provision_acceptance_index(w,cp,s) { return .IndexRefused,{} }
+		return .IndexVerified,{}
+	}
+	h,valid := store.acceptance_snapshot(w,cp,s)
+	if !valid { return .IndexOrHistoryInvalid,{} }
+	if !client.within_budget(s) { return .Unavailable,{} }
+	decision := state.decide(h.evidence,requested,task,control)
+	switch decision {
+	case .Recorded: return .Recorded,h.transition.(a.TransitionAccepted)
+	case .RejectedEvaluation: return .RejectedEvaluation,{}
+	case .Revoked: return .Revoked,{}
+	case .Terminal: return .Terminal,{}
+	case .StaleVersions: return .StaleVersions,{}
+	case .InvalidEvidence: return .InvalidEvidence,{}
+	case .Eligible:
+	}
+	when #config(WARBAND_TEST_ACCEPT_BARRIER,false) {
+		if linux.kill(linux.getpid(),.SIGSTOP) != .NONE { return .Unavailable,{} }
+	}
+	claim := h.claim.(a.DispatchClaimed)
+	stamp := client.wb_recorded_us()
+	v := a.TransitionAccepted{reference={cp.store,cp.epoch,cp.sequence+1},previous_head=cp.head,
+		evaluation=requested,claim=claim.reference,expected_task_version=task,expected_control_revision=control}
+	n,entropy := linux.getrandom(v.transition[:],{})
+	if stamp<0 || entropy!=.NONE || n!=len(v.transition) { return .Unavailable,{} }
+	v.recorded_time = u64(stamp)
+	if !store.append_acceptance(w,s,cp,v) { return .AcceptanceUnconfirmed,{} }
+	return .Accepted,v
 }
