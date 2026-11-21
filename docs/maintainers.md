@@ -29,6 +29,12 @@ Source and test links open the current main branch. For a release review, check 
 - For request or reply changes, use the [custody tests](https://github.com/progentic/Warband/tree/main/tests/odin/custody) to check role separation and disclosure. Administrative requests exclude operator credentials. An unauthenticated denial hides the committed head, pending pledge and custody tip. Authenticated verify replies retain the tip for receipt selection.
 - Treat hosted codec results as evidence for the tested representation and pure decisions. Gate 0 calls for separate Linux evidence from real process identities, filesystem access and durable writes before claiming those controls.
 
+### Reviewing store, importer and live capability changes
+
+- **Store.** Verify that provisioning exclusively creates a new file and leaves an existing database byte-identical on refusal. On every writer open, check that the first query reads `user_version=1` before WAL is set. Require read-back of WAL, FULL synchronization, enabled foreign keys and schema version 1 on that connection. [SQLite store profile](engineering/phase2-entry-review.md#sqlite-store-profile)
+- **Importer.** Trace the OS writer lock from tail reconciliation through custody prepare, atomic SQLite commit, persisted-row read-back and exact confirm. Check that restart examines the tail before trusting the watermark, and that the second restart preserves both SQLite rows and custody tip. [Writer ordering](decisions/0005-event-integrity-acceptance-and-recovery.md#writer-ordering-and-visibility) · [Post-COMMIT proof](decisions/0005-event-integrity-acceptance-and-recovery.md#post-commit-process-kill-proof)
+- **Live capability.** For future dispatch changes, require the issuing execution’s private live grant and fresh Linux elapsed-time checks strictly before expiry at claim confirmation and immediately before dispatch. A fresh runtime must withhold dispatch when presented with a prior grant’s durable evidence alone. The Linux restart proof is pending. [Accepted clock rule](decisions/0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment) · [Required denial test](verification/phase2-verification-plan.md#fresh-runtime-dispatch-denial)
+
 ## Update the matching records
 
 1. Identify the affected contract, accepted decision, and existing proof before changing behavior.
