@@ -127,9 +127,10 @@ def filesystem_denials(root, runtime):
 
 
 @contextlib.contextmanager
-def service(root, binary, custodian, runtime, operator):
+def service(root, binary, custodian, runtime, operator, *, stderr_path=None):
     unit = 'warband-test-' + uuid.uuid4().hex
     subprocess.run(['systemd-run', '--quiet', '--collect', '--service-type=exec',
+                    *(['-p', f'StandardError=append:{stderr_path}'] if stderr_path else []),
                     '-p', 'MemoryMax=32M', '-p', 'MemorySwapMax=0', '--unit', unit,
                     '/usr/bin/setpriv', f'--reuid={custodian}', f'--regid={custodian}', '--clear-groups',
                     '--no-new-privs', str(binary), root.name, str(runtime), str(operator), STORE.hex()], check=True)

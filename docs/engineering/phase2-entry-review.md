@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Phase 2 remains open. [Slice 4 implementation is complete](#slice-4-implementation-closure), with its capacity checkpoint pending.
+- **Status:** Phase 2 remains open. [Slice 4 implementation is complete](#slice-4-implementation-closure), and its [capacity checkpoint has been measured on x64-review](../verification/slice4-capacity.md).
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -65,7 +65,7 @@ On 2026-11-20 Proto approved thirteen files and 950 added lines, including retai
 
 Slice 4 implementation closed at `004d29c` on 2026-11-20. The post-COMMIT recovery proof is complete on x64-review and hosted Ubuntu 24.04. After importer death the custody tip was 3. The first normal restart confirmed the pending event and advanced the tip to 4. The second returned Ready at tip 4. The event, receipt binding and watermark rows remained byte-identical across both restarts. [ADR-0005 proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#post-commit-process-kill-proof) · [PR #57](https://github.com/progentic/Warband/pull/57)
 
-**Capacity checkpoint pending.** Measure visits per confirmed event and bytes per denial, including storage added by both custody and import. WB-EXC-001 remains Open. Closure requires these measurements and evidence that the capacity warning reaches the operator at its threshold and the operator takes the prescribed action. [Verification plan](../verification/phase2-verification-plan.md) · [ADR-0008](../decisions/0008-phase2-resource-limits.md)
+**Capacity checkpoint measured.** At 50 receipts per physical store, import examined 338.52 records per confirmed event and charged 641.56 visits per event. Each denial added 203 custody bytes before import and 950.76 total logical bytes after confirmation. WB-EXC-001 remains Open pending capacity-warning delivery, operator action and reviewed disposition. [Method, workload limits and raw evidence](../verification/slice4-capacity.md) · [ADR-0008](../decisions/0008-phase2-resource-limits.md)
 
 Slice 5 covers the no-op authority path and competing-acceptor rejection. Slice 6 covers deterministic replay, remaining fault evidence, operator reconciliation rehearsal and Phase 2 exit traceability.
 
