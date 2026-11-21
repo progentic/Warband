@@ -4,6 +4,10 @@ import a "../audit"
 import c "../custody"
 import e "../domain/events"
 import client "../runtime/client"
+import "core:sys/linux"
+
+TEST_STOP_SIGNAL :: linux.Signal.SIGSTOP
+STOP_AFTER_COMMIT :: #config(WARBAND_TEST_STOP_AFTER_COMMIT, false)
 
 confirm_stored :: proc(w: VerifiedWriter, s: ^client.Session, p: e.Pledge, expected: Maybe(Import), deadline: i64) -> bool {
 	if !client.within_budget(s,1) { return false }
@@ -32,6 +36,9 @@ append_verified_event :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpo
 	if !prepared || reply.committed != cp || reply.pending != p || reply.receipt == ([32]u8{}) { return {},false }
 	now := client.wb_elapsed_ms()
 	if now < start || now >= deadline || !client.within_budget(s,u64(cp.sequence)+1) || !commit_import(w,cp,prior,entry,wire.data[:wire.length]) { return {},false }
+	when STOP_AFTER_COMMIT {
+		if linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return {},false }
+	}
 	if !watermark_matches(w,cp.store,entry.id.ordinal) || !confirm_stored(w,s,p,entry,deadline) { return {},false }
 	return {p.store,p.epoch,p.sequence,p.head},true
 }

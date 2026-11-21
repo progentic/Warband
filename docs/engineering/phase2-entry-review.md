@@ -55,11 +55,15 @@ If any query fails, returns no value or reports a different value, the binding m
 
 ### Schema v1 record
 
-On 2026-11-20 Proto approved the [schema v1 and operator provisioning contract](../decisions/0005-event-integrity-acceptance-and-recovery.md#schema-v1-for-events-and-denial-imports). This documentation increment defines the atomic store transaction and the restart acceptance case. Proto authorized only [operator provisioning](../decisions/0005-event-integrity-acceptance-and-recovery.md#operator-store-provisioning-qualification) for nine files and 350 added lines on 2026-11-20. The following entry activates receipt import. The process-kill harness requires separate authorization.
+On 2026-11-20 Proto approved the [schema v1 and operator provisioning contract](../decisions/0005-event-integrity-acceptance-and-recovery.md#schema-v1-for-events-and-denial-imports). This documentation increment defines the atomic store transaction and the restart acceptance case. Proto authorized only [operator provisioning](../decisions/0005-event-integrity-acceptance-and-recovery.md#operator-store-provisioning-qualification) for nine files and 350 added lines on 2026-11-20. The following entry activates receipt import. The post-COMMIT harness authorization is recorded below.
 
 ### Isolated receipt import and recovery
 
 On 2026-11-20 Proto approved thirteen files and 950 added lines, including retained-segment comparison. The [qualified reconciliation path](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-linux-receipt-reconciliation-qualification) imports one receipt at a time under the writer lock. The state-crafted integration harness passed locally on x64-review. Its Linux workflow step retains the native build log and reconciliation transcript.
+
+### Post-COMMIT recovery evidence
+
+Proto approved the [post-COMMIT kill proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#post-commit-process-kill-proof) on 2026-11-20. The recorded x64-review run passed with custody tips 3, 4 and 4 across death and two normal restarts. Hosted Ubuntu 24.04 verification and publication remain pending for slice closure.
 
 ## Phase 2 entry recorded 2026-11-10
 

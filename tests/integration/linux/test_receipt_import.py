@@ -1,4 +1,4 @@
-"""Real-UID state-crafted reconciliation. Run in the same disposable scope as the denial harness."""
+"""Real-UID reconciliation and post-COMMIT process recovery. Run in the same disposable scope as the denial harness."""
 import contextlib
 import fcntl
 import json
@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import pwd
 import shutil
+import signal
 import sqlite3
 import struct
 import subprocess
@@ -20,8 +21,8 @@ def LE(value):
 ENROLL = bytes.fromhex(json.loads(VECTORS.read_text())["enrollment_payload_hex"])
 
 
-def event_and_pledge(previous, frame):
-    body = (b'WBEV' + struct.pack('<HH', 1, 8) + STORE + struct.pack('<QQQHHI', 1, 1, 456, 5, 1, 36)
+def event_and_pledge(previous, frame, recorded_time=456):
+    body = (b'WBEV' + struct.pack('<HH', 1, 8) + STORE + struct.pack('<QQQHHI', 1, 1, recorded_time, 5, 1, 36)
             + bytes.fromhex('070d0000') + sha(frame))
     digest = sha(b'warband.event.v1\0' + body)
     head = sha(b'warband.link.v1\0' + STORE + LE(1) + LE(1) + previous + digest)
@@ -143,6 +144,52 @@ def restart(state):
             assert after == custody
 
 
+def post_commit_process_kill():
+    with fixture() as (f, genesis, frame):
+        before = f.verify()
+        assert f.rows() == [[], [], []] and not before[3]
+        binary = shutil.copy2(OUT/'reconcile/reconcile-custody-stop-after-commit', f.root/'fault-importer')
+        args = [binary, f.db, f.root/'endpoints/runtime.sock', str(f.custodian), STORE.hex(), '1', '0', '-']
+        with subprocess.Popen(args, user=f.runtime, group=f.runtime, extra_groups=[], stdout=subprocess.PIPE) as child:
+            try:
+                deadline = time.monotonic() + 65
+                while time.monotonic() < deadline:
+                    event = os.waitid(os.P_PID, child.pid, os.WSTOPPED | os.WEXITED | os.WNOHANG | os.WNOWAIT)
+                    if event is not None:
+                        assert (event.si_pid, event.si_code, event.si_status) == (child.pid, os.CLD_STOPPED, signal.SIGSTOP), event
+                        break
+                    time.sleep(0.01)
+                else:
+                    raise AssertionError(f'importer {child.pid} did not reach its post-COMMIT stop')
+            finally:
+                child.kill()
+                status = child.wait(timeout=10)
+            assert status == -signal.SIGKILL and child.stdout.read() == b''
+
+        # Independent reads after death. Derive the complete pledge from the durable event.
+        rows = f.rows()
+        assert [len(table) for table in rows] == [1, 1, 1]
+        body = rows[0][0][3]
+        recorded_time, = struct.unpack_from('<Q', body, 40)
+        canonical, pledge = event_and_pledge(genesis, frame, recorded_time)
+        ref = (STORE, LE(1), LE(1))
+        ordinal = frame[11:19]
+        assert rows == [[(*ref, canonical)], [(STORE, ordinal, frame[-32:], *ref[1:])], [(STORE, ordinal)]]
+        pending = f.verify()
+        tip = pending[4]
+        assert pending[2] == before[2] and pending[3] == pledge and tip == before[4] + 1
+        f.run('PendingConfirmation')
+        confirmed = f.verify()
+        assert confirmed[2] == STORE + LE(1) + LE(1) + pledge[72:104] and not confirmed[3]
+        assert confirmed[4] == tip + 1 and f.rows() == rows
+        f.run('Ready')
+        second = f.verify()
+        assert second == confirmed and f.rows() == rows
+        emit(case='post_commit_process_kill', pid=child.pid, stopped='SIGSTOP', reaped=status,
+             pending_tip=tip, confirmed_tip=confirmed[4], second_tip=second[4],
+             receipt_hash=frame[-32:].hex(), watermark=int.from_bytes(ordinal, 'little'))
+
+
 def existing_event_prefix():
     with fixture() as (f, _, frame):
         vectors = json.loads(VECTORS.read_text())
@@ -213,6 +260,7 @@ if __name__ == '__main__':
     assert os.getuid()==0 and limits('self')==(256*1024*1024,0)
     for case in ('PendingConfirmation','ConfirmedResponsePending','PendingEventMissing','UnattestedTail','IntegrityFault'):
         restart(case)
+    post_commit_process_kill()
     existing_event_prefix()
     retained_segments()
     emit(result='pass')
