@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.30 - 2026-11-21
+
+### Changed
+
+- Accepted the Linux capability expiry rule. Suspend counts toward the 90-second lifetime, and live grants expire when the issuing runtime exits. [PR #61](https://github.com/progentic/Warband/pull/61)
+
 ## 0.0.29 - 2026-11-21
 
 ### Added

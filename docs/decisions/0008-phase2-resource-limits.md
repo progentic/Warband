@@ -14,7 +14,7 @@
 
 ## Owner adoption recorded 2026-11-11
 
-Proto directed adoption of the proposal and implementation, then explicitly approved an eight-file, up-to-150-added-line pure confirm increment. Acceptance covers the limits and exception proposal at `4d06963bbba493aa409a93063492576dd5c6347b`. The limits remain provisional. This owner decision permits progress while independent-reviewer assignment remains pending for exception closure or extension. The separately Proposed clock amendment retains its own acceptance gate. The [entry review](../engineering/phase2-entry-review.md) records the authorized code slice.
+Proto directed adoption of the proposal and implementation, then explicitly approved an eight-file, up-to-150-added-line pure confirm increment. Acceptance covers the limits and exception proposal at `4d06963bbba493aa409a93063492576dd5c6347b`. The limits remain provisional. This owner decision permits progress while independent-reviewer assignment remains pending for exception closure or extension. The [entry review](../engineering/phase2-entry-review.md) records the authorized code slice.
 
 ## Problem and exception
 
@@ -40,7 +40,7 @@ Acceptance records these values as provisional development limits. Before Phase 
 | Prepare/commit/confirm | 30 seconds including lock wait and at most 2 extra exact protocol-request attempts | OPERATION_DEADLINE_EXCEEDED; reconcile uncertain persistence before further mutation |
 | Whole task | 180 seconds from admitted intent through confirmed acceptance, including all waits/retries | TASK_DEADLINE_EXCEEDED; withhold completion and reconcile partial work |
 | Task scope | One no-op proposal, one capability use and one execution attempt per task | TASK_SCOPE_EXCEEDED; reject additional scope through the audited rejection path |
-| Capability lifetime | 90 seconds of live elapsed time, covering 30-second issuance plus 30-second claim persistence and 30-second margin; clock binding requires the separate proposed ADR-0005 amendment | EXPIRED_CAPABILITY; require confirmed claim and dispatch before expiry |
+| Capability lifetime | 90 seconds of live elapsed time, covering 30-second issuance plus 30-second claim persistence and 30-second margin; Linux clock binding follows the [accepted amendment](0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment) | EXPIRED_CAPABILITY; require confirmed claim and dispatch before expiry |
 | Execution retry | Zero automatic redispatches after uncertainty | Existing indeterminate/operator disposition |
 | Recovery/replay | At most 100,000 total examined event/custody records and 60 seconds per invocation | RECOVERY_LIMIT_EXCEEDED; this invocation refuses readiness |
 | Application memory | Runtime arena 128 MiB; custodian arena 8 MiB; allocation refusal | MEMORY_LIMIT_EXCEEDED; preserve history, withhold readiness/protected progress |
@@ -53,7 +53,7 @@ Completion is allowed at exactly the record cap only if all required validation 
 
 Fresh stores follow ADR-0005's authorized genesis path. Recovery admission derives from the bounded scan of existing custody/history, with no persistent resource latch or clear operation. A memory-killed process is recovered through the same durable-state rules on its next start. Restart-loop scheduling belongs to later deployment supervision.
 
-The 180-second task deadline is an outer bound; each nested operation receives the lesser of its own budget and remaining task time. Require elapsed-time enforcement immune to wall-clock changes, rejection on clock failure/regression, and reconciliation of tasks in flight after restart. The [proposed ADR-0005 clock amendment](0005-event-integrity-acceptance-and-recovery.md#proposed-adr-0008-amendment-review) defines incarnation and expiry semantics for separate acceptance before live capability implementation. Limits and exception acceptance can proceed separately. OS-blocked writes may finish after deadlines; reconcile uncertain outcomes before progress.
+The 180-second task deadline is an outer bound; each nested operation receives the lesser of its own budget and remaining task time. Require elapsed-time enforcement immune to wall-clock changes, rejection on clock failure/regression, and reconciliation of tasks in flight after restart. The [accepted ADR-0005 clock amendment](0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment) defines incarnation and expiry semantics. Live implementation requires separate authorization. OS-blocked writes may finish after deadlines; reconcile uncertain outcomes before progress.
 
 ### Slice 5 supplied-clock decisions
 

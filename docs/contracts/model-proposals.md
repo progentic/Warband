@@ -16,6 +16,8 @@ The model must return a typed proposal that contains a known tool, validated arg
 
 Raw model output is untrusted. It must be parsed, normalized, validated, fingerprinted, and checked by policy before execution.
 
+Only the issuing execution can use a live grant. Check its private grant entry and a fresh elapsed-time observation at claim confirmation and again immediately before dispatch. Both checks must fall strictly before expiry. After restart, durable authorization and claim evidence alone cannot permit dispatch. [Live capability clock ruling](../decisions/0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment)
+
 ## Verification contract
 
 Tests must prove that malformed, unknown, oversized, stale, duplicate, or unauthorized proposals are rejected.

@@ -71,7 +71,7 @@ Slice 5 covers the no-op authority path and competing-acceptor rejection. Slice 
 
 ## Slice 5 supplied-clock entry
 
-Proto approved six files and 180 added lines for the [pure timing decisions](../decisions/0008-phase2-resource-limits.md#slice-5-supplied-clock-decisions). The portable package takes supplied ticks and performs no I/O. OS clock selection, grant incarnation binding and live dispatch require separate acceptance.
+Proto approved six files and 180 added lines for the [pure timing decisions](../decisions/0008-phase2-resource-limits.md#slice-5-supplied-clock-decisions). The portable package takes supplied ticks and performs no I/O. Proto accepted the [Linux live capability clock and incarnation rule](../decisions/0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment) on 2026-11-21. The adapter, dispatch wiring and fresh-runtime denial proof remain separately gated.
 
 ## Phase 2 entry recorded 2026-11-10
 
