@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.28 - 2026-11-21
+
+### Added
+
+- Recorded measured receipt-import visits and denial storage growth on x64-review, with raw observations for independent verification. [PR #59](https://github.com/progentic/Warband/pull/59)
+
 ## 0.0.27 - 2026-11-20
 
 ### Added
