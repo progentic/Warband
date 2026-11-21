@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory(dir=root/'.local') as temp:
         shutil.copytree(root/folder,work/folder)
     meter = work/'src/capacity_meter'
     meter.mkdir()
-    (meter/'meter.odin').write_text('package meter\nhistory, selection, embedded, consume, exchange: u64\nstage: int\nrows: [3]u64\n')
+    (meter/'meter.odin').write_text('package meter\nhistory, selection, embedded, consume, exchange, debits, evaluator: u64\nstage: int\nrendezvous: bool\nrows: [4]u64\n')
 
     def inject(file, changes, fmt=False):
         path = work/file
@@ -39,14 +39,24 @@ with tempfile.TemporaryDirectory(dir=root/'.local') as temp:
     inject('src/runtime/reconcile_linux.odin',[('frame := frame','m.consume += 1\n\tframe := frame')])
     inject('src/store/import_linux.odin',[('b := column(stmt,0)','m.rows[m.stage] += 1\n\tb := column(stmt,0)'),
            ('row, found := event_row','m.stage = 0\n\t\trow, found := event_row'),
+           ('parent, resolved := event_row','m.stage = 3\n\t\t\tparent, resolved := event_row'),
            ('last, ok := event_row','m.stage = 1\n\t\tlast, ok := event_row')])
     inject('src/store/append_linux.odin',[('row, ok := event_row','m.stage = 2\n\trow, ok := event_row')])
-    inject('src/runtime/client/client_linux.odin',[('return reply, within_budget(s,2*reply.tip+1)',
-           'before := s.visits\n\tok := within_budget(s,2*reply.tip+1)\n\tm.exchange += s.visits-before\n\treturn reply,ok')])
+    inject('src/runtime/client/client_linux.odin',[('n := wb_exchange','if m.rendezvous { fmt.eprintln("EXCHANGE_BEGIN",start); m.rendezvous = false }\n\tn := wb_exchange'),
+           ('s.visits += visits','s.visits += visits\n\tm.debits += visits'),('return reply, within_budget(s,2*reply.tip+1)',
+           'before := s.visits\n\tok := within_budget(s,2*reply.tip+1)\n\tm.exchange += s.visits-before\n\treturn reply,ok')],True)
     inject('cmd/reconcile-custody/main_linux.odin',[('if ref.sequence != 0','fmt.eprintln("CAP",m.embedded,m.consume,m.rows[0],m.rows[1],m.rows[2],m.exchange,session.visits)\n\tif ref.sequence != 0')])
+    inject('src/runtime/noop_gate_linux.odin',[('continue // reconcile the pre-dispatch','m.rendezvous = true\n\t\t\tcontinue // reconcile the pre-dispatch')])
+    inject('src/runtime/noop_evaluator_linux.odin',[('raw := h.observation_bytes','m.evaluator += 1\n\traw := h.observation_bytes')])
+    for cmd,marker in [('noop-gate','fmt.println("gate_result"'),('accept-noop','if result==.Accepted')]:
+        inject(f'cmd/{cmd}/main_linux.odin',[(marker,'fmt.eprintln("TASK",m.embedded,m.consume,m.rows[0],m.rows[1],m.rows[2],m.rows[3],m.evaluator,m.exchange,m.debits)\n\t'+marker)])
     odin = root/'.local/toolchains/odin-linux_amd64/odin'
     sqlite = root/'.local/dependencies/sqlite/555e07ef33f69a0957d24d8e555b702464a131d6f1607f4c3c1e4551e8e6ca76/linux_amd64'
-    for cmd,lib,extra in [('custodian','custodian/normal',[]),('reconcile-custody','reconcile',[f'-collection:warband_sqlite={sqlite}'])]:
+    for cmd in ('custodian','reconcile-custody','noop-gate','accept-noop'):
+        lib = 'custodian/normal' if cmd=='custodian' else 'reconcile'
+        extra = [] if cmd=='custodian' else [f'-collection:warband_sqlite={sqlite}']
+        if cmd=='noop-gate':
+            extra.append('-define:WARBAND_TEST_CLAIM_BARRIER=true')
         binary = dest/cmd
         subprocess.run([odin,'build',work/'cmd'/cmd,'-target:linux_amd64','-vet','-warnings-as-errors',
                         f'-extra-linker-flags:-L{out/lib}',f'-out:{binary}',*extra],check=True)
