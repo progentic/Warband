@@ -30,6 +30,8 @@ The stable identifiers are unchanged. WB-INV-007 receives only scoped rejection 
 
 ## Durable-boundary crash checklist
 
+The [Slice 6 coverage matrix](phase2-crash-coverage.md) maps each interruption to its recovery outcome, existing evidence and remaining run.
+
 Use ADR-0005's unified recovery table as the expected oracle; do not create a divergent recovery policy here. For each point record before/after durable files, SQLite visible/confirmed prefix, custody pending/committed state, named fault, automatic versus operator disposition, and whether any acknowledgment/dispatch occurred:
 
 1. Before prepare and during the final PENDING frame write/fsync.
