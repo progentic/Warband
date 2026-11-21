@@ -55,6 +55,14 @@ Fresh stores follow ADR-0005's authorized genesis path. Recovery admission deriv
 
 The 180-second task deadline is an outer bound; each nested operation receives the lesser of its own budget and remaining task time. Require elapsed-time enforcement immune to wall-clock changes, rejection on clock failure/regression, and reconciliation of tasks in flight after restart. The [proposed ADR-0005 clock amendment](0005-event-integrity-acceptance-and-recovery.md#proposed-adr-0008-amendment-review) defines incarnation and expiry semantics for separate acceptance before live capability implementation. Limits and exception acceptance can proceed separately. OS-blocked writes may finish after deadlines; reconcile uncertain outcomes before progress.
 
+### Slice 5 supplied-clock decisions
+
+On 2026-11-21 Proto approved a pure timing check over supplied elapsed milliseconds. Task admission starts the outer budget. An operation keeps its original start through lock waits and exact retries. A lock wait also has its own start. Capability timing uses its supplied original start and the outer task budget. Claim confirmation and dispatch each require a fresh check.
+
+The check returns the least remaining time across the applicable budgets. Equality expires a deadline. If several limits have expired, report the outermost one. Missing or out-of-order required observations take precedence and yield zero remaining time. Subtracting validated ticks avoids overflow when the origin is near the maximum tick. A within-deadline result establishes only the timing prerequisite. Attempt-count enforcement belongs to the coordinator.
+
+Four focused Odin tests cover strict boundaries, invalid observations, nested retry budgets and expiry between confirmation and dispatch. The first compile failed before test execution on enum-indexed array syntax and variable indexing of a constant. The corrected package passed on macOS ARM64 with the pinned compiler. The live clock amendment remains Proposed.
+
 ## Capacity and closure review
 
 Evaluate a supported finite store envelope with operator archive-and-new-store handoff before snapshots/resume. ADR-0005 genesis enrolls an empty store but has no typed predecessor-head handoff or archive-verification procedure. A free-text reason cannot prove continuity. A successor design must bind and verify the archived store's final trusted head, preserve evidence, resolve pending pledges/imports and define task disposition across distinct stores. Epoch rotation alone cannot bound recovery because custody ordinals and authorization uniqueness span retained history. Until a verified closure path exists, plan for a reviewed extension or stop at expiry.
