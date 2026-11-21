@@ -21,3 +21,8 @@ gate=(odin build cmd/noop-gate -target:linux_amd64 -vet -warnings-as-errors
 "${gate[@]}" "-out:$out/noop-gate"
 "${gate[@]}" -define:WARBAND_TEST_CLAIM_BARRIER=true "-out:$out/noop-gate-proof"
 sha256sum "$out/noop-gate" "$out/noop-gate-proof"
+
+accept=(odin build cmd/accept-noop -target:linux_amd64 -vet -warnings-as-errors
+        "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out")
+"${accept[@]}" "-out:$out/accept-noop"
+"${accept[@]}" -define:WARBAND_TEST_ACCEPT_BARRIER=true "-out:$out/accept-noop-proof"

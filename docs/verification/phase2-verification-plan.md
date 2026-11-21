@@ -102,6 +102,10 @@ The capability tests cover supplied-clock boundaries and the live-deadline API d
 
 Verified on x64-review through the real primitive, custodian and SQLite store. A returned result produced Verified. Killing the issuer after return and before observation produced Indeterminate and Rejected on restart. Killing it after confirmed observation produced exactly one evaluation on restart, and another restart preserved the rows and custody tip. The harness independently checks the persisted digest, claim binding and criterion. [Target evidence](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-observation-and-evaluation-qualification)
 
+### Isolated state acceptance and contention
+
+The x64-review harness checked the verified, rejected, revoked and stale paths. Two real acceptors raced one evaluation. The lock loser obtained the original confirmed result on retry. Separate SQL inserts at a different event Ref proved the scoped attempt and transition constraints. Rebuilding a missing index required a matching confirmed prefix. [Target evidence and operator procedure](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-state-acceptance-qualification)
+
 ### Implementation slices
 
 | Slice | Deliverable | Prerequisite and review gate |

@@ -2,6 +2,7 @@ package store
 
 import e "../domain/events"
 import a "../audit"
+import state "../state"
 import c "../custody"
 import client "../runtime/client"
 import "core:encoding/endian"
@@ -18,7 +19,8 @@ foreign sqlite_import {
 
 ReceiptId :: struct {ordinal: u64, hash: [32]u8}
 Import :: struct {id: ReceiptId, digest: [32]u8, ref: e.EventRef}
-Row :: struct {pledge: e.Pledge, receipt: Maybe(Import)}
+Row :: struct {pledge: e.Pledge, receipt: Maybe(Import), acceptance: Maybe(a.TransitionAccepted), attempt: e.AttemptId,
+              observation: Maybe(a.ObservationRecorded), evaluation: Maybe(a.EvaluationRecorded)}
 Segment :: struct {journal: e.Checkpoint, tail: Maybe(e.Pledge), tail_import: Maybe(Import), last_import: u64}
 
 @(private)
@@ -71,7 +73,11 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) ->
 	if len(b) < 88 || len(b) > 65536+88 { return {},false }
 	kind, _ := endian.get_u16(b[6:8],.Little)
 	imported := false
-	if history != nil && kind != 1 && kind != 2 && kind != 3 && kind != 4 && kind != 5 && kind != 6 && kind != 8 { return {},false }
+	accepted: Maybe(a.TransitionAccepted)
+	attempt: e.AttemptId
+	observation: Maybe(a.ObservationRecorded)
+	evaluation: Maybe(a.EvaluationRecorded)
+	if history != nil && !history.acceptance_scan && kind != 1 && kind != 2 && kind != 3 && kind != 4 && kind != 5 && kind != 6 && kind != 8 { return {},false }
 	switch kind {
 	case 1:
 		v, decode_err := a.decode_task_created(b,ref.store,ref.epoch)
@@ -79,6 +85,7 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) ->
 		if history != nil {
 			if history.task != nil { return {},false }
 			history.task = v
+			history.task_version = 1
 		}
 	case 2:
 		v, decode_err := a.decode_proposal_recorded(b,ref.store,ref.epoch)
@@ -93,17 +100,21 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) ->
 		if history != nil {
 			if history.permit != nil { return {},false }
 			history.permit = v
+			if v.decision == .Permit { history.control_revision += 1 }
 		}
 	case 4:
 		v, decode_err := a.decode_dispatch_claimed(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
+		attempt = v.attempt
 		if history != nil {
 			if history.claim != nil { return {},false }
 			history.claim = v
+			history.control_revision += 1
 		}
 	case 5:
 		v, decode_err := a.decode_observation_recorded(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
+		observation = v
 		if history != nil {
 			claim, found := history.claim.(a.DispatchClaimed)
 			if !found || v.claim != claim.reference || history.observation != nil || !available_evidence(history^,v.evidence) { return {},false }
@@ -113,6 +124,7 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) ->
 	case 6:
 		v, decode_err := a.decode_evaluation_recorded(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
+		evaluation = v
 		if history != nil {
 			obs, found := history.observation.(a.ObservationRecorded)
 			if !found || v.observation != obs.reference || v.claim != obs.claim ||
@@ -122,6 +134,15 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) ->
 	case 7:
 		v, decode_err := a.decode_transition_accepted(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
+		accepted = v
+		if history != nil {
+			if history.transition != nil || state.decide(history.evidence,v.evaluation,v.expected_task_version,v.expected_control_revision) != .Eligible { return {},false }
+			claim := history.claim.(a.DispatchClaimed)
+			if v.claim != claim.reference { return {},false }
+			history.transition = v
+			history.task_version += 1
+			history.control_revision += 1
+		}
 	case 8:
 		v, decode_err := a.decode_rejection_recorded(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
@@ -129,9 +150,23 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) ->
 	case 9:
 		v, decode_err := a.decode_capability_revoked(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
+		if history != nil {
+			permit, found := history.permit.(a.AuthorizationRecorded)
+			if !found || v.authorization != permit.reference || v.capability != permit.capability ||
+			   history.revoked || v.expected_control_revision != history.control_revision { return {},false }
+			history.revoked = true
+			history.control_revision += 1
+		}
 	case 10:
 		v, decode_err := a.decode_attempt_disposition(b,ref.store,ref.epoch)
 		if decode_err != .None || v.reference != ref { return {},false }
+		if history != nil {
+			claim, found := history.claim.(a.DispatchClaimed)
+			if !found || v.claim != claim.reference || history.terminal || history.transition != nil ||
+			   v.expected_control_revision != history.control_revision { return {},false }
+			history.terminal = true
+			history.control_revision += 1
+		}
 	case: return {},false
 	}
 	// Hash the persisted body itself after the kind decoder has validated its representation.
@@ -146,7 +181,7 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) ->
 	p := e.Pledge{store=ref.store,epoch=ref.epoch,sequence=ref.sequence,previous_sequence=ref.sequence-1,digest=digest}
 	copy(p.previous_head[:],b[len(b)-32:])
 	p.head = c.derive_head(p)
-	row := Row{pledge=p}
+	row := Row{pledge=p,acceptance=accepted,attempt=attempt,observation=observation,evaluation=evaluation}
 	if imported {
 		ord, hash := column(stmt,1), column(stmt,2)
 		if len(ord)!=8 || len(hash)!=32 { return {},false }
@@ -175,7 +210,7 @@ mark_matches :: proc(state: ^WriterState, id: e.StoreId, expected: u64) -> bool 
 // Check every row in the installed epoch segment, including the checkpoint-covered prefix.
 // Numbered primary-key lookups preserve numeric order with little-endian BLOB keys.
 @(private)
-inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([32]u8), imports: ^[dynamic]Import, s: ^client.Session, history: ^NoopHistory = nil) -> (Segment,bool) {
+inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([32]u8), imports: ^[dynamic]Import, s: ^client.Session, history: ^NoopHistory = nil, bindings: ^[dynamic]AcceptedBinding = nil) -> (Segment,bool) {
 	total, ok := read_scalar(state,"SELECT count(*) FROM events").(i64)
 	if !ok || total < 0 || !client.within_budget(s,u64(total)) { return {},false }
 	result := Segment{journal={store=cp.store,epoch=cp.epoch}}
@@ -194,6 +229,19 @@ inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([3
 		if p.sequence > cp.sequence {
 			result.tail = p
 			result.tail_import = row.receipt
+		}
+		if accepted, present := row.acceptance.(a.TransitionAccepted); present && bindings != nil {
+			if !client.within_budget(s,3) { return {},false }
+			parent, resolved := event_row(state.db,accepted.claim)
+			if !resolved || parent.attempt == (e.AttemptId{}) { return {},false }
+			eval_row, read_eval := event_row(state.db,accepted.evaluation)
+			ev, evaluated := eval_row.evaluation.(a.EvaluationRecorded)
+			if !read_eval || !evaluated || ev.claim != accepted.claim || ev.verdict != .Verified { return {},false }
+			obs_row, read_obs := event_row(state.db,ev.observation)
+			obs, observed := obs_row.observation.(a.ObservationRecorded)
+			if !read_obs || !observed || obs.claim != accepted.claim || obs.outcome != .Returned ||
+			   obs_row.pledge.digest != ev.observed_event_digest { return {},false }
+			if _, err := append(bindings,AcceptedBinding{parent.attempt,accepted}); err != nil { return {},false }
 		}
 		if entry, present := row.receipt.(Import); present {
 			if entry.id.ordinal == 0 || (len(imports)>0 && entry.id.ordinal <= imports^[len(imports)-1].id.ordinal) { return {},false }
@@ -244,7 +292,7 @@ limit_sqlite :: proc() -> bool {
 }
 
 @(private)
-commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: Maybe(Import), bytes: []u8) -> bool {
+commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: Maybe(Import), bytes: []u8, acceptance: ^AcceptanceCheck = nil) -> bool {
 	state := cast(^WriterState)w
 	cp := cp
 	db := state.db
@@ -257,6 +305,7 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 		last, ok := event_row(db,{cp.store,cp.epoch,cp.sequence})
 		if !ok || last.pledge.head != cp.head { return false }
 	}
+	if acceptance != nil && !eligible_in_transaction(w,cp,acceptance^) { return false }
 	epoch, seq := word(u64(cp.epoch)), word(u64(cp.sequence)+1)
 	if !change(db,"INSERT INTO events(store_id,epoch,sequence,canonical_event) VALUES(?,?,?,?)",cp.store[:],epoch[:],seq[:],bytes) { return false }
 	if entry, present := receipt.(Import); present {
@@ -264,6 +313,7 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 		if !change(db,"INSERT INTO denial_imports(store_id,custody_ordinal,record_hash,epoch,sequence) VALUES(?,?,?,?,?)",cp.store[:],ord[:],entry.id.hash[:],epoch[:],seq[:]) ||
 		   !change(db,"INSERT INTO import_watermarks(store_id,last_imported_ordinal) VALUES(?,?) ON CONFLICT(store_id) DO UPDATE SET last_imported_ordinal=excluded.last_imported_ordinal",cp.store[:],ord[:]) { return false }
 	}
+	if acceptance != nil && !insert_accepted(db,acceptance.attempt,acceptance.event) { return false }
 	committed = change(db,"COMMIT")
 	return committed
 }
@@ -271,14 +321,8 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 // This increment admits exactly one task/proposal. Any additional state-changing kind
 // or duplicate binding withholds dispatch. Audit-only records may share the prefix.
 NoopHistory :: struct {
-	task: Maybe(a.TaskCreated),
-	proposal: Maybe(a.ProposalRecorded),
-	permit: Maybe(a.AuthorizationRecorded),
-	claim: Maybe(a.DispatchClaimed),
-	observation: Maybe(a.ObservationRecorded),
-	observation_bytes: a.ObservationRecordedBytes,
-	observation_digest: [32]u8,
-	evaluation: Maybe(a.EvaluationRecorded),
+	using evidence: state.Evidence,
+	acceptance_scan: bool,
 	mark: u64,
 }
 
