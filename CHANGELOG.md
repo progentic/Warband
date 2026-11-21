@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.29 - 2026-11-21
+
+### Added
+
+- Added deadline checks over supplied elapsed time for tasks, operations, lock waits and capabilities. [PR #60](https://github.com/progentic/Warband/pull/60)
+
 ## 0.0.28 - 2026-11-21
 
 ### Added

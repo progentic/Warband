@@ -69,6 +69,10 @@ Slice 4 implementation closed at `004d29c` on 2026-11-20. The post-COMMIT recove
 
 Slice 5 covers the no-op authority path and competing-acceptor rejection. Slice 6 covers deterministic replay, remaining fault evidence, operator reconciliation rehearsal and Phase 2 exit traceability.
 
+## Slice 5 supplied-clock entry
+
+Proto approved six files and 180 added lines for the [pure timing decisions](../decisions/0008-phase2-resource-limits.md#slice-5-supplied-clock-decisions). The portable package takes supplied ticks and performs no I/O. OS clock selection, grant incarnation binding and live dispatch require separate acceptance.
+
 ## Phase 2 entry recorded 2026-11-10
 
 The project owner separately authorized the assistant to begin Phase 2 in the instruction quoted in ADR-0005, and approved an initial scope of about ten files and up to 250 added lines. This section records Gate 3 entry, not the Gate 2 acceptance decision.
