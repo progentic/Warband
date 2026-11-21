@@ -96,7 +96,7 @@ The capability tests cover supplied-clock boundaries and the live-deadline API d
 
 ### Fresh-runtime dispatch denial
 
-**Pending Linux implementation proof.** Issue a grant and retain its durable authorization and confirmed claim. Start a fresh runtime while the original interval would still be open, replay that evidence, and assert that dispatch is withheld because the live-grant set is empty. [Accepted clock ruling](../decisions/0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment)
+**Verified on x64-review for the isolated no-op gate.** The issuing runtime dispatched once. In the paired restart case the issuer exited after claim confirmation. The fresh runtime verified the durable permit and claim 62 ms into the original 90-second interval, invoked the primitive zero times and recorded a custody-confirmed reason-9 rejection bound to that claim. [Paired BOOTTIME observations and proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-live-dispatch-qualification)
 
 ### Implementation slices
 

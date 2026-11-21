@@ -41,6 +41,13 @@ run :: proc(path: cstring,session: ^client.Session,archives: []Archive,retry: Ma
 	if err != .None { return .StoreUnavailable }
 	defer if !s.close_writer(&writer) { result = .StoreUnavailable }
 	if !s.limit_writer_cache(writer) { return .StoreUnavailable }
+	return reconcile_locked(writer,session,archives,retry,compared)
+}
+
+// Caller holds the store inode lock throughout reconciliation and the following gate.
+reconcile_locked :: proc(writer: s.VerifiedWriter,session: ^client.Session,archives: []Archive,retry: Maybe(s.ReceiptId), compared: ^e.EventRef) -> (result: Outcome) {
+	defer if session.exhausted { result = .RecoveryLimitExceeded }
+	if u64(len(archives))+1 != u64(session.epoch) { return .EpochMismatch }
 	page, ok := client.verify(session,0)
 	if !ok { return .CustodyUnavailable }
 	cp := page.committed

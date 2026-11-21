@@ -72,3 +72,7 @@ The [WBRS reply codec](../decisions/0005-event-integrity-acceptance-and-recovery
 ## Isolated receipt importer
 
 `cmd/reconcile-custody` accepts the installed segment paths, epoch handoffs, custodian socket and trusted UID. `src/runtime` coordinates recovery and cursor paging. Its client package authenticates the connected server before sending a WBCR request. `src/store` keeps statements and raw SQLite handles private and validates read-back before sending exact confirmation. [Effect edges and recovery evidence](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-linux-receipt-reconciliation-qualification)
+
+## Linux live no-op gate
+
+`cmd/noop-gate` accepts a named proposal and the isolated store/custody configuration. `src/runtime/noop_gate_linux.odin` owns the executing process’s private live grant and the sole call to the fixed primitive. `src/domain/timing` still receives supplied ticks. The store owns the pledged append and consistent reads of confirmed bindings. [Qualified calls and evidence](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-live-dispatch-qualification)
