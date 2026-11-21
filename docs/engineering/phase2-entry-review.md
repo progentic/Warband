@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Phase 2 remains open. The [Slice 5 isolated acceptance path](#slice-5-isolated-state-acceptance) has passed on x64-review. Its capacity checkpoint is pending.
+- **Status:** Phase 2 remains open. The [Slice 5 isolated acceptance path](#slice-5-isolated-state-acceptance) has passed on x64-review. Its [capacity checkpoint](../verification/slice5-capacity.md) is measured on the isolated target.
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -83,7 +83,7 @@ Proto approved twelve files and 480 added lines for the [registered observer and
 
 ## Slice 5 isolated state acceptance
 
-Proto approved fourteen files and 600 added lines for [acceptance, the derived index and competing-acceptor proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-state-acceptance-qualification). Local x64-review evidence covers one winning transition, a refused contender and exact retry, plus stale, revoked and rejected inputs. Phase 2 stays open. Visits per task, fixed startup work and concurrent-denial overhead are due in a separate Slice 5 capacity checkpoint.
+Proto approved fourteen files and 600 added lines for [acceptance, the derived index and competing-acceptor proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-state-acceptance-qualification). Local x64-review evidence covers one winning transition, a refused contender and exact retry, plus stale, revoked and rejected inputs. Phase 2 stays open. The [Slice 5 checkpoint](../verification/slice5-capacity.md) records visits per confirmed task, fixed startup work and concurrent-denial overhead. WB-EXC-001 remains Open pending warning delivery, prescribed operator action and reviewed disposition.
 
 ## Phase 2 entry recorded 2026-11-10
 

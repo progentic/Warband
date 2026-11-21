@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.34 - 2026-11-21
+
+### Added
+
+- Recorded startup work, visits per confirmed no-op task and the overhead of one concurrent denial on x64-review. [PR #66](https://github.com/progentic/Warband/pull/66)
+
 ## 0.0.33 - 2026-11-21
 
 ### Added

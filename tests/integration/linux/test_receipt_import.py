@@ -73,7 +73,7 @@ class Fixture:
 
 
 @contextlib.contextmanager
-def fixture():
+def fixture(*, measure=False):
     existing = {p.pw_uid for p in pwd.getpwall()}
     users = [u for u in range(50000,60000) if u not in existing][:3]
     with tempfile.TemporaryDirectory(prefix='warband-import-',dir='/var/lib') as tmp:
@@ -88,14 +88,21 @@ def fixture():
                           ('provision',OUT/'provision-store')]:
             shutil.copy2(path,root/name)
         f = Fixture(root,users)
-        with service(root,root/'custodian',*users):
-            receipt = denied(f.call(4,ENROLL,denied_admin=True))
+        log = root/'capacity.log' if measure else None
+        if measure:
+            shutil.copy2(OUT/'capacity/custodian',root/'custodian')
+            log.touch(mode=0o600)
+        with service(root,root/'custodian',*users,stderr_path=log):
+            receipt = None if measure else denied(f.call(4,ENROLL,denied_admin=True))
             assert f.call(4,ENROLL)[0] == 0
             os.chown(root/'journal',users[1],users[1])
             (root/'journal').chmod(0o700)
             f.provision()
             _,_,cp,_,_,frame = f.verify()
-            assert frame[-32:] == receipt
+            if measure:
+                assert not frame
+            else:
+                assert frame[-32:] == receipt
             yield f, cp[32:], frame
 
 
