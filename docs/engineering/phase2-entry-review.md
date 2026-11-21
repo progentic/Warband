@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Isolated Linux slice 3b closed at `8146686`. The [SQLite build increment](#slice-4-build-entry) has separate authorization. [PR #49](https://github.com/progentic/Warband/pull/49)
+- **Status:** Phase 2 remains open. [Slice 4 implementation is complete](#slice-4-implementation-closure), with its capacity checkpoint pending.
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -61,9 +61,13 @@ On 2026-11-20 Proto approved the [schema v1 and operator provisioning contract](
 
 On 2026-11-20 Proto approved thirteen files and 950 added lines, including retained-segment comparison. The [qualified reconciliation path](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-linux-receipt-reconciliation-qualification) imports one receipt at a time under the writer lock. The state-crafted integration harness passed locally on x64-review. Its Linux workflow step retains the native build log and reconciliation transcript.
 
-### Post-COMMIT recovery evidence
+### Slice 4 implementation closure
 
-Proto approved the [post-COMMIT kill proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#post-commit-process-kill-proof) on 2026-11-20. The recorded x64-review run passed with custody tips 3, 4 and 4 across death and two normal restarts. Hosted Ubuntu 24.04 verification and publication remain pending for slice closure.
+Slice 4 implementation closed at `004d29c` on 2026-11-20. The post-COMMIT recovery proof is complete on x64-review and hosted Ubuntu 24.04. After importer death the custody tip was 3. The first normal restart confirmed the pending event and advanced the tip to 4. The second returned Ready at tip 4. The event, receipt binding and watermark rows remained byte-identical across both restarts. [ADR-0005 proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#post-commit-process-kill-proof) · [PR #57](https://github.com/progentic/Warband/pull/57)
+
+**Capacity checkpoint pending.** Measure visits per confirmed event and bytes per denial, including storage added by both custody and import. WB-EXC-001 remains Open. Closure requires these measurements and evidence that the capacity warning reaches the operator at its threshold and the operator takes the prescribed action. [Verification plan](../verification/phase2-verification-plan.md) · [ADR-0008](../decisions/0008-phase2-resource-limits.md)
+
+Slice 5 covers the no-op authority path and competing-acceptor rejection. Slice 6 covers deterministic replay, remaining fault evidence, operator reconciliation rehearsal and Phase 2 exit traceability.
 
 ## Phase 2 entry recorded 2026-11-10
 
