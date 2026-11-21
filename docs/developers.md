@@ -4,7 +4,7 @@ Use this guide to trace the code and understand the architecture. The [constitut
 
 ## Current implementation
 
-The CLI exposes two commands, `version` and `fixture`. Phase 2 library code operates on supplied bytes and values. Start with the command flow below for the executable, or the [audit and custody modules](#audit-and-custody-modules) for the libraries. The [entry review](engineering/phase2-entry-review.md#slice-3b-gate-0) records the activated isolated Linux scope.
+The user-facing `warband` CLI exposes `version` and `fixture`. Phase 2 includes pure codecs and timing decisions, plus programs that open SQLite databases and communicate with the Linux custodian. To trace these paths, see the [audit and custody modules](#audit-and-custody-modules) and the [store, reconciliation and timing modules](#store-reconciliation-and-timing-modules).
 
 ## Command flow
 
@@ -54,6 +54,12 @@ The [event tests](https://github.com/progentic/Warband/tree/main/tests/odin/even
 - **Custody bytes.** The [record codec](https://github.com/progentic/Warband/blob/main/src/custody/record.odin) handles PENDING, COMMITTED, GENESIS, EPOCH and REJECTION. Variable-size encoders return a fixed buffer and a used length. Pass only the used bytes to the next stage. The [head-file codec](https://github.com/progentic/Warband/blob/main/src/custody/head.odin) handles the materialized checkpoint.
 - **History.** The [history validator](https://github.com/progentic/Warband/blob/main/src/custody/history.odin) checks record order, predecessor hashes, pledge pairing, epoch changes and authorization-ID uniqueness against a supplied published head. A denial can precede enrollment. Later denials advance custody history while preserving a pending pledge.
 - **Requests and replies.** The [WBCR codec](https://github.com/progentic/Warband/blob/main/src/custody/request.odin) handles prepare, confirm, verify, enroll and epoch change. The [peer decision](https://github.com/progentic/Warband/blob/main/src/custody/peer.odin) checks the supplied listener, operation and observed UID. The [WBRS codec](https://github.com/progentic/Warband/blob/main/src/custody/reply.odin) uses caller-supplied authentication context to redact denial replies and validate receipt cursor bounds. The separate Linux custodian authenticates connected peers and records custody history. Its [build and test recipe](verification/isolated-linux-custodian.md) uses the isolated Linux target.
+
+## Store, reconciliation and timing modules
+
+- **Create or open a store.** The operator runs `provision-store` after custody enrollment to create a new schema-v1 database. For an existing database, `open_writer` checks the version before switching to WAL and returns a verified writer after reading back its connection settings. [Provisioning](https://github.com/progentic/Warband/blob/main/src/store/provision.odin) · [Writer open](https://github.com/progentic/Warband/blob/main/src/store/writer.odin)
+- **Trace a denial receipt.** Start at `src/runtime:run`. It uses the Linux custody client to authenticate the custodian, checks the SQLite tail against custody, then calls `append_verified_event` for each outstanding receipt. [Reconciliation](https://github.com/progentic/Warband/blob/main/src/runtime/reconcile_linux.odin) · [Custody client](https://github.com/progentic/Warband/tree/main/src/runtime/client) · [Pledged append](https://github.com/progentic/Warband/blob/main/src/store/append_linux.odin)
+- **Check a deadline.** `timing.check` takes supplied elapsed milliseconds and returns the least remaining time across applicable deadlines. Equality expires the deadline. The live capability adapter and dispatch wiring remain pending. [Pure timing decision](https://github.com/progentic/Warband/blob/main/src/domain/timing/deadline.odin)
 
 ## Repository checks
 
