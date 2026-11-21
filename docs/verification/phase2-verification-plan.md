@@ -66,7 +66,7 @@ Run three repetitions per ordinary workload with fixed input seeds. Precompute t
 
 Measure monotonic elapsed time for lock wait, prepare, SQLite commit, confirmation and head publication, plus whole-task latency. Record stage overlap so timings are not double-counted. Report p50/p95/p99 with sample count, completed tasks/second, rejections/timeouts, timeout-induced operator halts by durable boundary, peak RSS per process, CPU time, stored bytes, WAL size, checkpoint counts, recovery time and scanned records. Preserve raw observations and failed runs. A no-op result is a protocol-overhead baseline for that workload and target.
 
-Every run must identify source, reviewed limits, compiler/build, SQLite source/options/effective settings, CPU/RAM, OS/kernel, filesystem/mount options, storage device or volume, VFS, VM cache/flush configuration and warm/cold state. Commit/publication timings and durability claims require the selected Linux storage target. macOS development measurements cover portable pure/encoding work; the proposed live-deadline adapter is unsupported there. Pure replay receives recorded facts; measurement clocks remain outside its decisions.
+Every run must identify source, reviewed limits, compiler/build, SQLite source/options/effective settings, CPU/RAM, OS/kernel, filesystem/mount options, storage device or volume, VFS, VM cache/flush configuration and warm/cold state. Commit/publication timings and durability claims require the selected Linux storage target. macOS development measurements cover portable pure/encoding work. Live capability expiry is Linux-only in Phase 2. Pure replay receives recorded facts; measurement clocks remain outside its decisions.
 
 Accept the experiment only when correctness/fault cases pass, each bound is enforced at and beyond its limit, and saturation preserves audit and recovery semantics. A legitimate workload exceeding a provisional bound requires a reviewed scope or limit revision. Latency percentiles are observations until workload-specific targets are accepted; a timeout ceiling is not a latency objective. Later tool/provider workloads and the production target require fresh measurements.
 
@@ -93,6 +93,10 @@ Prove CAPACITY_WARNING at 80,000 estimated visits using the exact successful-rec
 Proposed stability review thresholds use existing samples. For each steady-state serial run, compare p95 commit latency in the last quarter with the first measured quarter after warm-up; a ratio above 1.25 in at least two of three repetitions triggers investigation. For completed denial-heavy recovery samples at 100, 10,000 and 100,000 visits, time per visit at each larger size should be at most twice that at the preceding size on the same target/configuration. Record actual visits and fixed startup cost. A cap/deadline failure is a failed workload, never a completed timing sample. Review WAL/checkpoint activity alongside drift; these provisional thresholds require confirmation or recorded amendment at the early capacity checkpoint.
 
 The capability tests cover supplied-clock boundaries and the live-deadline API dependency check. Kernel suspend/NTP behavior receives no new platform test. Retain one full-value settings/run check plus shortened-limit adapter cases. The existing crash checklist supplies the single real cgroup termination case where applicable.
+
+### Fresh-runtime dispatch denial
+
+**Pending Linux implementation proof.** Issue a grant and retain its durable authorization and confirmed claim. Start a fresh runtime while the original interval would still be open, replay that evidence, and assert that dispatch is withheld because the live-grant set is empty. [Accepted clock ruling](../decisions/0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment)
 
 ### Implementation slices
 

@@ -18,13 +18,16 @@ The owner requested progression to the next phase on 2026-10-18 and assigned Pro
 
 [Accepted ADR-0008](0008-phase2-resource-limits.md) tracks WB-EXC-001 and records provisional resource limits, review and expiry conditions for the accepted denial-growth limitation. Its structured fields hold the exception disposition; acceptance of this historical design remains recorded above.
 
-## Proposed ADR-0008 amendment review
+## Accepted live capability clock amendment
 
-This clock amendment is Proposed for separate owner acceptance. [ADR-0008](0008-phase2-resource-limits.md) specifies provisional elapsed-time limits and the resource exception. Its acceptance does not accept this amendment or authorize live capability implementation.
+**Accepted by Proto on 2026-11-21.** This ruling binds the provisional capability lifetime in [ADR-0008](0008-phase2-resource-limits.md) to Linux elapsed time. The live adapter and dispatch wiring require separate implementation authorization.
 
-For the proposed Linux adapter, use CLOCK_BOOTTIME for all live deadlines, including suspend. Start the 90-second capability interval when authorization construction begins and retain the deadline only in the issuing process incarnation. Require claim confirmation and dispatch strictly before it. Record expiry in the authorization event for audit, but live permission never depends on the wall clock. Pure decisions receive elapsed-time observations; clock failures or regressions reject. Audit timestamps may use the wall clock through a separate path.
+Start the 90-second interval when authorization construction begins. Take a fresh Linux `CLOCK_BOOTTIME` observation at claim confirmation and again immediately before dispatch. Each observation must be **strictly before expiry**. At or after expiry, or on a missing or regressing observation, withhold dispatch. The wall-clock expiry in the authorization event is audit evidence only.
 
-Every process restart invalidates prior grants for live dispatch. Tasks in flight are reconciled against their recorded durable state and never automatically resumed or redispatched. The 180-second task deadline ends with that incarnation; any separately authorized new task receives a new identity and deadline. Replay preserves historical facts without reviving permission. The macOS live-deadline adapter is unsupported by this proposal; pure supplied-value decisions remain portable. Acceptance and contract alignment precede implementation.
+An incarnation is one execution of the issuing runtime. Keep the live grant and its elapsed-time origin only in that execution's private memory. Dispatch requires that entry as well as durable authorization and the confirmed claim. Each startup begins with an empty live-grant set. Replay can reconstruct audit facts but cannot populate that set. The 180-second task deadline ends with the issuing execution. Reconcile in-flight tasks from durable evidence and withhold automatic redispatch. A separately authorized new task receives a new identity and deadline.
+
+The Linux implementation owes a fresh-runtime denial test using a prior grant's durable evidence. Suspend accounting rests on the documented kernel behavior: with 20 seconds remaining, a 5-second suspend leaves 15 seconds, and a suspend of 20 seconds or longer expires the grant. Warband has no target suspend test. [Linux kernel timekeeping](https://docs.kernel.org/core-api/timekeeping.html)
+macOS Phase 2 evidence covers supplied-clock decisions only. There is no macOS live capability adapter in Phase 2.
 
 Resource overrun uses the proposed capped recovery/readiness checks; no persistent latch or new custody metadata is proposed. Epoch rotation retains custody ordinals and complete-history authorization uniqueness. An archive-and-new-store closure path needs a separately reviewed predecessor-head binding and archive-verification procedure beyond the current genesis format.
 
@@ -178,7 +181,8 @@ The [Phase 2 verification plan](../verification/phase2-verification-plan.md) rem
 - Establish that a truncated frame is final, repairable and consistent with the published head before any repair; implement and fault-test append/fsync/rename/directory durability and lost-response recovery.
 - Authenticate runtime/operator peers, protect custody files/endpoints, derive observed peer metadata from the OS, and reconcile denial receipts into the event store exactly once.
 - Implement the remaining event kinds and socket request/reply formats, SQLite integration, no-op authority/evidence path and deterministic replay under their scoped authorizations.
-- Resolve WB-EXC-001 at its expiry gate, the separately Proposed ADR-0008 clock amendment, production target evidence, foundation debt and independent closure review.
+- Implement the accepted live capability clock rule and verify [fresh-runtime dispatch denial](../verification/phase2-verification-plan.md#fresh-runtime-dispatch-denial).
+- Resolve WB-EXC-001 at its expiry gate, production target evidence, foundation debt and independent closure review.
 
 ## ProposalRecorded codec authorized 2026-11-16
 
@@ -589,7 +593,7 @@ Operator quiesces both writers, preserves the old SQLite files/WAL and custody m
 | ProposalRecorded | Existing incomplete task/run; matching expected version; exact NoOp shape | None | Canonical input and derived proposal fingerprint | proposal ID |
 | AuthorizationRecorded permit | Current proposal/policy; recovery=stop; no approval required; matching control; unused capability ID | control+1 | Producer-2 deterministic decision over recorded proposal; inline evidence ID, producing event is this event | capability ID and proposal authorization |
 | AuthorizationRecorded reject/require approval | Recorded proposal; no capability grant | None | Recorded decision and proposal reference | event Ref |
-| DispatchClaimed | Permit; current task/control/policy; runtime claim time before expiry; not revoked/used; all proposal bindings match | control+1, consume one use | Authorization event and runtime-generated claim binding | capability use and attempt ID |
+| DispatchClaimed | Permit; current task/control/policy; fresh elapsed-time check strictly before expiry at claim confirmation; not revoked/used; all proposal bindings match | control+1, consume one use | Authorization event and runtime-generated claim binding | capability use and attempt ID |
 | ObservationRecorded | Existing confirmed claim; registered observer; matching attempt; one observation | None | Exact bounded observed bytes or explicit indeterminate outcome | attempt observation and evidence ID |
 | EvaluationRecorded | Existing confirmed observation; registered evaluator; recomputed observation digest; same claim/criterion | None | Observation Ref/digest and evaluator verdict | observation evaluation and evidence ID |
 | TransitionAccepted | Verified NoOpV1 evaluation; same claim; matching task/control; capability consumed by that claim and not revoked; current recorded policy version | task+1, control+1 | Evaluation -> observation -> claim -> authorization -> proposal chain | transition ID and accepted attempt |

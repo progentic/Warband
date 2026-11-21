@@ -21,6 +21,8 @@ This matrix links constitutional rules to contracts, planned implementation, ver
 
 [Isolated custodian evidence](isolated-linux-custodian.md) exercises the custody portion of WB-CON-007/008/009 through kernel identity checks, receipt persistence, exact replay and startup reconciliation. Exactly-once event-store import and cross-store recovery remain open.
 
+WB-CON-005/008 and WB-INV-003 require a [fresh-runtime dispatch denial](phase2-verification-plan.md#fresh-runtime-dispatch-denial). The clock rule is accepted. Live enforcement and the Linux restart proof remain unverified.
+
 ## Historical Phase 1 implementation evidence
 
 The constitutional rows above remain planned. Foundation tests do not establish runtime authority, model isolation, evidence acceptance, or replay.
