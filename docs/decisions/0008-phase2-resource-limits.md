@@ -5,7 +5,7 @@
 - **Exception status:** Open
 - **Exception owner:** Proto
 - **Expires before phase:** 3
-- **Independent reviewer:** Pending
+- **Independent reviewer:** Meta
 - **Disposition record:** Pending
 - **Review date:** 2026-11-11
 - **Scope:** Phase 2 no-op custody, recovery and measurement
@@ -14,7 +14,7 @@
 
 ## Owner adoption recorded 2026-11-11
 
-Proto directed adoption of the proposal and implementation, then explicitly approved an eight-file, up-to-150-added-line pure confirm increment. Acceptance covers the limits and exception proposal at `4d06963bbba493aa409a93063492576dd5c6347b`. The limits remain provisional. This owner decision permits progress while independent-reviewer assignment remains pending for exception closure or extension. The [entry review](../engineering/phase2-entry-review.md) records the authorized code slice.
+Proto directed adoption of the proposal and implementation, then explicitly approved an eight-file, up-to-150-added-line pure confirm increment. Acceptance covers the limits and exception proposal at `4d06963bbba493aa409a93063492576dd5c6347b`. The limits remain provisional. At adoption, the owner permitted progress and deferred reviewer assignment. The [entry review](../engineering/phase2-entry-review.md) records the authorized code slice.
 
 ## Problem and exception
 
@@ -22,13 +22,29 @@ Rejected traffic can exhaust storage and recovery capacity. The [bounded-failure
 
 WB-EXC-001 tracks that limitation for isolated Phase 2 verification with controlled local inputs. Proto owns remediation. Accepted-event history also grows, but this exception covers denial-triggered growth outside successful task admission. All history shares the recovery/storage envelope below; accepted-event growth needs its own supported capacity decision before production.
 
-The structured fields above are the single current exception record. Review input from Meta was supplied by the project owner on 2026-11-11; reviewer eligibility remains unconfirmed. Review is due before effectful custody implementation authorization; expiry is Phase 2 exit, before Phase 3 entry, as adopted above. The checker conservatively rejects phase declarations at or beyond the expiry while the exception is open; supported-phase authorization remains separately enforced.
+The structured fields above are the single current exception record. Review input from Meta was supplied by the project owner on 2026-11-11; eligibility was unconfirmed at that review. Review is due before effectful custody implementation authorization; expiry is Phase 2 exit, before Phase 3 entry, as adopted above. The checker conservatively rejects phase declarations at or beyond the expiry while the exception is open; supported-phase authorization remains separately enforced.
 
 On 2026-11-18 Proto completed the pre-implementation review and accepted carrying WB-EXC-001 into isolated 3b testing with controlled local inputs. Each observed denial adds a durable 203-byte frame and later import work. Aggregate growth can exhaust disk or exceed the recovery visit/time budget and withhold readiness. Preserve required audit records and the storage-fault disposition. The exception stays Open, owned by Proto, with the existing Phase 2 exit deadline and independent review required for closure or extension.
 
 Closure requires an implemented successor design with a finite supported storage envelope derived from recovery scan, time and memory capacity. It must preserve custody continuity, every required receipt and exact-once import, provide an operator warning at a reviewed threshold below capacity, and pass saturation, sustained-denial, fsync-failure and interrupted-recovery cases. A published custody head alone is insufficient to resume projection replay from a trusted snapshot.
 
 If closure cannot meet expiry, stop progression or obtain an explicit extension. Closure and extension require owner approval plus a named reviewer independent of the exception/fix author and owner, and a committed disposition with evidence, residual exposure and the next expiry gate. Update this ADR through review. The checker validates fields and disposition format; human review verifies provenance and independence. No extension is automatic.
+
+## Isolated target ruling and reviewer assignment
+
+On 2026-11-21 Proto accepted loss of availability at a finite limit on x64-review and selected controlled halt at the custodian as the successor design to qualify. Stop admitting new work before observing another denial-generating request. Preserve every already-observed request's required receipt, including across interrupted writes, and retain the evidence for exactly-once import. Before implementation, derive a hard admission bound and reserve for in-flight work, import and a full recovery pass under the disk, visit, time and memory limits. The measured 203-byte receipt and placement-specific 142 additional examinations inform this calculation. They do not establish a worst-case reserve.
+
+Meta accepted the independent disposition review and attests to being neither the owner, the exception author nor the fix author. Proto is the project owner’s developer alias. At disposition, document provenance and verify independence from Proto and the exception and fix authors. Proto retains owner approval. The disposition record stays pending until the implemented design, warning delivery and operator action, and the saturation, sustained-denial, fsync-failure and interrupted-recovery evidence have been reviewed.
+
+### Hard admission reserve (draft for independent review)
+
+Evaluate admission at the custodian before accepting another connection on either listener. The single synchronous serve loop accepts one connection, completes one request and closes it before serving another. At the pre-accept boundary there are zero accepted requests in flight. While serving there is at most one. Reserve its worst permitted outcome before accept, including a 203-byte denial if required. Kernel-queued connections have not entered the handler. Review this observation boundary explicitly against Option A. Missing, inconsistent or overflowing local accounting closes admission.
+
+For a candidate trigger, let U bound all unimported denials after draining that handler. The custodian cannot infer the SQLite watermark from its tip. Until a verified tighter bound exists, count every retained denial as potentially outstanding. Drain requires up to U confirmed import events and 2U custody frames. For an enrolled store without a pending pledge, those frames add 502U logical custody bytes. Include already-pending work, enrollment if needed, and any interrupted append separately. Bound allocated SQLite database, index and peak WAL space, temporary head publication and filesystem headroom on the selected stack. Post-close WAL samples cannot supply that peak.
+
+For each reachable history at the trigger, price the in-flight outcome, every remaining import and one complete recovery over the resulting largest history. Include repeated custody validation, cursor walks, retained segments, event-prefix reads and read-back. Show actual visits and production debits, per-invocation elapsed time and peak memory in each process. Sum disk growth, account for overlapping allocations, and check the existing per-invocation limits individually. A successful bounded drain requires a way for verify/prepare/confirm to finish after general admission closes while further denial-generating input stays quiesced. Ordinary authenticated inputs can themselves be malformed. An unrestricted runtime socket cannot establish this condition.
+
+**Decision pending.** Approve a numerical hard bound only when all four reserves fit for the same declared envelope, including a safe way to complete the drain under sustained offered input. The 80,000 warning threshold is an estimate in visits. Its distance from the 100,000 per-invocation limit supplies no disk, time or memory guarantee. Record unknown terms as blockers. Storage faults retain the zero-receipt, no-progress disposition until reconciliation. Saturation and fault runs follow review of the bound.
 
 ## Provisional limits and outcomes
 
@@ -69,7 +85,7 @@ Evaluate a supported finite store envelope with operator archive-and-new-store h
 
 Propose CAPACITY_WARNING as a status field at an estimated 80,000 visits. Anchor the estimate to the exact visit count and validated metadata from the last successful recovery in this process. Apply conservative factors only to custody-ordinal/event growth since that observation, including denial frames, repeated scans and import amplification. The observation is volatile diagnostic data; every restart recomputes recovery. A changed epoch, scan algorithm or workload invalidates the estimate unless its factors cover that change. Unknown factors, missing observations or checked-arithmetic overflow report CAPACITY_UNKNOWN. The estimate never substitutes for recovery validation.
 
-At slice 4 completion, measure visits per confirmed event and bytes per denial. At slice 5 completion, measure visits per task and establish a provisional tasks-per-store envelope before slice 6. Record any revised limit as an amendment; Phase 2 exit retains final confirmation. Reviewer eligibility is unconfirmed; the owner adoption above defers assignment to closure or extension, which require independent review.
+At slice 4 completion, measure visits per confirmed event and bytes per denial. At slice 5 completion, measure visits per task and establish a provisional tasks-per-store envelope before slice 6. Record any revised limit as an amendment; Phase 2 exit retains final confirmation. Closure or extension still requires the independent disposition review.
 
 ## Target, review and verification
 
