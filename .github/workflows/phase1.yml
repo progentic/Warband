@@ -59,6 +59,11 @@ jobs:
             /usr/bin/python3 tests/integration/linux/test_custody_denial.py \
             out/linux_amd64/custodian/normal/custodian \
             out/linux_amd64/custodian/dirsync-fault/custodian 2>&1 | tee out/linux_amd64/custody-denial.log
+      - name: Verify custody receipt reconciliation and retained segments
+        run: |
+          bash scripts/build_reconcile.sh 2>&1 | tee out/linux_amd64/reconcile-build.log
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_receipt_import.py 2>&1 | tee out/linux_amd64/reconcile.log
       - name: Summarize evidence
         if: always()
         run: |

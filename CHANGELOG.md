@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.26 - 2026-11-20
+
+### Added
+
+- Added `reconcile-custody` to import denial receipts, finish pending confirmations, and verify retained SQLite segments before admitting progress. [PR #56](https://github.com/progentic/Warband/pull/56)
+
 ## 0.0.25 - 2026-11-20
 
 ### Added

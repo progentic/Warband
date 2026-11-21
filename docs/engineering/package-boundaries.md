@@ -68,3 +68,7 @@ The [WBRS reply codec](../decisions/0005-event-integrity-acceptance-and-recovery
 ## SQLite writer open
 
 `src/store` owns the verified writer handle and its open-time profile. Only the private SQLite adapter in this package calls the C ABI. The caller receives an owned writer after all profile checks succeed, can inspect a copy of its observed settings, and closes it once. The integration fixture owns database creation. [Qualified procedures and evidence](../decisions/0005-event-integrity-acceptance-and-recovery.md#sqlite-writer-open-qualification)
+
+## Isolated receipt importer
+
+`cmd/reconcile-custody` accepts the installed segment paths, epoch handoffs, custodian socket and trusted UID. `src/runtime` coordinates recovery and cursor paging. Its client package authenticates the connected server before sending a WBCR request. `src/store` keeps statements and raw SQLite handles private and validates read-back before sending exact confirmation. [Effect edges and recovery evidence](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-linux-receipt-reconciliation-qualification)
