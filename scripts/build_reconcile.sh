@@ -23,6 +23,11 @@ sha256sum "$out/reconcile-custody-stop-event-insert" "$out/reconcile-custody-sto
 sha256sum "$out/reconcile-custody-stop-before-prepare" "$out/reconcile-custody-stop-after-prepare"
 sha256sum "$out/reconcile-custody" "$out/reconcile-custody-stop-after-commit" "$out/reconcile-custody-stop-before-ack"
 
+for fault in 1 2 3; do
+    "${build[@]}" "-define:WARBAND_TEST_SQLITE_FAULT=$fault" "-out:$out/reconcile-sqlite-$fault"
+    sha256sum "$out/reconcile-sqlite-$fault"
+done
+
 gate=(odin build cmd/noop-gate -target:linux_amd64 -vet -warnings-as-errors
       "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out")
 "${gate[@]}" "-out:$out/noop-gate"

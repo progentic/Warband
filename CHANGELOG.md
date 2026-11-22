@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.47 - 2026-11-22
+
+### Added
+
+- Verified that SQLite page exhaustion during either receipt-import INSERT, or a veto at COMMIT, preserves the prior event, binding and watermark sets. Recovery withholds progress while the pledged event is missing. [PR #85](https://github.com/progentic/Warband/pull/85)
+
 ## 0.0.46 - 2026-11-22
 
 ### Added

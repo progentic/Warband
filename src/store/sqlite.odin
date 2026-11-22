@@ -15,6 +15,8 @@ foreign sqlite {
 	sqlite3_open_v2 :: proc(path: cstring, db: ^Database, flags: i32, vfs: cstring) -> i32 ---
 	sqlite3_db_readonly :: proc(db: Database, name: cstring) -> i32 ---
 	sqlite3_exec :: proc(db: Database, sql: cstring, callback: #type proc "c" (rawptr, i32, [^]cstring, [^]cstring) -> i32, arg: rawptr, error: ^cstring) -> i32 ---
+	sqlite3_extended_errcode :: proc(db: Database) -> i32 ---
+	sqlite3_commit_hook :: proc(db: Database, callback: #type proc "c" (rawptr) -> i32, arg: rawptr) -> rawptr ---
 	sqlite3_wal_hook :: proc(db: Database, callback: #type proc "c" (rawptr, Database, cstring, i32) -> i32, arg: rawptr) -> rawptr ---
 	sqlite3_close :: proc(db: Database) -> i32 ---
 	sqlite3_prepare_v2 :: proc(db: Database, sql: cstring, length: i32, stmt: ^Statement, tail: ^cstring) -> i32 ---
