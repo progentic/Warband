@@ -24,12 +24,12 @@ def LE(value):
 ENROLL = bytes.fromhex(json.loads(VECTORS.read_text())["enrollment_payload_hex"])
 
 
-def event_and_pledge(previous, frame, recorded_time=456):
-    body = (b'WBEV' + struct.pack('<HH', 1, 8) + STORE + struct.pack('<QQQHHI', 1, 1, recorded_time, 5, 1, 36)
+def event_and_pledge(previous, frame, recorded_time=456, sequence=1):
+    body = (b'WBEV' + struct.pack('<HH', 1, 8) + STORE + struct.pack('<QQQHHI', 1, sequence, recorded_time, 5, 1, 36)
             + bytes.fromhex('070d0000') + sha(frame))
     digest = sha(b'warband.event.v1\0' + body)
-    head = sha(b'warband.link.v1\0' + STORE + LE(1) + LE(1) + previous + digest)
-    pledge = STORE + LE(1) + LE(0) + previous + LE(1) + head + digest
+    head = sha(b'warband.link.v1\0' + STORE + LE(1) + LE(sequence) + previous + digest)
+    pledge = STORE + LE(1) + LE(sequence-1) + previous + LE(sequence) + head + digest
     return body + previous, pledge
 
 
@@ -76,7 +76,7 @@ class Fixture:
 
 
 @contextlib.contextmanager
-def fixture(*, measure=False, proof_variant=None, fresh=False):
+def fixture(*, measure=False, proof_variant=None, fresh=False, seed_files=None):
     existing = {p.pw_uid for p in pwd.getpwall()}
     users = [u for u in range(50000,60000) if u not in existing][:3]
     with tempfile.TemporaryDirectory(prefix='warband-import-',dir='/var/lib') as tmp:
@@ -100,8 +100,17 @@ def fixture(*, measure=False, proof_variant=None, fresh=False):
         first_service = root/'custodian'
         if proof_variant is not None:
             first_service = shutil.copy2(OUT/'custodian'/proof_variant/'custodian', root/'proof-custodian')
+        if seed_files is not None:
+            os.chown(root/'journal', f.runtime, f.runtime)
+            (root/'journal').chmod(0o700)
+            for name,data in seed_files.items():
+                path = root/name
+                path.write_bytes(data)
+                owner = f.runtime if path.parent==root/'journal' else f.custodian
+                os.chown(path,owner,owner)
+                path.chmod(0o600)
         with service(root,first_service,*users,stderr_path=log) as f.custodian_pid:
-            if fresh:
+            if fresh or seed_files is not None:
                 yield f, None, None
                 return
             receipt = None if measure else denied(f.call(4,ENROLL,denied_admin=True))
@@ -958,6 +967,146 @@ def admin_kill(edge):
         emit(case='admin_kill',edge=edge,caller=caller,custodian_pid=f.custodian_pid,reply_bytes=0,retained_length=length,epoch=f.epoch,tip=tip if edge==4 else tip+1)
 
 
+def sqlite_fault_command(f, mode):
+    exe = f.root/'importer'
+    if mode:
+        exe = f.root/f'sqlite-proof-{mode}'
+        if not exe.exists():
+            shutil.copy2(OUT/f'reconcile/reconcile-sqlite-{mode}',exe)
+    args = [exe,f.db,f.root/'endpoints/runtime.sock',str(f.custodian),STORE.hex(),'1','0','-']
+    return subprocess.run(args,user=f.runtime,group=f.runtime,extra_groups=[],capture_output=True,text=True,timeout=65)
+
+
+def hold_reader(f):
+    db = sqlite3.connect(f.db)
+    db.execute('BEGIN')
+    db.execute('SELECT count(*) FROM events').fetchone()
+    for ext in ('-wal','-shm'):
+        path = Path(str(f.db)+ext)
+        if path.exists():
+            os.chown(path,f.runtime,f.runtime)
+    return db
+
+
+def calibrate_sqlite_full():
+    # Discover actual per-statement growth with the project SQLite writer and live custody.
+    selected = {}
+    with fixture() as (f, _, _):
+        assert f.query('PRAGMA journal_mode=WAL') == [('wal',)]
+        with contextlib.closing(hold_reader(f)):
+            for seq in range(1, 81):
+                if seq > 1:
+                    denied(f.call(4,ENROLL,denied_admin=True))
+                before = f.query('PRAGMA page_count')[0][0]
+                sample = {str(p.relative_to(f.root)):p.read_bytes() for sub in ('data','journal')
+                          for p in (f.root/sub).iterdir()}
+                p = sqlite_fault_command(f,1)
+                assert (p.returncode,p.stdout.strip())==(0,'Ready'),(seq,p.stdout,p.stderr)
+                pages = {parts[1]:int(parts[2]) for line in p.stderr.splitlines()
+                         if (parts:=line.split())[0]=='pages'}
+                case = ('event' if pages['event']>before else
+                        'binding' if pages['binding']>pages['event'] else None)
+                if case and case not in selected:
+                    selected[case] = sample
+                    emit(calibrated=case,prior_events=seq-1,page_count=before,pages=pages)
+                if len(selected)==2:
+                    return selected
+    raise AssertionError(('calibration did not reach both splits within budget',list(selected)))
+
+
+def sqlite_fault_case(case, sample):
+    mode = {'event':2,'binding':2,'veto':3,'control':0}[case]
+    with fixture(seed_files=sample) as (f, _, _):
+        # The control and late failure restore identical files in separate fixtures.
+        for name,data in sample.items():
+            assert (f.root/name).read_bytes()==data
+        custody = f.verify()
+        with contextlib.closing(hold_reader(f)) as reader:
+            prior = [sorted(reader.execute('SELECT * FROM '+t)) for t in ('events','denial_imports','import_watermarks')]
+            n = len(prior[0])
+            mark = int.from_bytes(prior[2][0][1],'little')
+            receipt = f.verify(mark)[5]
+            assert receipt and int.from_bytes(receipt[11:19],'little')>mark
+            old_cp = custody[2]
+            assert old_cp[:32]==STORE+LE(1)+LE(n) and not custody[3]
+            walpath = Path(str(f.db)+'-wal')
+            baseline = inspect_wal(walpath)
+            wal_bytes = walpath.read_bytes()
+            profile = {k:reader.execute('PRAGMA '+k).fetchone()[0] for k in ('page_count','page_size','freelist_count')}
+            p = sqlite_fault_command(f,mode)
+            parent = OUT/'sqlite-errors'
+            parent.mkdir(exist_ok=True)
+            bundle = Path(tempfile.mkdtemp(dir=parent,prefix=case+'-'))
+            hashes,owners,sidecars = capture_files(f,bundle)
+        wal = inspect_wal(bundle/'journal/active.db-wal')
+        with tempfile.TemporaryDirectory(dir=f.root) as tmp:
+            copy = shutil.copytree(bundle/'journal',Path(tmp)/'journal')/'active.db'
+            with contextlib.closing(sqlite3.connect(copy)) as db:
+                db.execute('BEGIN')
+                rows = [sorted(db.execute('SELECT * FROM '+t)) for t in ('events','denial_imports','import_watermarks')]
+        tip = custody[4]
+        verified = f.verify()
+        ref = STORE, LE(1), LE(n+1)
+        pledge = verified[3]
+        captured = (bundle/'data/history').read_bytes()
+        published = (bundle/'data/head').read_bytes()
+        original = sample['data/history']
+        observed = 'IntegrityFault'
+        if rows == prior and len(pledge)==136:
+            pending = admin_frame(1,pledge,tip+1,original[-32:])
+            if (pledge[:72]==old_cp+ref[2] and pledge[72:104]==sha(b'warband.link.v1\0'+b''.join(ref)+old_cp[32:]+pledge[104:])
+                    and verified[2]==old_cp and verified[4]==tip+1 and captured==original+pending
+                    and published==sample['data/head']):
+                observed = 'PendingEventMissing'
+        elif len(rows[0])==n+1:
+            tail = [r for r in rows[0] if r[:3]==ref]
+            if len(tail)==1 and len(tail[0][3])==124:
+                event,pledge = event_and_pledge(old_cp[32:],receipt,struct.unpack_from('<Q',tail[0][3],40)[0],n+1)
+                ordinal = receipt[11:19]
+                pending = admin_frame(1,pledge,tip+1,original[-32:])
+                committed = admin_frame(2,pledge,tip+2,pending[-32:])
+                if (rows==[sorted(prior[0]+[(*ref,event)]),sorted(prior[1]+[(STORE,ordinal,receipt[-32:],*ref[1:])]),[(STORE,ordinal)]]
+                        and captured==original+pending+committed and verified[2:5]==(b''.join(ref)+pledge[72:104],b'',tip+2)):
+                    observed = 'Ready'
+        witness = p.stderr.splitlines()
+        meta = dict(case=case,observed=observed,profile=profile,baseline_wal=baseline,wal=wal,prior_events=n,
+                    steps=witness,caller=p.stdout.strip(),sidecars=sidecars,file_uid_gid_mode=owners,
+                    seed_hashes={k:sha(v).hex() for k,v in sample.items()},host=os.uname().nodename,kernel=os.uname().release,
+                    source=subprocess.check_output(['git','-c',f'safe.directory={Path.cwd()}','rev-parse','HEAD'],text=True).strip())
+        inventory = seal_capture(bundle,hashes,meta)
+        emit(sqlite_error_capture=case,bundle=str(bundle),inventory_sha256=inventory,observed=observed,steps=witness)
+        assert observed==('Ready' if case=='control' else 'PendingEventMissing'),(case,observed,bundle)
+        assert (p.returncode,p.stdout.splitlines())==((0,['Ready']) if case=='control' else (1,['AttestationUncertain']))
+        labels = ['event','binding','watermark','commit']
+        if mode==2:
+            assert witness.pop(0)==f"cap {profile['page_count']}"
+            labels = labels[:labels.index(case)+1]
+        elif mode==3:
+            assert witness.pop(-2)=='commit_veto'
+        if mode:
+            steps = [l.split() for l in witness]
+            assert [(l[0],l[1]) for l in steps]==[('step',k) for k in labels]
+            assert all(int(l[2])==101 for l in steps[:-1])
+            assert list(map(int,steps[-1][2:]))==([13,13] if mode==2 else [19,531])
+        # The baseline reader kept earlier WAL commits live during this attempt.
+        assert (bundle/'journal/active.db-wal').read_bytes().startswith(wal_bytes)
+        assert baseline['last_commit']>0
+        if mode:
+            assert wal['last_commit']==baseline['last_commit']
+        else:
+            assert wal['last_commit']>baseline['last_commit'] and not witness
+        replay = shutil.copy2(OUT/'reconcile/replay-noop',f.root/'replay')
+        for _ in range(2):
+            assert f.run(observed,allow=not mode)==observed and f.verify()==verified
+            assert [sorted(t) for t in f.rows()]==rows
+            assert (f.root/'data/history').read_bytes()==captured and (f.root/'data/head').read_bytes()==published
+        result = subprocess.run([replay,f.db,f.root/'endpoints/runtime.sock',str(f.custodian),STORE.hex(),'1'],
+                                user=f.runtime,group=f.runtime,extra_groups=[],capture_output=True,text=True,timeout=65)
+        assert (result.returncode,result.stdout.splitlines())==(0,[f'Journal {observed} OutstandingReceipts {int(bool(mode))}'])
+        emit(case='sqlite_error',arm=case,outcome=observed,prior_events=n,profile=profile,
+             baseline_commit=baseline['last_commit'],last_commit=wal['last_commit'],replay=result.stdout.strip())
+
+
 def established_metadata_loss():
     with fixture() as (f, _, _):
         f.run('Ready')
@@ -1067,4 +1216,7 @@ if __name__ == '__main__':
         publication_fault(mode)
         if mode!=1:
             storage_fault_reply(2,mode,publication=True)
+    layouts = calibrate_sqlite_full()
+    for case in ('event','binding','veto','control'):
+        sqlite_fault_case(case, layouts['event' if case=='event' else 'binding'])
     emit(result='pass')

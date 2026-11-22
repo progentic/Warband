@@ -57,10 +57,28 @@ column :: proc(stmt: Statement, index: i32) -> []u8 {
 
 @(private)
 change :: proc(db: Database, sql: cstring, args: ..[]u8) -> bool {
+	return transaction_change(db,false,"",sql,..args)
+}
+
+SQLITE_FAULT :: #config(WARBAND_TEST_SQLITE_FAULT, 0) // 1 calibrate, 2 page cap, 3 veto
+@(private)
+transaction_change :: proc(db: Database, receipt: bool, label: string, sql: cstring, args: ..[]u8) -> bool {
 	stmt, ok := bound(db,sql,..args)
 	if !ok { return false }
-	done := sqlite3_step(stmt) == DONE
-	return sqlite3_finalize(stmt) == 0 && done
+	rc := sqlite3_step(stmt)
+	when SQLITE_FAULT != 0 {
+		if receipt { fmt.eprintln("step",label,rc & 255,sqlite3_extended_errcode(db)) }
+	}
+	final := sqlite3_finalize(stmt)
+	when SQLITE_FAULT == 1 {
+		if receipt && rc == DONE && final == 0 {
+			state := WriterState{db=db}
+			pages, valid := read_scalar(&state,"PRAGMA main.page_count").(i64)
+			if !valid { return false }
+			fmt.eprintln("pages",label,pages)
+		}
+	}
+	return final == 0 && rc == DONE
 }
 
 @(private)
@@ -317,10 +335,27 @@ stop_in_wal_commit :: proc "c" (_: rawptr, _: Database, _: cstring, frames: i32)
 }
 
 @(private)
+veto_receipt_commit :: proc "c" (_: rawptr) -> i32 {
+	context = runtime.default_context()
+	fmt.eprintln("commit_veto")
+	return 1
+}
+
+@(private)
 commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: Maybe(Import), bytes: []u8, acceptance: ^AcceptanceCheck = nil) -> bool {
 	state := cast(^WriterState)w
 	cp := cp
 	db := state.db
+	when SQLITE_FAULT == 2 {
+		if receipt != nil {
+			pages, ok := read_scalar(state,"PRAGMA main.page_count").(i64)
+			if !ok || pages <= 0 { return false }
+			limit := fmt.caprintf("PRAGMA main.max_page_count=%d",pages)
+			defer delete(limit)
+			if read_scalar(state,limit) != pages || read_scalar(state,"PRAGMA main.max_page_count") != pages { return false }
+			fmt.eprintln("cap",pages)
+		}
+	}
 	if !change(db,"BEGIN IMMEDIATE") { return false }
 	committed := false
 	defer if !committed { _ = change(db,"ROLLBACK") }
@@ -332,14 +367,14 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 	}
 	if acceptance != nil && !eligible_in_transaction(w,cp,acceptance^) { return false }
 	epoch, seq := word(u64(cp.epoch)), word(u64(cp.sequence)+1)
-	if !change(db,"INSERT INTO events(store_id,epoch,sequence,canonical_event) VALUES(?,?,?,?)",cp.store[:],epoch[:],seq[:],bytes) { return false }
+	if !transaction_change(db,receipt!=nil,"event","INSERT INTO events(store_id,epoch,sequence,canonical_event) VALUES(?,?,?,?)",cp.store[:],epoch[:],seq[:],bytes) { return false }
 	when #config(WARBAND_TEST_STOP_AFTER_EVENT_INSERT, false) {
 		if proof_transaction(bytes,receipt,acceptance) && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return false }
 	}
 	if entry, present := receipt.(Import); present {
 		ord := word(entry.id.ordinal)
-		if !change(db,"INSERT INTO denial_imports(store_id,custody_ordinal,record_hash,epoch,sequence) VALUES(?,?,?,?,?)",cp.store[:],ord[:],entry.id.hash[:],epoch[:],seq[:]) ||
-		   !change(db,"INSERT INTO import_watermarks(store_id,last_imported_ordinal) VALUES(?,?) ON CONFLICT(store_id) DO UPDATE SET last_imported_ordinal=excluded.last_imported_ordinal",cp.store[:],ord[:]) { return false }
+		if !transaction_change(db,receipt!=nil,"binding","INSERT INTO denial_imports(store_id,custody_ordinal,record_hash,epoch,sequence) VALUES(?,?,?,?,?)",cp.store[:],ord[:],entry.id.hash[:],epoch[:],seq[:]) ||
+		   !transaction_change(db,receipt!=nil,"watermark","INSERT INTO import_watermarks(store_id,last_imported_ordinal) VALUES(?,?) ON CONFLICT(store_id) DO UPDATE SET last_imported_ordinal=excluded.last_imported_ordinal",cp.store[:],ord[:]) { return false }
 	}
 	if acceptance != nil && !insert_accepted(db,acceptance.attempt,acceptance.event) { return false }
 	when #config(WARBAND_TEST_STOP_IN_WAL_COMMIT, false) {
@@ -350,7 +385,10 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 			_ = sqlite3_wal_hook(db,stop_in_wal_commit,nil)
 		}
 	}
-	committed = change(db,"COMMIT")
+	when SQLITE_FAULT == 3 {
+		if receipt != nil { _ = sqlite3_commit_hook(db,veto_receipt_commit,nil) }
+	}
+	committed = transaction_change(db,receipt!=nil,"commit","COMMIT")
 	return committed
 }
 
