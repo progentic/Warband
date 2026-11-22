@@ -12,7 +12,7 @@ It prints `Warband Phase 1 foundation (no execution authority)`. The program can
 
 Run `warband fixture`.
 
-It prints a fixed list of numbers. The fixed output helps check that Warband works the same on different computers. The command does not create or complete a task.
+It prints the same test bytes as a line of hexadecimal text. You can compare the line from two computers to check that they produce the same sample.
 
 ## Fix an unrecognized command
 

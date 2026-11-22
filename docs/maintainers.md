@@ -4,7 +4,7 @@ Use this guide to update, review, and release Warband.
 
 ## Check the scope
 
-Read the applicable `AGENTS.md` guidance. The [entry review](engineering/phase2-entry-review.md#slice-3b-gate-0) records completed pure custody work and the activated Linux custodian scope. Review [target evidence](verification/isolated-linux-custodian.md) against the recorded storage stack and UID and memory boundaries. WB-EXC-001 remains open for controlled local inputs.
+Read the applicable `AGENTS.md` guidance. The [entry review](engineering/phase2-entry-review.md#slice-3b-gate-0) records completed pure custody work and the activated Linux custodian scope. Review [target evidence](verification/isolated-linux-custodian.md) against the recorded storage stack and UID and memory boundaries. WB-EXC-001 — **Open / Stop at expiry**.
 
 Follow the [authority order](governance/README.md#authority-order) when descriptions conflict. Keep design acceptance, implementation permission, and verified behavior separate.
 
@@ -33,7 +33,13 @@ Source and test links open the current main branch. For a release review, check 
 
 - **Store.** Verify that provisioning exclusively creates a new file and leaves an existing database byte-identical on refusal. On every writer open, check that the first query reads `user_version=1` before WAL is set. Require read-back of WAL, FULL synchronization, enabled foreign keys and schema version 1 on that connection. [SQLite store profile](engineering/phase2-entry-review.md#sqlite-store-profile)
 - **Importer.** Trace the OS writer lock from tail reconciliation through custody prepare, atomic SQLite commit, persisted-row read-back and exact confirm. Check that restart examines the tail before trusting the watermark, and that the second restart preserves both SQLite rows and custody tip. [Writer ordering](decisions/0005-event-integrity-acceptance-and-recovery.md#writer-ordering-and-visibility) · [Post-COMMIT proof](decisions/0005-event-integrity-acceptance-and-recovery.md#post-commit-process-kill-proof)
-- **Live capability.** For future dispatch changes, require the issuing execution’s private live grant and fresh Linux elapsed-time checks strictly before expiry at claim confirmation and immediately before dispatch. A fresh runtime must withhold dispatch when presented with a prior grant’s durable evidence alone. The Linux restart proof is pending. [Accepted clock rule](decisions/0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment) · [Required denial test](verification/phase2-verification-plan.md#fresh-runtime-dispatch-denial)
+- **Live capability.** For future dispatch changes, require the issuing execution’s private live grant and fresh Linux elapsed-time checks strictly before expiry at claim confirmation and immediately before dispatch. A fresh runtime must withhold dispatch when presented with a prior grant’s durable evidence alone. Preserve the paired Linux test: the issuing process invokes the primitive once and a fresh process records its refusal against the confirmed claim. [Accepted clock rule](decisions/0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment) · [Linux denial evidence](verification/phase2-verification-plan.md#fresh-runtime-dispatch-denial)
+
+### Reviewing recovery and capacity evidence
+
+- For a crash or storage fault, identify the exact operation, caller result and surviving files. Compare the capture inventory with its logged SHA-256 digest. Check the first authenticated checkpoint after startup before crediting an importer retry with recovery. For complete custody corruption, require refusal and byte preservation; only a validated torn suffix is eligible for trimming. [Crash and storage-error matrix](verification/phase2-crash-coverage.md)
+- For capacity results, check the unit, history size and process that owns the limit. The 100-frame runs were timed; the 10,000-frame receipt result projects debits only. Review exact runtime-session debit tests separately from custodian startup size, arena and deadline tests. [Measurement record](verification/phase2-crash-coverage.md#cold-recovery-feasibility) · [Boundary criteria](verification/phase2-verification-plan.md#cold-recovery-readiness-and-visit-ownership)
+- Before signing off Phase 2, check the operator rehearsal, the remaining SQLite sync-failure evidence and successor qualification against the exit inventory. Record the runner-label disposition and scoped traceability. Phase 3 entry requires the completed exit record and explicit owner approval. [Remaining proofs](verification/phase2-crash-coverage.md#separate-remaining-proofs) · [Accepted execution design](decisions/0009-controlled-local-marker-execution.md)
 
 ## Update the matching records
 
