@@ -140,6 +140,17 @@ At `b740803`, count each frame examined by validation, including a final truncat
 
 The runtime client charges after a successful exchange. At a fixed tip of 10,000, four Verify debits total 80,004; a fifth would require 100,005 and is refused without advancing the counter. This arithmetic establishes a crossing, while exact 100,000 admission and attempted 100,001 refusal require their own witnesses. The measured 100-frame case and 151-frame pilot remain the evidence for the receipt cost model. The [owner amendment](phase2-verification-plan.md#cold-recovery-readiness-and-visit-ownership) assigns the exact debit proof to the runtime session.
 
+## Operator reconciliation rehearsal
+
+The [operator procedure](../engineering/operator-reconciliation.md) uses sealed source bundles and separate x64-review working copies. The custodian authenticates Verify before the runtime reads the disposable SQLite copy. Both inputs below share epoch 1, published sequence 0 and proposed sequence 1, in store `01010101010101010101010101010101`.
+
+| Operator-session input | Observed evidence |
+|---|---|
+| Original point 2 kill, inventory `a9b5cb78ca5b3602b7afe512737273710c715aa8e7c389ad27b3503e658dfa0a` | Tip 3; the complete pending frame bound event digest `c18edefbf89b88baae448e75400e2e948265ec12350c2ea0d0b2cde103467db0`. SQLite had zero events, bindings and watermarks. The importer refused with PendingEventMissing. Replay described the sequence-zero prefix with one outstanding receipt. |
+| Crafted tail, inventory `f12c7eb8dc3400dd89d22a9c66fe2f2f548b775b7230892b0b469dcb5b3a7e2f` | The fixture encoded a kind-8 denial import for a real custody receipt at recorded time 456 and inserted event, binding and watermark directly into SQLite. Custody received no Prepare or Confirm. Tip 2 had no pending pledge. The stored event digest was `4ec1f7228b87287058006843e8dd8f6f39b6028c7b1fdb705b94195e7ddac9cd`. The importer reported UnattestedTail and replay withheld the projection. |
+
+The target inspections ran on 2026-11-22 with harness `d16dab7`. Six inventory entries for the original and four for the crafted capture verified on macOS. The operator decision is pending. The hosted receipt harness separately reproduces inspection and preservation using a new point 2 kill capture and a freshly crafted tail. Automation records diagnostic observations only.
+
 ## Separate remaining proofs
 
 - **Replay evidence for remaining runs.** Apply the [qualified replay command](../decisions/0005-event-integrity-acceptance-and-recovery.md#slice-6-functional-replay-qualification) to each newly retained artifact. The functional proof covers the four live gate fixtures and one independent mixed history. Point 4 now also has replay evidence on its own retained state at all three observations.
