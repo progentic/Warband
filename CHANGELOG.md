@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.51 - 2026-11-22
+
+### Added
+
+- Measured cold recovery on 100-frame custody histories and verified all 33 receipt imports against the confirmed checkpoint. The evidence records actual examinations, runtime visit charges, and recovery time separately. [PR #89](https://github.com/progentic/Warband/pull/89)
+
 ## 0.0.50 - 2026-11-22
 
 ### Added
