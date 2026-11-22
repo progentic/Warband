@@ -1,6 +1,5 @@
 """Environmental ENOSPC on a bounded shared tmpfs; run inside the Linux runtime scope."""
 import contextlib
-import json
 import os
 from pathlib import Path
 import re
@@ -12,7 +11,7 @@ import tempfile
 import time
 
 from observe_volume_io import custody_calls, sqlite_steps
-from test_custody_denial import STORE, denied, emit, limits, sha
+from test_custody_denial import STORE, denied, emit, limits, service, sha
 from test_receipt_import import OUT, ENROLL, LE, admin_frame, capture_files, event_and_pledge, fixture, hold_reader, inspect_wal, seal_capture
 
 
@@ -165,10 +164,13 @@ def run_case(case):
         with recovery:
             view=f.verify()
             assert view[4]==before[4]+{'history':0,'wal':1,'head':2}[case]
+            assert [sorted(t) for t in f.rows()]==actual
+            assert history.read_bytes()==(base if case=='history' else raw)
+            assert (head.read_bytes()==oldhead)==(case!='head')
             if case=='wal':
                 assert view[3]==pledge and f.run(observed,allow=False)==observed and f.verify()==view
                 assert wal_state['last_commit']==baseline_wal['last_commit']
-                if sql: assert any(r[2]=='COMMIT' and int(r[0]) in (10,13) for r in sql),sql
+                if qualified and fault_attached: assert any(r[2]=='COMMIT' and int(r[0]) in (10,13) for r in sql),sql
             else: assert f.run('Ready')=='Ready'
             replay=shutil.copy2(OUT/'reconcile/replay-noop',f.root/'replay')
             p=subprocess.run([replay,*args[1:6]],user=f.runtime,group=f.runtime,extra_groups=[],capture_output=True,text=True)
