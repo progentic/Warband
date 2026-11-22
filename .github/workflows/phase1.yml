@@ -68,6 +68,10 @@ jobs:
         run: |
           sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
             /usr/bin/python3 tests/integration/linux/test_noop_gate.py 2>&1 | tee out/linux_amd64/noop-gate.log
+      - name: Verify production failures on an exhausted disposable volume
+        run: |
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_volume_exhaustion.py 2>&1 | tee out/linux_amd64/volume.log
       - name: Summarize evidence
         if: always()
         run: |
