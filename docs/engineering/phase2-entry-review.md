@@ -69,6 +69,9 @@ Slice 4 implementation closed at `004d29c` on 2026-11-20. The post-COMMIT recove
 
 Slice 5 covers the no-op authority path and competing-acceptor rejection. Slice 6 covers deterministic replay, remaining fault evidence, operator reconciliation rehearsal and Phase 2 exit traceability.
 
+Slice 6 functional replay qualifies read-only recovery inspection and the pure task/control reducer. Four single-task histories have same-snapshot live comparisons. A separate four-task history has an independent projection oracle. The fault walk, capacity boundaries, operator rehearsal and exit inventory remain open. [Qualification and evidence](../decisions/0005-event-integrity-acceptance-and-recovery.md#slice-6-functional-replay-qualification).
+
+
 ## Slice 5 supplied-clock entry
 
 Proto approved six files and 180 added lines for the [pure timing decisions](../decisions/0008-phase2-resource-limits.md#slice-5-supplied-clock-decisions). The portable package takes supplied ticks and performs no I/O. Proto accepted the [Linux live capability clock and incarnation rule](../decisions/0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment) on 2026-11-21. The bounded live gate and its proof have a separate entry below.

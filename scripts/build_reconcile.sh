@@ -26,3 +26,8 @@ accept=(odin build cmd/accept-noop -target:linux_amd64 -vet -warnings-as-errors
         "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out")
 "${accept[@]}" "-out:$out/accept-noop"
 "${accept[@]}" -define:WARBAND_TEST_ACCEPT_BARRIER=true "-out:$out/accept-noop-proof"
+
+replay=(odin build cmd/replay-noop -target:linux_amd64 -vet -warnings-as-errors
+        "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out")
+"${replay[@]}" "-out:$out/replay-noop"
+"${replay[@]}" -define:WARBAND_REPLAY_LIVE_COMPARE=true "-out:$out/replay-noop-proof"

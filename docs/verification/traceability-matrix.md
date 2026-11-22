@@ -15,9 +15,11 @@ This matrix links constitutional rules to contracts, planned implementation, ver
 | WB-CON-005 | `docs/contracts/model-proposals.md` | `src/capability/` | `tests/negative/capability_escalation_test.odin` | AI access is narrow and temporary. | planned |
 | WB-CON-006 | `docs/contracts/authoritative-state.md` | `src/state/transition.odin` | `tests/invariants/evidence_backed_transition_test.odin` | State changes require recorded proof. | planned |
 | WB-CON-007 | `docs/contracts/event-integrity.md` | `src/audit/` | `tests/invariants/audit_completeness_test.odin` | Important actions appear in activity history. | planned |
-| WB-CON-008 | `docs/contracts/authoritative-state.md` | `src/state/replay.odin` | `tests/negative/duplicate_execution_test.odin` | Commands do not change state twice. | planned |
+| WB-CON-008 | `docs/contracts/authoritative-state.md` | `src/replay/` | `tests/negative/duplicate_execution_test.odin` | Commands do not change state twice. | planned |
 | WB-CON-009 | `docs/contracts/authoritative-state.md` | `src/recovery/` | `tests/negative/missing_recovery_policy_test.odin` | Unsafe actions stop before execution. | planned |
 | WB-CON-010 | `docs/contracts/model-proposals.md` | `src/model/provider.odin` | `tests/integration/provider_independence_test.odin` | Safety does not depend on one AI provider. | planned |
+
+Functional replay supplies scoped evidence for WB-CON-001/006/007/008, WB-INV-006/008/009 and WB-NEG-005/006/009/012. Confirmed no-op histories reproduce the independent projections, and all five tamper cases withhold the projection. Matrix-wide recovery and exit evidence remain pending. [Replay qualification](../decisions/0005-event-integrity-acceptance-and-recovery.md#slice-6-functional-replay-qualification).
 
 [Isolated custodian evidence](isolated-linux-custodian.md) exercises the custody portion of WB-CON-007/008/009 through kernel identity checks, receipt persistence, exact replay and startup reconciliation. Exactly-once event-store import and cross-store recovery remain open.
 

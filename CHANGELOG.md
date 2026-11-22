@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.35 - 2026-11-21
+
+### Added
+
+- Added `replay-noop` to reconstruct task and control state from custody-confirmed events. Replay withholds the whole projection when the event chain or its references fail validation.
+
 ## 0.0.34 - 2026-11-21
 
 ### Added
