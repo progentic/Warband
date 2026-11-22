@@ -154,10 +154,10 @@ def restart(state):
             assert after == custody
 
 
-def kill_importer(f, stop):
+def kill_importer(f, stop, diagnostics=None):
     binary = shutil.copy2(OUT/'reconcile'/f'reconcile-custody-stop-{stop}', f.root/'fault-importer')
     args = [binary, f.db, f.root/'endpoints/runtime.sock', str(f.custodian), STORE.hex(), '1', '0', '-']
-    with subprocess.Popen(args, user=f.runtime, group=f.runtime, extra_groups=[], stdout=subprocess.PIPE) as child:
+    with subprocess.Popen(args, user=f.runtime, group=f.runtime, extra_groups=[], stdout=subprocess.PIPE, stderr=diagnostics) as child:
         try:
             deadline = time.monotonic() + 65
             while time.monotonic() < deadline:
@@ -368,7 +368,64 @@ def prepare_kill(prefix_length):
              retained_prefix_digest=sha(old_history).hex(), tip=2, replay=journal)
 
 
-def durable_prepare_kill():
+def inspect_wal(path):
+    raw = path.read_bytes() if path.exists() else b''
+    info = dict(present=path.exists(), size=len(raw), page_size=0, valid_frames=0, last_commit=0)
+    if not raw:
+        return info
+    magic, version, page_size = struct.unpack_from('>III', raw)
+    assert magic in (0x377f0682, 0x377f0683) and version == 3007000
+    assert 512 <= page_size <= 65536 and page_size & (page_size-1) == 0
+    order = '<II' if magic == 0x377f0682 else '>II'
+
+    def checksum(data, a=0, b=0):
+        for x, y in struct.iter_unpack(order, data):
+            a = (a+x+b) & 0xffffffff
+            b = (b+y+a) & 0xffffffff
+        return a, b
+
+    sums = checksum(raw[:24])
+    assert sums == struct.unpack_from('>II', raw, 24)
+    info.update(page_size=page_size, salts=raw[16:24].hex())
+    stride = 24+page_size
+    for start in range(32, len(raw)-stride+1, stride):
+        h = raw[start:start+24]
+        page, commit_size = struct.unpack_from('>II', h)
+        sums = checksum(h[:8]+raw[start+24:start+stride], *sums)
+        if not page or h[8:16] != raw[16:24] or sums != struct.unpack_from('>II', h, 16):
+            break
+        info['valid_frames'] += 1
+        if commit_size:
+            info['last_commit'] = info['valid_frames']
+    info['unvalidated_trailing_bytes'] = len(raw)-32-info['valid_frames']*stride
+    return info
+
+
+def transaction_result(f, bundle, genesis, receipt, verified, pledge_valid):
+    # Open all sidecars together on a disposable copy. Keep the capture pristine.
+    with tempfile.TemporaryDirectory(dir=f.root) as tmp:
+        journal = shutil.copytree(bundle/'journal', Path(tmp)/'journal')
+        with contextlib.closing(sqlite3.connect(journal/'active.db')) as db:
+            db.execute('BEGIN')
+            rows = [list(db.execute('SELECT * FROM '+table)) for table in
+                    ('events', 'denial_imports', 'import_watermarks')]
+    if not pledge_valid:
+        return 'IntegrityFault', rows
+    if rows == [[], [], []]:
+        return 'PendingEventMissing', rows
+    if [len(r) for r in rows] == [1, 1, 1]:
+        wire = rows[0][0][3]
+        if isinstance(wire, bytes) and len(wire) == 124:
+            event, pledge = event_and_pledge(genesis, receipt, struct.unpack_from('<Q', wire, 40)[0])
+            ref = STORE, LE(1), LE(1)
+            ordinal = receipt[11:19]
+            exact = [[(*ref, event)], [(STORE, ordinal, receipt[-32:], *ref[1:])], [(STORE, ordinal)]]
+            if rows == exact and verified[3] == pledge:
+                return 'PendingConfirmation', rows
+    return 'IntegrityFault', rows
+
+
+def receipt_transaction_kill(stop):
     with fixture() as (f, genesis, receipt):
         assert f.query('PRAGMA journal_mode=WAL') == [('wal',)]
         baseline = f.verify()
@@ -377,10 +434,14 @@ def durable_prepare_kill():
         old_history, old_head = history.read_bytes(), head.read_bytes()
         source = subprocess.check_output(['git', '-c', f'safe.directory={Path.cwd()}', 'rev-parse', 'HEAD'],
                                          text=True).strip()
-        parent = OUT/'point2-rehearsal'
+        point2 = stop == 'after-prepare'
+        parent = OUT/('point2-rehearsal' if point2 else 'point3-transactions')
         parent.mkdir(exist_ok=True)
         bundle = Path(tempfile.mkdtemp(dir=parent, prefix='capture-'))
-        pid, status = kill_importer(f, 'after-prepare')
+        baseline_wal = inspect_wal(Path(str(f.db)+'-wal'))
+        diagnostics = f.root/'importer-stderr'
+        with diagnostics.open('wb') as stream:
+            pid, status = kill_importer(f, stop, stream)
 
         # No SQLite connection or recovery probe between reap and this quiescent copy.
         files = ['data/history', 'data/head', 'journal/active.db']
@@ -402,46 +463,75 @@ def durable_prepare_kill():
 
         retained = (bundle/'data/history').read_bytes()
         pending = retained[len(old_history):]
-        assert retained.startswith(old_history) and len(pending) == 251
         header = b'WBCH' + struct.pack('<HBIQ', 1, 1, 136, 3) + old_history[-32:]
-        assert pending[:83] == header + sha(b'warband.custody.header.v1\0' + header)
-        assert pending[-32:] == sha(b'warband.custody.record.v1\0' + pending[:-32])
         pledge = pending[83:-32]
         ref = STORE + LE(1) + LE(1)
-        assert pledge[:72] == STORE + LE(1) + LE(0) + genesis + LE(1)
-        assert pledge[72:104] == sha(b'warband.link.v1\0' + ref + genesis + pledge[104:])
-        assert (bundle/'data/head').read_bytes() == old_head and baseline[2] == STORE + LE(1) + LE(0) + genesis
         verified = f.verify()
-        assert verified[2:] == (baseline[2], pledge, 3, receipt)
-
-        def check_halt_state():
-            assert f.rows() == [[], [], []] and f.verify() == verified
-            assert history.read_bytes() == retained and head.read_bytes() == old_head
-
-        check_halt_state()
-        for _ in range(2):
-            assert f.run('PendingEventMissing', allow=False) == 'PendingEventMissing'
-            check_halt_state()
-        replay = shutil.copy2(OUT/'reconcile/replay-noop', f.root/'replay-noop')
-        result = subprocess.run([replay, f.db, f.root/'endpoints/runtime.sock', str(f.custodian), STORE.hex(), '1'],
-                                user=f.runtime, group=f.runtime, extra_groups=[], capture_output=True, text=True, timeout=65)
-        assert (result.returncode, result.stdout.splitlines()) == (0, ['Journal PendingEventMissing OutstandingReceipts 1'])
-        check_halt_state()
+        pledge_valid = (retained.startswith(old_history) and len(pending) == 251
+                        and pending[:83] == header + sha(b'warband.custody.header.v1\0' + header)
+                        and pending[-32:] == sha(b'warband.custody.record.v1\0' + pending[:-32])
+                        and pledge[:72] == STORE + LE(1) + LE(0) + genesis + LE(1)
+                        and pledge[72:104] == sha(b'warband.link.v1\0' + ref + genesis + pledge[104:])
+                        and (bundle/'data/head').read_bytes() == old_head
+                        and baseline[2] == STORE + LE(1) + LE(0) + genesis
+                        and verified[2:] == (baseline[2], pledge, 3, receipt))
+        wal = inspect_wal(bundle/'journal/active.db-wal')
+        outcome, rows = transaction_result(f, bundle, genesis, receipt, verified, pledge_valid)
+        witness = dict(line.split() for line in diagnostics.read_text().splitlines())
+        counts = [len(table) for table in rows]
+        emit(case='captured_transaction', stop=stop, observed=outcome, rows=counts, wal=wal)
 
         meta = dict(source=source, host=os.uname().nodename, kernel=os.uname().release, arch=os.uname().machine,
                     pending_ref=ref.hex(), tip=3, pending_record_hash=pending[-32:].hex(),
                     receipt_ordinal=int.from_bytes(receipt[11:19], 'little'), receipt_hash=receipt[-32:].hex(),
                     sidecars=sidecars, file_uid_gid_mode=ownership, runtime_uid=f.runtime,
-                    operator_uid=f.operator, custodian_uid=f.custodian)
+                    operator_uid=f.operator, custodian_uid=f.custodian, stop=stop, observed=outcome,
+                    baseline_wal=baseline_wal, wal=wal, rows=counts, hook=witness,
+                    sizes={name:(bundle/name).stat().st_size for name in files})
         manifest = bundle/'capture.json'
         manifest.write_text(json.dumps(meta, sort_keys=True, indent=2)+'\n')
         hashes[manifest.name] = sha(manifest.read_bytes()).hex()
         sums = bundle/'SHA256SUMS'
         sums.write_text(''.join(f'{digest}  {name}\n' for name, digest in sorted(hashes.items())))
         bundle.chmod(0o755)  # Hosted artifact collection runs as the unprivileged runner.
-        emit(case='durable_prepare_kill', importer_pid=pid, reaped=status, stdout_bytes=0, tip=3,
-             restarts=['PendingEventMissing']*2, replay=result.stdout.strip(), bundle=str(bundle),
-             inventory_sha256=sha(sums.read_bytes()).hex())
+        inventory = sha(sums.read_bytes()).hex()
+        emit(capture=str(bundle), stop=stop, inventory_sha256=inventory)
+        expected = 'PendingConfirmation' if stop == 'wal-commit' else 'PendingEventMissing'
+        assert outcome == expected, (outcome, expected, bundle)
+        if stop == 'wal-commit':
+            assert 0 < wal['last_commit'] == wal['valid_frames'] == int(witness['wal_frames']) < int(witness['wal_threshold'])
+            assert baseline_wal['valid_frames'] == 0 and wal['unvalidated_trailing_bytes'] == 0
+        else:
+            assert not witness and wal['last_commit'] == baseline_wal['last_commit'] == 0
+        replay = shutil.copy2(OUT/'reconcile/replay-noop', f.root/'replay-noop')
+        def check_replay(readiness, outstanding):
+            result = subprocess.run([replay, f.db, f.root/'endpoints/runtime.sock', str(f.custodian), STORE.hex(), '1'],
+                                    user=f.runtime, group=f.runtime, extra_groups=[], capture_output=True, text=True, timeout=65)
+            assert (result.returncode, result.stdout.splitlines()) == (0, [f'Journal {readiness} OutstandingReceipts {outstanding}'])
+            return result.stdout.strip()
+
+        replay_before = check_replay(outcome, 1)
+        assert f.rows() == rows and f.verify() == verified
+        restarts = []
+        if outcome == 'PendingEventMissing':
+            for _ in range(2):
+                restarts.append(f.run(outcome, allow=False))
+                assert restarts[-1] == outcome and f.verify() == verified and f.rows() == rows
+                assert history.read_bytes() == retained and head.read_bytes() == old_head
+            replay_after = check_replay(outcome, 1)
+            assert f.verify() == verified and f.rows() == rows and history.read_bytes() == retained and head.read_bytes() == old_head
+        else:
+            restarts.append(f.run(outcome))
+            confirmed = f.verify()
+            assert confirmed[2:5] == (ref+pledge[72:104], b'', 4) and f.rows() == rows
+            committed_history, committed_head = history.read_bytes(), head.read_bytes()
+            restarts.append(f.run('Ready'))
+            replay_after = check_replay('Ready', 0)
+            assert f.verify() == confirmed and f.rows() == rows
+            assert history.read_bytes() == committed_history and head.read_bytes() == committed_head
+        emit(case='durable_prepare_kill' if point2 else 'sqlite_commit_kill', stop=stop, importer_pid=pid,
+             reaped=status, stdout_bytes=0, tip=3, restarts=restarts, replay=replay_before, replay_after=replay_after,
+             bundle=str(bundle), inventory_sha256=inventory)
 
 
 def existing_event_prefix():
@@ -520,7 +610,8 @@ if __name__ == '__main__':
         publication_kill(edge)
     for prefix_length in (None, 0, 83):
         prepare_kill(prefix_length)
-    durable_prepare_kill()
+    for stop in ('after-prepare', 'event-insert', 'wal-commit'):
+        receipt_transaction_kill(stop)
     existing_event_prefix()
     retained_segments()
     emit(result='pass')

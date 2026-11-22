@@ -17,6 +17,9 @@ build=(odin build cmd/reconcile-custody -target:linux_amd64 -vet -warnings-as-er
 "${build[@]}" -define:WARBAND_TEST_STOP_BEFORE_ACK=true "-out:$out/reconcile-custody-stop-before-ack"
 "${build[@]}" -define:WARBAND_TEST_STOP_BEFORE_PREPARE=true "-out:$out/reconcile-custody-stop-before-prepare"
 "${build[@]}" -define:WARBAND_TEST_STOP_AFTER_PREPARE=true "-out:$out/reconcile-custody-stop-after-prepare"
+"${build[@]}" -define:WARBAND_TEST_STOP_AFTER_EVENT_INSERT=true "-out:$out/reconcile-custody-stop-event-insert"
+"${build[@]}" -define:WARBAND_TEST_STOP_IN_WAL_COMMIT=true "-out:$out/reconcile-custody-stop-wal-commit"
+sha256sum "$out/reconcile-custody-stop-event-insert" "$out/reconcile-custody-stop-wal-commit"
 sha256sum "$out/reconcile-custody-stop-before-prepare" "$out/reconcile-custody-stop-after-prepare"
 sha256sum "$out/reconcile-custody" "$out/reconcile-custody-stop-after-commit" "$out/reconcile-custody-stop-before-ack"
 
