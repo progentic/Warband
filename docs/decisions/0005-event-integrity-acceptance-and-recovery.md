@@ -483,6 +483,22 @@ Replay validates schema, ordering, hashes, trusted head, identifier uniqueness a
 
 Replay performs no model call, tool execution, capability reissue, retry, compensation, live clock lookup, or reinterpretation under today's policy. Recorded identities, versions, policy/evaluator decisions and criteria form the historical input. A schema migration needs a reviewed explicit procedure; unsupported history blocks trust instead of being silently skipped.
 
+### Slice 6 functional replay qualification
+
+The Linux read boundary may hold the writer gate, authenticate the custodian for verify, and open a read-only SQLite snapshot. Collect canonical event bytes and their full row keys. Validate the entire checkpoint-covered chain before applying the recorded version-1 semantics. Readiness is a separate result from the confirmed task/control projection. Integrity or semantic failure withholds the whole projection. Replay has no authority to prepare, confirm, repair, reissue a grant or dispatch.
+
+The reducer in `src/replay` depends on canonical codecs, hash functions, event values and the supplied-value state rules. The Linux command owns the lock, elapsed deadline, authenticated verify calls and database reads. It supplies custody's committed Ref/head, pending pledge, denial frame digests and keyed canonical bytes. Replay checks segment links back from the authenticated checkpoint. The recovery classifier determines journal readiness. Only confirmed records enter semantic reduction. An exact pending SQLite tail can therefore report PendingConfirmation while projecting only the preceding checkpoint.
+
+The x64-review gate harness compares the normal replay command and two proof invocations against separately specified expected rows. In four single-task histories the proof binary also runs the existing live reader against the same SQLite snapshot and checkpoint. It compares task and run identity, task/control versions, completion, authorization decision, consumption, revocation, attempt identity, observation, verdict and terminal disposition. The runs cover normal acceptance and the confirmed histories recovered after stopping the issuer at claim, return and observation.
+
+The separate mixed fixture extends the accepted history using real prepare, SQLite commit and confirm for every additional event. At custody tip 46, the expected task/control versions by creation identity are 2/3 (accepted), 1/0 (policy rejected), 1/2 (revoked before claim) and 1/3 (indeterminate with a consumed claim, rejected evaluation and terminal reason 10). Every replay must preserve SQLite rows and the authenticated custody snapshot. Only the single-task cases claim agreement with the live reader.
+
+With the custody head held fixed, altering a byte, truncating the suffix, swapping two events and substituting a correctly encoded alternative disposition each yield IntegrityFault. For the fifth case the harness obtains custody confirmation for an observation that cites a revocation as its claim. Its independently recomputed chain matches the new checkpoint at tip 48. Semantic resolution yields InvalidReference. All five failures return zero projection rows.
+
+Reproduce on the recorded x64-review target with the existing Linux integration job setup. Build with `scripts/build_reconcile.sh` and run `tests/integration/linux/test_noop_gate.py` in the 256 MiB runtime scope. Its `live_comparison`, `oracle`, `replay` and `tip` fields report each comparison. The separate receipt-import regression passed, including the post-COMMIT kill. The local combined build/harness log has SHA-256 `00002bc5caca8ddaafa27d5f6621d325c0372c778254d4374a96a4df5c01ef53`. The first development build needed Odin declaration fixes and the first harness run exposed a Python fixture-name collision. The reported runs used the corrected sources.
+
+Two portable tests passed on macOS ARM64 and x64-review. They distinguish a confirmed TaskCreated from the same bytes in an unconfirmed tail, withhold a truncated prefix, and check the archived task against the published epoch handoff, including a substituted checkpoint. The larger recovery workloads, fault injections and operator rehearsal have separate acceptance criteria in the crash matrix.
+
 ## Proposed verification matrix
 
 These are required future proofs, not passing Phase 1 tests.

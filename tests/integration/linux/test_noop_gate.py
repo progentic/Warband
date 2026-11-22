@@ -195,6 +195,94 @@ def acceptance_case(f, genesis, kill_at):
         emit(refused='RejectedEvaluation' if kill_at=='return' else 'Revoked',tip=custody[4],pending=False)
 
 
+def expected_task(task, run, versions, complete, auth, consumed, revoked, attempt, obs, verdict, disposition=0, reason=0):
+    bit = lambda value: str(bool(value)).lower()
+    return ' '.join(map(str,[STORE.hex(),1,task.hex(),run.hex(),*versions,bit(complete),auth,
+                             bit(consumed),bit(revoked),attempt.hex(),obs,verdict,disposition,reason]))
+
+
+def replay_fixture(f, expected_rows, *, live=False, failure=None):
+    before = f.rows(),f.verify()
+    for name in ('replay-noop','replay-noop-proof','replay-noop-proof'):
+        binary = f.root/name
+        if not binary.exists():
+            shutil.copy2(OUT/'reconcile'/name,binary)
+        args = [binary,f.db,f.root/'endpoints/runtime.sock',str(f.custodian),STORE.hex(),'1']
+        p = subprocess.run(args,user=f.runtime,group=f.runtime,extra_groups=[],capture_output=True,text=True,timeout=65)
+        lines = p.stdout.splitlines()
+        if failure:
+            assert p.returncode==1 and lines==['Failure '+failure+' IntegrityFault'],(lines,p.stderr)
+        else:
+            assert p.returncode==0 and lines[0]=='Journal Ready OutstandingReceipts 0',(lines,p.stderr)
+            assert [v[5:] for v in lines if v.startswith('Task ')]==expected_rows,lines
+            assert [v[5:] for v in lines if v.startswith('Live ')]==(expected_rows if live and name.endswith('-proof') else []),lines
+        assert (f.rows(),f.verify())==before
+    emit(replay=failure or 'Ready',oracle=expected_rows,live_comparison=live,tip=before[1][4])
+
+
+def mixed_replay(f, genesis, accepted):
+    chain = confirmed_events(f,genesis)
+    def record(kind, producer, payload):
+        seq = len(chain)+1
+        ref = STORE+LE(1)+LE(seq)
+        body = b'WBEV'+struct.pack('<HH',1,kind)+ref+struct.pack('<QHHI',0,producer,1,len(payload))+payload
+        prev = linked_head(chain[-1])
+        wire = body+prev
+        pledge = STORE+LE(1)+LE(seq-1)+prev+LE(seq)+linked_head(wire)+sha(b'warband.event.v1\0'+body)
+        assert f.call(1,pledge)[0]==0
+        f.query('INSERT INTO events VALUES(?,?,?,?)',(STORE,LE(1),LE(seq),wire))
+        assert f.call(2,pledge)[0]==0
+        chain.append(wire)
+        return ref
+
+    names = [bytes([i])*16 for i in range(16,48)]
+    tasks = [(names[i],names[i+1]) for i in (0,10,20)]
+    for i,(task,run) in enumerate(tasks):
+        ids = task+run+names[10*i+2]
+        record(1,1,ids+sha(b'warband.task.v1\0'+ids)+names[10*i+3])
+    oracle = [accepted]
+    for i,(task,run) in enumerate(tasks):
+        group = names[10*i:]
+        prop = task+run+group[4]+LE(1)+LE(1)+struct.pack('<HB I HBB',1,0,0,1,1,0)
+        prop_ref = record(2,1,prop)
+        permit = i!=0
+        cap = group[5] if permit else bytes(16)
+        auth = record(3,2,prop_ref+LE(0)+bytes([1 if permit else 2])+cap+LE(int(permit))+bytes([permit])+group[6])
+        if i==0:
+            oracle.append(expected_task(task,run,(1,0),False,2,False,False,bytes(16),0,0))
+        elif i==1:
+            revocation = record(9,2,auth+cap+LE(1)+struct.pack('<H',12))
+            oracle.append(expected_task(task,run,(1,2),False,1,False,True,bytes(16),0,0))
+        else:
+            attempt = group[7]
+            claim = record(4,2,auth+attempt+cap+LE(1)+LE(1)+sha(b'warband.proposal.v1\0'+prop)+LE(0))
+            obs = record(5,3,claim+group[8]+bytes.fromhex('02010000000000'))
+            record(6,4,obs+claim+sha(b'warband.event.v1\0'+chain[-1][:-32])+bytes.fromhex('010002')+group[9])
+            record(10,5,claim+LE(2)+struct.pack('<BH',1,10))
+            oracle.append(expected_task(task,run,(1,3),False,1,True,False,attempt,2,2,1,10))
+    replay_fixture(f,oracle)
+    # Four different SQLite edits retain the same authenticated custody head.
+    seq = len(chain)
+    def set_event(n,wire):
+        f.query('UPDATE events SET canonical_event=? WHERE sequence=?',(wire,LE(n)))
+    changed = bytearray(chain[-1]); changed[40] ^= 1
+    set_event(seq,changed)
+    replay_fixture(f,[],failure='IntegrityFault')
+    f.query('DELETE FROM events WHERE sequence=?',(LE(seq),))
+    replay_fixture(f,[],failure='IntegrityFault')
+    f.query('INSERT INTO events VALUES(?,?,?,?)',(STORE,LE(1),LE(seq),chain[-2]))
+    set_event(seq-1,chain[-1])
+    replay_fixture(f,[],failure='IntegrityFault')
+    set_event(seq-1,chain[-2])
+    replacement = bytearray(chain[-1]); replacement[96]=2  # valid RejectStop instead of Indeterminate
+    set_event(seq,replacement)
+    replay_fixture(f,[],failure='IntegrityFault')
+    set_event(seq,chain[-1])
+    # The custodian confirms an observation whose claim Ref resolves to a revocation.
+    record(5,3,revocation+names[-1]+bytes.fromhex('02010000000000'))
+    assert confirmed_events(f,genesis)==chain
+    replay_fixture(f,[],failure='InvalidReference')
+
 def exercise(kill_at):
     with fixture() as (f, genesis, _):
         fingerprint = seed(f)
@@ -288,6 +376,17 @@ def exercise(kill_at):
 
         if kill_at != 'claim':
             acceptance_case(f,genesis,kill_at)
+
+        events = confirmed_events(f,genesis)
+        task,run = events[0][56:72],events[0][72:88]
+        if kill_at is None:
+            want = expected_task(task,run,(2,3),True,1,True,False,events[4][88:104],1,1)
+        elif kill_at=='observation':
+            want = expected_task(task,run,(1,3),False,1,True,True,events[4][88:104],1,1)
+        else:
+            want = expected_task(task,run,(1,2),False,1,True,False,events[4][88:104],2,2)
+        replay_fixture(f,[want],live=True)
+        if kill_at is None: mixed_replay(f,genesis,want)
 
 
 if __name__ == '__main__':
