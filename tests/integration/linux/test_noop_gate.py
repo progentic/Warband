@@ -482,6 +482,13 @@ def live_transaction_kill(accepting, stage):
         wal = inspect_wal(bundle/'journal/active.db-wal')
         witness = dict(line.split() for line in err.splitlines())
         custody = f.verify()
+        history = (bundle/'data/history').read_bytes()
+        pending = history[-251:]
+        header = b'WBCH' + struct.pack('<HBIQ',1,1,136,custody[4]) + history[-283:-251]
+        assert pending == header + sha(b'warband.custody.header.v1\0'+header) + custody[3] + sha(b'warband.custody.record.v1\0'+pending[:-32])
+        head = (bundle/'data/head').read_bytes()
+        assert head[6:70] == custody[2] and head[70:102] == header[-32:]
+        assert head[102:] == sha(b'warband.head.v1\0'+head[:102])
         meta = dict(actor=actor,stage=stage,wal=wal,hook=witness,sidecars=sidecars,file_uid_gid_mode=owners,
                     tip=custody[4],kernel=os.uname().release,host=os.uname().nodename,pledge=custody[3].hex(),
                     source=subprocess.check_output(['git','-c',f'safe.directory={Path.cwd()}','rev-parse','HEAD'],text=True).strip())

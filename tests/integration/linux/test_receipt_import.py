@@ -537,7 +537,7 @@ def receipt_transaction_kill(stop):
                     sidecars=sidecars, file_uid_gid_mode=ownership, runtime_uid=f.runtime,
                     operator_uid=f.operator, custodian_uid=f.custodian, stop=stop, observed=outcome,
                     baseline_wal=baseline_wal, wal=wal, rows=counts, hook=witness,
-                    sizes={name:(bundle/name).stat().st_size for name in files})
+                    sizes={name:(bundle/name).stat().st_size for name in hashes})
         inventory = seal_capture(bundle, hashes, meta)
         emit(capture=str(bundle), stop=stop, inventory_sha256=inventory)
         expected = 'PendingConfirmation' if stop == 'wal-commit' else 'PendingEventMissing'
