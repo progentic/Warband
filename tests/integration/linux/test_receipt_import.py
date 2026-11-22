@@ -182,16 +182,31 @@ def post_commit_process_kill():
         ref = (STORE, LE(1), LE(1))
         ordinal = frame[11:19]
         assert rows == [[(*ref, canonical)], [(STORE, ordinal, frame[-32:], *ref[1:])], [(STORE, ordinal)]]
+        replay = shutil.copy2(OUT/'reconcile/replay-noop', f.root/'replay-noop')
+
+        def check_replay(stage, custody, expected_tip, expected_journal, expected_outstanding):
+            result = subprocess.run([replay, f.db, f.root/'endpoints/runtime.sock', str(f.custodian),
+                                     STORE.hex(), str(f.epoch)], user=f.runtime, group=f.runtime,
+                                    extra_groups=[], capture_output=True, text=True, timeout=65)
+            # The only event is audit-only. Exact stdout also requires zero task rows.
+            journal = f'Journal {expected_journal} OutstandingReceipts {expected_outstanding}'
+            assert result.returncode == 0 and result.stdout.splitlines() == [journal], (result.stdout, result.stderr)
+            assert custody[4] == expected_tip and f.verify() == custody and f.rows() == rows
+            emit(case='post_commit_replay', stage=stage, tip=custody[4], output=result.stdout.strip())
+
         pending = f.verify()
         tip = pending[4]
         assert pending[2] == before[2] and pending[3] == pledge and tip == before[4] + 1
+        check_replay('after_kill', pending, 3, 'PendingConfirmation', 1)
         f.run('PendingConfirmation')
         confirmed = f.verify()
         assert confirmed[2] == STORE + LE(1) + LE(1) + pledge[72:104] and not confirmed[3]
         assert confirmed[4] == tip + 1 and f.rows() == rows
+        check_replay('first_restart', confirmed, 4, 'Ready', 0)
         f.run('Ready')
         second = f.verify()
         assert second == confirmed and f.rows() == rows
+        check_replay('second_restart', second, 4, 'Ready', 0)
         emit(case='post_commit_process_kill', pid=child.pid, stopped='SIGSTOP', reaped=status,
              pending_tip=tip, confirmed_tip=confirmed[4], second_tip=second[4],
              receipt_hash=frame[-32:].hex(), watermark=int.from_bytes(ordinal, 'little'))
