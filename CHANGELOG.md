@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.42 - 2026-11-22
+
+### Added
+
+- Verified recovery when the custodian dies while appending a COMMITTED frame. Startup trims a final 250-byte tear and preserves the pending pledge for confirmation. With the whole frame present, startup publishes the new head before the importer retries. [PR #80](https://github.com/progentic/Warband/pull/80)
+
 ## 0.0.41 - 2026-11-22
 
 ### Added

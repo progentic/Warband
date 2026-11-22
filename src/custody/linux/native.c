@@ -123,8 +123,14 @@ static int write_all(int fd, const uint8_t *buf, size_t size) {
     return 0;
 }
 
-#if defined(WB_TEST_PUBLISH_STOP) || defined(WB_TEST_PENDING_BYTES)
+#if defined(WB_TEST_PUBLISH_STOP) || defined(WB_TEST_PENDING_BYTES) || defined(WB_TEST_COMMITTED_STOP)
 #include <signal.h>
+#endif
+#if defined(WB_TEST_PUBLISH_STOP) || defined(WB_TEST_COMMITTED_STOP)
+static int is_first_commit(const uint8_t *buf, size_t size) {
+    static const uint8_t one_le[8] = {1};
+    return size == 251 && buf[6] == 2 && !memcmp(buf+83+64, one_le, 8);
+}
 #endif
 #ifdef WB_TEST_PUBLISH_STOP
 static int first_commit_appended;
@@ -151,12 +157,30 @@ int wb_append(const uint8_t *buf, size_t size, int first, int sync_directory) {
         size -= prefix;
     }
 #endif
-    int ok = write_all(fd, buf, size) == 0 && fsync(fd) == 0;
+#ifdef WB_TEST_COMMITTED_STOP
+    _Static_assert(WB_TEST_COMMITTED_STOP >= 1 && WB_TEST_COMMITTED_STOP <= 4, "unsupported COMMITTED stop");
+    const int armed = is_first_commit(buf, size);
+    if (armed && WB_TEST_COMMITTED_STOP <= 2) {
+        const size_t prefix = WB_TEST_COMMITTED_STOP == 1 ? 0 : 250;
+        if ((prefix && write_all(fd, buf, prefix)) || raise(SIGSTOP)) {
+            close(fd);
+            return -1;
+        }
+        buf += prefix;
+        size -= prefix;
+    }
+#endif
+    int ok = write_all(fd, buf, size) == 0;
+#ifdef WB_TEST_COMMITTED_STOP
+    if (ok && armed && WB_TEST_COMMITTED_STOP == 3) ok = raise(SIGSTOP) == 0;
+#endif
+    if (ok) ok = fsync(fd) == 0;
     if (close(fd) || !ok) return -1;
 #ifdef WB_TEST_PUBLISH_STOP
-    // WBCH COMMITTED with pledge sequence 1. Recovery only reads retained history.
-    static const uint8_t one_le[8] = {1};
-    first_commit_appended = size == 251 && buf[6] == 2 && !memcmp(buf+83+64, one_le, 8);
+    first_commit_appended = is_first_commit(buf, size);
+#endif
+#ifdef WB_TEST_COMMITTED_STOP
+    if (armed && WB_TEST_COMMITTED_STOP == 4 && raise(SIGSTOP)) return -1;
 #endif
     if (!sync_directory) return 0;
 #ifdef WB_TEST_DIRSYNC_FAILURE

@@ -265,13 +265,16 @@ def kill_custodian_during_import(f, args, user, edge):
     return output.strip()
 
 
-def publication_kill(edge):
-    with fixture(proof_variant=f'publish-{edge}') as (f, genesis, frame):
+def confirm_kill(phase, edge):
+    with fixture(proof_variant=f'{phase}-{edge}') as (f, genesis, frame):
         head = f.root/'data/head'
         temporary = f.root/'data/head.tmp'
         history = f.root/'data/history'
         old_head, old_history = head.read_bytes(), history.read_bytes()
-        assert f.verify()[4] == 2 and f.rows() == [[], [], []]
+        baseline = f.verify()
+        assert baseline[3:5] == (b'', 2) and f.rows() == [[], [], []]
+        old_prefix = b'WBHD' + struct.pack('<H', 1) + STORE + LE(1) + LE(0) + genesis + old_history[-32:]
+        assert old_head == old_prefix + sha(b'warband.head.v1\0' + old_prefix)
         args = [f.db, f.root/'endpoints/runtime.sock', str(f.custodian), STORE.hex(), '1']
         user = dict(user=f.runtime, group=f.runtime, extra_groups=[])
         output = kill_custodian_during_import(f, args, user, edge)
@@ -289,14 +292,32 @@ def publication_kill(edge):
             header = b'WBCH' + struct.pack('<HBIQ', 1, kind, len(pledge), position) + retained[-32:]
             record = header + sha(b'warband.custody.header.v1\0' + header) + pledge
             retained += record + sha(b'warband.custody.record.v1\0' + record)
-        assert history.read_bytes() == retained
+        pending_history, committed = retained[:-251], retained[-251:]
+        captured = history.read_bytes()
+        assert captured.startswith(pending_history)
+        suffix = captured[len(pending_history):]
+        assert len(suffix) <= len(committed) and suffix == committed[:len(suffix)]
+        published = head.read_bytes()
+        if not suffix:
+            recovery = 'PendingConfirmation'
+        elif suffix == committed:
+            recovery = 'HeadPublicationPending' if published == old_head else 'Consistent'
+        else:
+            recovery = 'TornFinalRecord'
         receipt = retained[-32:]
         checkpoint = b''.join(ref) + pledge[72:104]
         prefix = b'WBHD' + struct.pack('<H', 1) + checkpoint + receipt
         new_head = prefix + sha(b'warband.head.v1\0' + prefix)
         assert old_head != new_head
-        assert head.read_bytes() == (old_head if edge <= 2 else new_head)
-        if edge <= 2:
+        if phase == 'committed':
+            emit(case='committed_capture', edge=edge, classified=recovery, suffix_length=len(suffix),
+                 suffix_sha256=sha(suffix).hex(), published_sequence=int.from_bytes(published[30:38], 'little'))
+            assert len(suffix) == (0, 250, 251, 251)[edge-1]
+        else:
+            assert suffix == committed
+        temp_expected = phase == 'publish' and edge <= 2
+        assert published == (old_head if phase == 'committed' or temp_expected else new_head)
+        if temp_expected:
             assert temporary.read_bytes() == new_head
         else:
             assert not temporary.exists()
@@ -308,15 +329,29 @@ def publication_kill(edge):
         assert (blocked.returncode, blocked.stdout) == (1, ''), (blocked.stdout, blocked.stderr)
         with service(f.root, f.root/'custodian', f.custodian, f.runtime, f.operator):
             verified = f.verify()
+            startup_tip = verified[4]
+            assert not temporary.exists() and f.rows() == rows
+            if recovery in ('PendingConfirmation', 'TornFinalRecord'):
+                assert verified[2:5] == (baseline[2], pledge, 3)
+                assert head.read_bytes() == old_head and history.read_bytes() == pending_history
+                pending = run_replay()
+                assert (pending.returncode, pending.stdout.splitlines()) == (0, ['Journal PendingConfirmation OutstandingReceipts 1'])
+                assert f.run('PendingConfirmation') == 'PendingConfirmation'
+                verified = f.verify()
             assert verified[2:5] == (checkpoint, b'', 4)
+            assert history.read_bytes() == retained and f.rows() == rows
             assert head.read_bytes() == new_head and not temporary.exists()
+            if phase == 'committed' and startup_tip == 4:
+                assert f.run('Ready') == 'Ready'
+                assert history.read_bytes() == captured and f.verify() == verified and f.rows() == rows
             exact = f.call(2, pledge)
             assert exact[:5] == (0, receipt, checkpoint, b'', 4)
             ready = run_replay()
             assert (ready.returncode, ready.stdout.splitlines()) == (0, ['Journal Ready OutstandingReceipts 0'])
-            assert history.read_bytes() == retained and f.verify() == verified and f.rows() == rows
-            emit(case='publication_kill', edge=edge, custodian_pid=f.custodian_pid, caller=output.strip(),
-                 published_before='old' if edge <= 2 else 'new', temp_before=edge <= 2,
+            assert history.read_bytes() == retained and head.read_bytes() == new_head
+            assert f.verify() == verified and f.rows() == rows
+            emit(case='publication_kill' if phase == 'publish' else 'committed_kill', edge=edge, custodian_pid=f.custodian_pid, caller=output.strip(),
+                 published_before='old' if published == old_head else 'new', temp_before=temp_expected, startup_tip=startup_tip,
                  replay_before_exit=blocked.returncode, recovered_tip=verified[4],
                  exact_confirm_receipt=receipt.hex(), replay_after=ready.stdout.strip())
 
@@ -607,7 +642,8 @@ if __name__ == '__main__':
     import_process_kill('after-commit')
     import_process_kill('before-ack')
     for edge in (1, 2, 3, 4):
-        publication_kill(edge)
+        confirm_kill('publish', edge)
+        confirm_kill('committed', edge)
     for prefix_length in (None, 0, 83):
         prepare_kill(prefix_length)
     for stop in ('after-prepare', 'event-insert', 'wal-commit'):
