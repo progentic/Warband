@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.41 - 2026-11-22
+
+### Added
+
+- Verified SQLite crash recovery inside a receipt-import transaction. Captured WAL files and rows distinguish an uncommitted event insert from a committed import awaiting custody confirmation. [PR #79](https://github.com/progentic/Warband/pull/79)
+
 ## 0.0.40 - 2026-11-21
 
 ### Added
