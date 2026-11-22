@@ -30,7 +30,7 @@ uprobe:{binary}:sqlite3_step {{ @stmt[tid] = arg0; }}
 uretprobe:{binary}:sqlite3_step /@stmt[tid]/ {{
   $s = @stmt[tid]; $db = *uptr((uint64*)$s); $sql = *uptr((uint64*)($s+248));
   $err = *uptr((uint8*)($db+103)) ? 7 : *uptr((int32*)($db+80));
-  printf("step %d %d %s\\n",(int32)retval,$err,str(uptr((char*)$sql)));
+  printf("step %d %d %s\\n",(int32)retval,$err,str(uptr((uint8*)$sql)));
   delete(@stmt[tid]);
 }}
 BEGIN {{ printf("attached\\n"); }}
@@ -50,7 +50,7 @@ BEGIN {{ printf("attached\\n"); }}
 
 @contextlib.contextmanager
 def custody_calls(pid, log):
-    with subprocess.Popen(['strace','-qq','-ttt','-yy','-s','0','-e','trace=write,fsync,fdatasync',
+    with subprocess.Popen(['strace','-qq','-ttt','-yy','-xx','-s','256','-e','trace=write,fsync,fdatasync',
                            '-p',str(pid),'-o',log],stderr=subprocess.PIPE) as p:
         try:
             until=time.monotonic()+5

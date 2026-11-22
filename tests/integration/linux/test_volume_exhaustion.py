@@ -138,9 +138,11 @@ def run_case(case):
         tail = raw[len(base):]
         seq = len(rows[0])+1
         if actual==[sorted(t) for t in rows]:
-            header=b'WBCH'+struct.pack('<HBIQ',1,1,136,before[4]+1)+base[-32:]
             if len(tail)<251:
-                assert len(tail)<=83 and tail==(header+sha(b'warband.custody.header.v1\0'+header))[:len(tail)]
+                write, = [l for l in traces.splitlines() if str(history)+'>' in l and ', 251) =' in l]
+                attempted = bytes.fromhex(write.split('"')[1].replace('\\x',''))
+                assert len(attempted)==251 and attempted==admin_frame(1,attempted[83:-32],before[4]+1,base[-32:])
+                assert tail==attempted[:len(tail)] and len(tail)==int(write.split(' = ')[-1])
                 observed='Ready'
             else:
                 pledge=tail[83:-32]
