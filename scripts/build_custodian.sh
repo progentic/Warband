@@ -8,7 +8,7 @@ python3 scripts/assert_toolchain.py linux_amd64
 out="$PWD/out/linux_amd64/custodian"
 mkdir -p "$out"
 # Fault variant is built separately; the production binary has no runtime fault switch.
-for variant in normal dirsync-fault publish-{1..4} pending-0 pending-83 committed-{1..4} admin-{1..5} append-{1,2}-{1,2,3} publish-err-{1..5}; do
+for variant in normal dirsync-fault publish-{1..4} pending-0 pending-83 committed-{1..4} admin-{1..5} append-{1..4}-{1..3} publish-err-{1..5}; do
     dest="$out/$variant"
     mkdir -p "$dest"
     flags=()
