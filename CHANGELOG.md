@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.39 - 2026-11-21
+
+### Added
+
+- Verified three interruptions around custody Prepare. Recovery removes exactly the validated 83-byte final PENDING prefix and preserves the earlier history. The original denial receipt remains outstanding. [PR #77](https://github.com/progentic/Warband/pull/77)
+
 ## 0.0.38 - 2026-11-21
 
 ### Added
