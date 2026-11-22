@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.48 - 2026-11-22
+
+### Added
+
+- Verified recovery from short writes, ENOSPC, and file-sync errors during enrollment and epoch change. Fault replies preserve the prior checkpoint; startup validates the retained history before retry. [PR #86](https://github.com/progentic/Warband/pull/86)
+
 ## 0.0.47 - 2026-11-22
 
 ### Added

@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 #include <dirent.h>
 #include <errno.h>
+#include <endian.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <poll.h>
@@ -114,14 +115,15 @@ int wb_read(const char *name, uint8_t *buf, size_t size) {
 }
 
 #ifdef WB_TEST_APPEND_MODE
-_Static_assert(WB_TEST_APPEND_KIND == 1 || WB_TEST_APPEND_KIND == 2, "expected pledge frame");
+_Static_assert(WB_TEST_APPEND_KIND >= 1 && WB_TEST_APPEND_KIND <= 4, "unsupported append kind");
 _Static_assert(WB_TEST_APPEND_MODE >= 1 && WB_TEST_APPEND_MODE <= 3, "expected append error mode");
 static int proof_fd = -1;
+static size_t proof_size;
 static ssize_t proof_write(int fd, const uint8_t *buf, size_t size) {
     if (fd != proof_fd) return write(fd, buf, size);
     size_t count = size;
     if (WB_TEST_APPEND_MODE != 3) {
-        if (size == 251) count = WB_TEST_APPEND_KIND == 1 ? 83 : 250;
+        if (size == proof_size) count = WB_TEST_APPEND_KIND == 2 ? 250 : 83;
         else if (WB_TEST_APPEND_MODE == 2) {
             fprintf(stderr, "append_write %zu -1 ENOSPC\n", size);
             errno = ENOSPC;
@@ -244,8 +246,15 @@ int wb_append(const uint8_t *buf, size_t size, int first, int sync_directory) {
     }
 #endif
 #ifdef WB_TEST_APPEND_MODE
+#if WB_TEST_APPEND_KIND <= 2
     static const uint8_t seq_one[8] = {1};
-    if (size == 251 && buf[6] == WB_TEST_APPEND_KIND && !memcmp(buf+83+64, seq_one, 8)) proof_fd = fd;
+    int match = size == 251 && buf[6] == WB_TEST_APPEND_KIND && !memcmp(buf+83+64, seq_one, 8);
+#else
+    const size_t expected = WB_TEST_APPEND_KIND == 3 ? 171 : 291;
+    uint32_t payload = htole32((uint32_t)(expected - 115));
+    int match = size == expected && buf[6] == WB_TEST_APPEND_KIND && !memcmp(buf+7, &payload, 4);
+#endif
+    if (match) { proof_fd = fd; proof_size = size; }
 #endif
     int ok = write_all(fd, buf, size) == 0;
 #ifdef WB_TEST_COMMITTED_STOP

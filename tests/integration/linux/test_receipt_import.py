@@ -861,8 +861,8 @@ def kill_admin(f, wire):
     return 'EOF' if child.exitcode == 0 else 'reset'
 
 
-def capture_admin(f, case, wire):
-    parent = OUT/'point10-admin'
+def capture_admin(f, case, wire, *, fault=None):
+    parent = OUT/('admin-append-error' if fault else 'point10-admin')
     parent.mkdir(exist_ok=True)
     bundle = Path(tempfile.mkdtemp(dir=parent,prefix=case+'-'))
     files = [p for dirname in ('data','journal') for p in (f.root/dirname).iterdir()]
@@ -877,14 +877,18 @@ def capture_admin(f, case, wire):
     meta = dict(case=case,wbcr=wire.hex(),operator_uid=f.operator,kernel=os.uname().release,
                 host=os.uname().nodename,files=sorted(hashes),source=subprocess.check_output(
                 ['git','-c',f'safe.directory={Path.cwd()}','rev-parse','HEAD'],text=True).strip())
+    if fault:
+        meta.update(fault)
     inventory = seal_capture(bundle,hashes,meta)
-    emit(admin_capture=case,bundle=str(bundle),inventory_sha256=inventory)
+    emit(**{'admin_fault_capture' if fault else 'admin_capture':case},bundle=str(bundle),inventory_sha256=inventory)
     return bundle
 
 
-def admin_kill(edge):
+def admin_recovery(edge, mode=None):
     genesis = edge <= 3
-    with fixture(proof_variant=f'admin-{edge}', fresh=genesis) as (f, _, _):
+    kind = 3 if genesis else 4
+    variant = f'append-{kind}-{mode}' if mode else f'admin-{edge}'
+    with fixture(proof_variant=variant, fresh=genesis) as (f, _, _):
         history, head = f.root/'data/history', f.root/'data/head'
         if genesis:
             op, payload, tip, old_history = 4, ENROLL, 0, b''
@@ -916,33 +920,84 @@ def admin_kill(edge):
         frame = admin_frame(op-1,payload+LE(f.operator),tip+1,old_history[-32:] or ZERO)
         prefix = b'WBHD'+struct.pack('<H',1)+checkpoint+frame[-32:]
         new_head = prefix+sha(b'warband.head.v1\0'+prefix)
-        caller = kill_admin(f,wire)
-        bundle = capture_admin(f,f'edge-{edge}',wire)
-        length = {1:0,2:83,3:len(frame),4:83,5:len(frame)}[edge]
-        assert (bundle/'data/history').read_bytes()==old_history+frame[:length]
-        assert not (bundle/'data/head.tmp').exists() and not (bundle/'journal/epoch2.db').exists()
-        if genesis:
-            assert not head.exists() and not list((f.root/'journal').iterdir())
+        assert len(frame)==(171 if genesis else 291)
+        fault = None
+        recovery = service(f.root,f.root/'custodian',f.custodian,f.runtime,f.operator)
+        if mode is None:
+            caller = kill_admin(f,wire)
+            case = f'edge-{edge}'
         else:
-            assert head.read_bytes()==(new_head if edge==5 else old_head) and f.db.read_bytes()==old_db
-        with service(f.root,f.root/'custodian',f.custodian,f.runtime,f.operator):
-            if edge in (1,2):
+            fd = os.pidfd_open(f.custodian_pid)
+            try:
+                reply = f.call(op,payload)
+                if mode==1:
+                    assert reply[:5]==(0,frame[-32:],checkpoint,b'',tip+1)
+                    recovery = contextlib.nullcontext()
+                else:
+                    assert reply[:5]==(14,ZERO,bytes(64) if genesis else old_cp,b'' if genesis else pledge,tip)
+                    poller = select.poll()
+                    poller.register(fd,select.POLLIN)
+                    assert poller.poll(5000), 'faulted custodian did not exit'
+            finally:
+                os.close(fd)
+            caller = 'Ready' if mode==1 else 'CheckpointStorageFault'
+            case = variant
+            calls = (f.root/'storage.log').read_text().splitlines()
+            fault = dict(calls=calls,status=reply[0],receipt=reply[1].hex(),reply_tip=reply[4],
+                         reply_checkpoint=reply[2].hex(),reply_pending=reply[3].hex())
+
+        bundle = capture_admin(f,case,wire,fault=fault)
+        captured = (bundle/'data/history').read_bytes()
+        assert captured.startswith(old_history)
+        suffix = captured[len(old_history):]
+        assert suffix==frame[:len(suffix)] and len(suffix)<=len(frame)
+        length = len(suffix)
+        complete = suffix==frame
+        assert not (bundle/'data/head.tmp').exists() and not (bundle/'journal/epoch2.db').exists()
+        captured_head = bundle/'data/head'
+        if genesis:
+            assert not list((f.root/'journal').iterdir())
+        else:
+            assert (bundle/'journal/active.db').read_bytes()==old_db
+        if mode:
+            emit(admin_observed=variant,suffix_length=length,complete=complete,head_present=captured_head.exists())
+            remaining = len(frame)-83
+            if mode==3:
+                assert calls==[f'append_write {len(frame)} {len(frame)}','append_fsync -1 EIO']
+            else:
+                last = str(remaining) if mode==1 else '-1 ENOSPC'
+                assert calls==[f'append_write {len(frame)} 83',f'append_write {remaining} {last}']
+            assert length==(83 if mode==2 else len(frame))
+        else:
+            assert length=={1:0,2:83,3:len(frame),4:83,5:len(frame)}[edge]
+        installed = mode==1 or (mode is None and edge==5)
+        if installed or not genesis:
+            assert captured_head.read_bytes()==(new_head if installed else old_head)
+        else:
+            assert not captured_head.exists()
+        if mode in (2,3) and not genesis:
+            replay = shutil.copy2(OUT/'reconcile/replay-noop',f.root/'replay')
+            blocked = subprocess.run([replay,f.db,f.root/'endpoints/runtime.sock',str(f.custodian),STORE.hex(),'1'],
+                                     user=f.runtime,group=f.runtime,extra_groups=[],capture_output=True,text=True,timeout=65)
+            assert (blocked.returncode,blocked.stdout)==(1,'')
+        with recovery:
+            if genesis and not complete:
                 assert not history.read_bytes() and not head.exists()
                 assert f.call(3,STORE+LE(0)+LE(0))[0]==11
-            elif edge==4:
+            elif not complete:
                 assert f.verify()==prior and history.read_bytes()==old_history and head.read_bytes()==old_head
                 assert f.call(1,pledge)[1]==pending_hash
             else:
                 f.epoch = 1 if genesis else 2
                 assert f.verify()[2:5]==(checkpoint,b'',tip+1)
                 assert head.read_bytes()==new_head and history.read_bytes()==old_history+frame
-            if edge!=4:
+            if genesis or complete:
                 assert f.call(op,payload)[:5]==(0,frame[-32:],checkpoint,b'',tip+1)
                 assert history.read_bytes()==old_history+frame and head.read_bytes()==new_head
             if not genesis:
                 archive = f.db
                 replay = shutil.copy2(OUT/'reconcile/replay-noop',f.root/'replay')
-                if edge==5:
+                if complete:
                     f.db = f.root/'journal/epoch2.db'
                     f.archives = [archive,wire.hex()]
                     f.run('LockUnavailable',allow=False)
@@ -961,10 +1016,15 @@ def admin_kill(edge):
                     f.run('PendingEventMissing',allow=False)
                 cmd = [replay,f.db,f.root/'endpoints/runtime.sock',str(f.custodian),STORE.hex(),str(f.epoch),*f.archives]
                 result = subprocess.run(cmd,user=f.runtime,group=f.runtime,extra_groups=[],capture_output=True,text=True,timeout=65)
-                state = 'Ready' if edge==5 else 'PendingEventMissing'
+                state = 'Ready' if complete else 'PendingEventMissing'
                 assert (result.returncode,result.stdout.splitlines())==(0,[f'Journal {state} OutstandingReceipts 0'])
                 assert archive.read_bytes()==old_db
-        emit(case='admin_kill',edge=edge,caller=caller,custodian_pid=f.custodian_pid,reply_bytes=0,retained_length=length,epoch=f.epoch,tip=tip if edge==4 else tip+1)
+            final_tip = f.verify()[4]
+        if mode:
+            emit(case='admin_append_error',variant=variant,caller=caller,reply_tip=reply[4],
+                 retained_length=length,epoch=f.epoch,tip=final_tip)
+        else:
+            emit(case='admin_kill',edge=edge,caller=caller,custodian_pid=f.custodian_pid,reply_bytes=0,retained_length=length,epoch=f.epoch,tip=final_tip)
 
 
 def sqlite_fault_command(f, mode):
@@ -1216,7 +1276,10 @@ if __name__ == '__main__':
     existing_event_prefix()
     retained_segments()
     for edge in range(1,6):
-        admin_kill(edge)
+        admin_recovery(edge)
+    for edge in (3,5):
+        for mode in (1,2,3):
+            admin_recovery(edge,mode)
     established_metadata_loss()
     for kind in (1,2):
         for mode in (1,2,3):
