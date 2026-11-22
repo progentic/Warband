@@ -14,7 +14,8 @@ build=(odin build cmd/reconcile-custody -target:linux_amd64 -vet -warnings-as-er
        "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out")
 "${build[@]}" "-out:$out/reconcile-custody"
 "${build[@]}" -define:WARBAND_TEST_STOP_AFTER_COMMIT=true "-out:$out/reconcile-custody-stop-after-commit"
-sha256sum "$out/reconcile-custody" "$out/reconcile-custody-stop-after-commit"
+"${build[@]}" -define:WARBAND_TEST_STOP_BEFORE_ACK=true "-out:$out/reconcile-custody-stop-before-ack"
+sha256sum "$out/reconcile-custody" "$out/reconcile-custody-stop-after-commit" "$out/reconcile-custody-stop-before-ack"
 
 gate=(odin build cmd/noop-gate -target:linux_amd64 -vet -warnings-as-errors
       "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out")

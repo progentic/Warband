@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.37 - 2026-11-21
+
+### Added
+
+- Verified that an importer killed after custody confirmation and before caller acknowledgment returns the original event reference on exact retry. The retry and ordinary restart preserve the stored rows and custody checkpoint. [PR #75](https://github.com/progentic/Warband/pull/75)
+
 ## 0.0.36 - 2026-11-21
 
 ### Added
