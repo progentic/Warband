@@ -113,9 +113,43 @@ int wb_read(const char *name, uint8_t *buf, size_t size) {
     return close(fd) == 0 && ok ? 0 : -1;
 }
 
+#ifdef WB_TEST_APPEND_MODE
+_Static_assert(WB_TEST_APPEND_KIND == 1 || WB_TEST_APPEND_KIND == 2, "expected pledge frame");
+_Static_assert(WB_TEST_APPEND_MODE >= 1 && WB_TEST_APPEND_MODE <= 3, "expected append error mode");
+static int proof_fd = -1;
+static ssize_t proof_write(int fd, const uint8_t *buf, size_t size) {
+    if (fd != proof_fd) return write(fd, buf, size);
+    size_t count = size;
+    if (WB_TEST_APPEND_MODE != 3) {
+        if (size == 251) count = WB_TEST_APPEND_KIND == 1 ? 83 : 250;
+        else if (WB_TEST_APPEND_MODE == 2) {
+            fprintf(stderr, "append_write %zu -1 ENOSPC\n", size);
+            errno = ENOSPC;
+            return -1;
+        }
+    }
+    ssize_t n = write(fd, buf, count);
+    int saved = errno;
+    fprintf(stderr, "append_write %zu %zd\n", size, n);
+    errno = saved;
+    return n;
+}
+static int proof_fsync(int fd) {
+    if (fd == proof_fd && WB_TEST_APPEND_MODE == 3) {
+        fprintf(stderr, "append_fsync -1 EIO\n");
+        errno = EIO;
+        return -1;
+    }
+    return fsync(fd);
+}
+#else
+#define proof_write write
+#define proof_fsync fsync
+#endif
+
 static int write_all(int fd, const uint8_t *buf, size_t size) {
     while (size) {
-        ssize_t n = write(fd, buf, size);
+        ssize_t n = proof_write(fd, buf, size);
         if (n < 0 && errno == EINTR) continue;
         if (n <= 0) return -1;
         buf += n; size -= n;
@@ -188,11 +222,18 @@ int wb_append(const uint8_t *buf, size_t size, int first, int sync_directory) {
         size -= prefix;
     }
 #endif
+#ifdef WB_TEST_APPEND_MODE
+    static const uint8_t seq_one[8] = {1};
+    if (size == 251 && buf[6] == WB_TEST_APPEND_KIND && !memcmp(buf+83+64, seq_one, 8)) proof_fd = fd;
+#endif
     int ok = write_all(fd, buf, size) == 0;
 #ifdef WB_TEST_COMMITTED_STOP
     if (ok && armed && WB_TEST_COMMITTED_STOP == 3) ok = raise(SIGSTOP) == 0;
 #endif
-    if (ok) ok = fsync(fd) == 0;
+    if (ok) ok = proof_fsync(fd) == 0;
+#ifdef WB_TEST_APPEND_MODE
+    proof_fd = -1;
+#endif
     if (close(fd) || !ok) return -1;
 #ifdef WB_TEST_PUBLISH_STOP
     first_commit_appended = is_first_commit(buf, size);
