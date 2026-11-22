@@ -977,15 +977,26 @@ def sqlite_fault_command(f, mode):
     return subprocess.run(args,user=f.runtime,group=f.runtime,extra_groups=[],capture_output=True,text=True,timeout=65)
 
 
+@contextlib.contextmanager
 def hold_reader(f):
-    db = sqlite3.connect(f.db)
-    db.execute('BEGIN')
-    db.execute('SELECT count(*) FROM events').fetchone()
-    for ext in ('-wal','-shm'):
-        path = Path(str(f.db)+ext)
-        if path.exists():
-            os.chown(path,f.runtime,f.runtime)
-    return db
+    # Keep SQLite's POSIX locks in a different process from raw file capture.
+    program = """import sqlite3, sys
+db = sqlite3.connect(sys.argv[1])
+db.execute('BEGIN')
+db.execute('SELECT count(*) FROM events').fetchone()
+print('held', flush=True)
+sys.stdin.buffer.read()
+db.close()
+"""
+    with subprocess.Popen(['/usr/bin/python3','-c',program,f.db],user=f.runtime,group=f.runtime,
+                          extra_groups=[],stdin=subprocess.PIPE,stdout=subprocess.PIPE) as child:
+        try:
+            assert child.stdout.readline()==b'held\n'
+            yield
+            assert child.poll() is None
+        finally:
+            child.stdin.close()
+            assert child.wait(timeout=10)==0
 
 
 def calibrate_sqlite_full():
@@ -993,7 +1004,7 @@ def calibrate_sqlite_full():
     selected = {}
     with fixture() as (f, _, _):
         assert f.query('PRAGMA journal_mode=WAL') == [('wal',)]
-        with contextlib.closing(hold_reader(f)):
+        with hold_reader(f):
             for seq in range(1, 81):
                 if seq > 1:
                     denied(f.call(4,ENROLL,denied_admin=True))
@@ -1021,8 +1032,8 @@ def sqlite_fault_case(case, sample):
         for name,data in sample.items():
             assert (f.root/name).read_bytes()==data
         custody = f.verify()
-        with contextlib.closing(hold_reader(f)) as reader:
-            prior = [sorted(reader.execute('SELECT * FROM '+t)) for t in ('events','denial_imports','import_watermarks')]
+        with hold_reader(f):
+            prior = [sorted(t) for t in f.rows()]
             n = len(prior[0])
             mark = int.from_bytes(prior[2][0][1],'little')
             receipt = f.verify(mark)[5]
@@ -1032,7 +1043,7 @@ def sqlite_fault_case(case, sample):
             walpath = Path(str(f.db)+'-wal')
             baseline = inspect_wal(walpath)
             wal_bytes = walpath.read_bytes()
-            profile = {k:reader.execute('PRAGMA '+k).fetchone()[0] for k in ('page_count','page_size','freelist_count')}
+            profile = {k:f.query('PRAGMA '+k)[0][0] for k in ('page_count','page_size','freelist_count')}
             p = sqlite_fault_command(f,mode)
             parent = OUT/'sqlite-errors'
             parent.mkdir(exist_ok=True)
