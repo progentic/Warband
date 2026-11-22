@@ -8,12 +8,13 @@ python3 scripts/assert_toolchain.py linux_amd64
 out="$PWD/out/linux_amd64/custodian"
 mkdir -p "$out"
 # Fault variant is built separately; the production binary has no runtime fault switch.
-for variant in normal dirsync-fault publish-{1..4}; do
+for variant in normal dirsync-fault publish-{1..4} pending-0 pending-83; do
     dest="$out/$variant"
     mkdir -p "$dest"
     flags=()
     if [[ "$variant" == dirsync-fault ]]; then flags+=(-DWB_TEST_DIRSYNC_FAILURE); fi
     if [[ "$variant" == publish-* ]]; then flags+=("-DWB_TEST_PUBLISH_STOP=${variant#publish-}"); fi
+    if [[ "$variant" == pending-* ]]; then flags+=("-DWB_TEST_PENDING_BYTES=${variant#pending-}"); fi
     clang-19 -std=c11 -O2 -Wall -Wextra -Werror "${flags[@]}" -c src/custody/linux/native.c -o "$dest/native.o"
     llvm-ar-19 rcs "$dest/libwarband_custody.a" "$dest/native.o"
     odin build cmd/custodian -target:linux_amd64 -vet -warnings-as-errors "-extra-linker-flags:-L$dest" "-out:$dest/custodian"

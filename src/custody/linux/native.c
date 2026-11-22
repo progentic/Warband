@@ -123,8 +123,10 @@ static int write_all(int fd, const uint8_t *buf, size_t size) {
     return 0;
 }
 
-#ifdef WB_TEST_PUBLISH_STOP
+#if defined(WB_TEST_PUBLISH_STOP) || defined(WB_TEST_PENDING_BYTES)
 #include <signal.h>
+#endif
+#ifdef WB_TEST_PUBLISH_STOP
 static int first_commit_appended;
 static void publication_stop(int edge) {
     if (first_commit_appended && edge == WB_TEST_PUBLISH_STOP) raise(SIGSTOP);
@@ -136,6 +138,19 @@ static void publication_stop(int edge) {
 int wb_append(const uint8_t *buf, size_t size, int first, int sync_directory) {
     int fd = open_file("history", O_WRONLY|O_APPEND|(first ? O_CREAT : 0));
     if (fd < 0) return -1;
+#ifdef WB_TEST_PENDING_BYTES
+    _Static_assert(WB_TEST_PENDING_BYTES == 0 || WB_TEST_PENDING_BYTES == 83, "unsupported PENDING stop");
+    static const uint8_t first_sequence[8] = {1};
+    if (size == 251 && buf[6] == 1 && !memcmp(buf+83+64, first_sequence, 8)) {
+        const size_t prefix = WB_TEST_PENDING_BYTES;
+        if ((prefix && write_all(fd, buf, prefix)) || raise(SIGSTOP)) {
+            close(fd);
+            return -1;
+        }
+        buf += prefix;
+        size -= prefix;
+    }
+#endif
     int ok = write_all(fd, buf, size) == 0 && fsync(fd) == 0;
     if (close(fd) || !ok) return -1;
 #ifdef WB_TEST_PUBLISH_STOP

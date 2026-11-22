@@ -73,7 +73,7 @@ class Fixture:
 
 
 @contextlib.contextmanager
-def fixture(*, measure=False, publication_edge=None):
+def fixture(*, measure=False, proof_variant=None):
     existing = {p.pw_uid for p in pwd.getpwall()}
     users = [u for u in range(50000,60000) if u not in existing][:3]
     with tempfile.TemporaryDirectory(prefix='warband-import-',dir='/var/lib') as tmp:
@@ -93,8 +93,8 @@ def fixture(*, measure=False, publication_edge=None):
             shutil.copy2(OUT/'capacity/custodian',root/'custodian')
             log.touch(mode=0o600)
         first_service = root/'custodian'
-        if publication_edge is not None:
-            first_service = shutil.copy2(OUT/f'custodian/publish-{publication_edge}/custodian', root/'proof-custodian')
+        if proof_variant is not None:
+            first_service = shutil.copy2(OUT/'custodian'/proof_variant/'custodian', root/'proof-custodian')
         with service(root,first_service,*users,stderr_path=log) as f.custodian_pid:
             receipt = None if measure else denied(f.call(4,ENROLL,denied_admin=True))
             assert f.call(4,ENROLL)[0] == 0
@@ -154,27 +154,32 @@ def restart(state):
             assert after == custody
 
 
+def kill_importer(f, stop):
+    binary = shutil.copy2(OUT/'reconcile'/f'reconcile-custody-stop-{stop}', f.root/'fault-importer')
+    args = [binary, f.db, f.root/'endpoints/runtime.sock', str(f.custodian), STORE.hex(), '1', '0', '-']
+    with subprocess.Popen(args, user=f.runtime, group=f.runtime, extra_groups=[], stdout=subprocess.PIPE) as child:
+        try:
+            deadline = time.monotonic() + 65
+            while time.monotonic() < deadline:
+                event = os.waitid(os.P_PID, child.pid, os.WSTOPPED | os.WEXITED | os.WNOHANG | os.WNOWAIT)
+                if event is not None:
+                    assert (event.si_pid, event.si_code, event.si_status) == (child.pid, os.CLD_STOPPED, signal.SIGSTOP), event
+                    break
+                time.sleep(0.01)
+            else:
+                raise AssertionError(f'importer {child.pid} did not reach its {stop} stop')
+        finally:
+            child.kill()
+            status = child.wait(timeout=10)
+        assert status == -signal.SIGKILL and child.stdout.read() == b''
+    return child.pid, status
+
+
 def import_process_kill(stop):
     with fixture() as (f, genesis, frame):
         before = f.verify()
         assert f.rows() == [[], [], []] and not before[3]
-        binary = shutil.copy2(OUT/'reconcile'/f'reconcile-custody-stop-{stop}', f.root/'fault-importer')
-        args = [binary, f.db, f.root/'endpoints/runtime.sock', str(f.custodian), STORE.hex(), '1', '0', '-']
-        with subprocess.Popen(args, user=f.runtime, group=f.runtime, extra_groups=[], stdout=subprocess.PIPE) as child:
-            try:
-                deadline = time.monotonic() + 65
-                while time.monotonic() < deadline:
-                    event = os.waitid(os.P_PID, child.pid, os.WSTOPPED | os.WEXITED | os.WNOHANG | os.WNOWAIT)
-                    if event is not None:
-                        assert (event.si_pid, event.si_code, event.si_status) == (child.pid, os.CLD_STOPPED, signal.SIGSTOP), event
-                        break
-                    time.sleep(0.01)
-                else:
-                    raise AssertionError(f'importer {child.pid} did not reach its {stop} stop')
-            finally:
-                child.kill()
-                status = child.wait(timeout=10)
-            assert status == -signal.SIGKILL and child.stdout.read() == b''
+        pid, status = kill_importer(f, stop)
 
         # Independent reads after death. Derive the complete pledge from the durable event.
         rows = f.rows()
@@ -213,7 +218,7 @@ def import_process_kill(stop):
             assert f.run('Ready') == 'Ready'
             assert f.rows() == rows and f.verify() == confirmed
             check_replay('ordinary_restart', confirmed, 4, 'Ready', 0)
-            emit(case='before_ack_process_kill', pid=child.pid, stopped='SIGSTOP', reaped=status,
+            emit(case='before_ack_process_kill', pid=pid, stopped='SIGSTOP', reaped=status,
                  stdout_bytes=0, tip=confirmed[4], retry_result=result, receipt_hash=record_hash.hex())
             return
 
@@ -230,13 +235,38 @@ def import_process_kill(stop):
         second = f.verify()
         assert second == confirmed and f.rows() == rows
         check_replay('second_restart', second, 4, 'Ready', 0)
-        emit(case='post_commit_process_kill', pid=child.pid, stopped='SIGSTOP', reaped=status,
+        emit(case='post_commit_process_kill', pid=pid, stopped='SIGSTOP', reaped=status,
              pending_tip=tip, confirmed_tip=confirmed[4], second_tip=second[4],
              receipt_hash=frame[-32:].hex(), watermark=int.from_bytes(ordinal, 'little'))
 
 
+def kill_custodian_during_import(f, args, user, edge):
+    pid = f.custodian_pid
+    pidfd = os.pidfd_open(pid)
+    try:
+        with subprocess.Popen([f.root/'importer', *args, '0', '-'], **user,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as importer:
+            try:
+                deadline = time.monotonic() + 25
+                while time.monotonic() < deadline:
+                    if 'State:\tT (stopped)' in Path(f'/proc/{pid}/status').read_text().splitlines():
+                        break
+                    assert importer.poll() is None, ('importer exited before stop', edge)
+                    time.sleep(0.01)
+                else:
+                    raise AssertionError(('publication stop not observed', edge, pid))
+                assert importer.poll() is None
+            finally:
+                signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+            output, error = importer.communicate(timeout=35)
+            assert (importer.returncode, output.splitlines()) == (1, ['AttestationUncertain']), (output, error)
+    finally:
+        os.close(pidfd)
+    return output.strip()
+
+
 def publication_kill(edge):
-    with fixture(publication_edge=edge) as (f, genesis, frame):
+    with fixture(proof_variant=f'publish-{edge}') as (f, genesis, frame):
         head = f.root/'data/head'
         temporary = f.root/'data/head.tmp'
         history = f.root/'data/history'
@@ -244,27 +274,7 @@ def publication_kill(edge):
         assert f.verify()[4] == 2 and f.rows() == [[], [], []]
         args = [f.db, f.root/'endpoints/runtime.sock', str(f.custodian), STORE.hex(), '1']
         user = dict(user=f.runtime, group=f.runtime, extra_groups=[])
-        pid = f.custodian_pid
-        pidfd = os.pidfd_open(pid)
-        try:
-            with subprocess.Popen([f.root/'importer', *args, '0', '-'], **user,
-                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as importer:
-                try:
-                    deadline = time.monotonic() + 25
-                    while time.monotonic() < deadline:
-                        if 'State:\tT (stopped)' in Path(f'/proc/{pid}/status').read_text().splitlines():
-                            break
-                        assert importer.poll() is None, ('importer exited before stop', edge)
-                        time.sleep(0.01)
-                    else:
-                        raise AssertionError(('publication stop not observed', edge, pid))
-                    assert importer.poll() is None
-                finally:
-                    signal.pidfd_send_signal(pidfd, signal.SIGKILL)
-                output, error = importer.communicate(timeout=35)
-                assert (importer.returncode, output.splitlines()) == (1, ['AttestationUncertain']), (output, error)
-        finally:
-            os.close(pidfd)
+        output = kill_custodian_during_import(f, args, user, edge)
 
         # Reconstruct both appended frames and the head before recovery can touch any file.
         rows = f.rows()
@@ -305,10 +315,57 @@ def publication_kill(edge):
             ready = run_replay()
             assert (ready.returncode, ready.stdout.splitlines()) == (0, ['Journal Ready OutstandingReceipts 0'])
             assert history.read_bytes() == retained and f.verify() == verified and f.rows() == rows
-            emit(case='publication_kill', edge=edge, custodian_pid=pid, caller=output.strip(),
+            emit(case='publication_kill', edge=edge, custodian_pid=f.custodian_pid, caller=output.strip(),
                  published_before='old' if edge <= 2 else 'new', temp_before=edge <= 2,
                  replay_before_exit=blocked.returncode, recovered_tip=verified[4],
                  exact_confirm_receipt=receipt.hex(), replay_after=ready.stdout.strip())
+
+
+def prepare_kill(prefix_length):
+    pre_send = prefix_length is None
+    variant = None if pre_send else f'pending-{prefix_length}'
+    with fixture(proof_variant=variant) as (f, _, _):
+        # Establish the writing connection's persistent journal mode before sampling.
+        assert f.query('PRAGMA journal_mode=WAL') == [('wal',)]
+        baseline = f.verify()
+        assert baseline[3:5] == (b'', 2) and f.rows() == [[], [], []]
+        history, head = f.root/'data/history', f.root/'data/head'
+        old_history, old_head, database = history.read_bytes(), head.read_bytes(), f.db.read_bytes()
+        replay = shutil.copy2(OUT/'reconcile/replay-noop', f.root/'replay-noop')
+        args = [f.db, f.root/'endpoints/runtime.sock', str(f.custodian), STORE.hex(), '1']
+        user = dict(user=f.runtime, group=f.runtime, extra_groups=[])
+
+        def check_baseline():
+            result = subprocess.run([replay, *args], **user, capture_output=True, text=True, timeout=65)
+            assert (result.returncode, result.stdout.splitlines()) == (0, ['Journal Ready OutstandingReceipts 1'])
+            assert f.verify() == baseline and f.rows() == [[], [], []]
+            assert history.read_bytes() == old_history and head.read_bytes() == old_head
+            assert f.db.read_bytes() == database
+            return result.stdout.strip()
+
+        check_baseline()
+        if pre_send:
+            pid, status = kill_importer(f, 'before-prepare')
+            journal = check_baseline()
+            emit(case='prepare_kill', stop='before_send', importer_pid=pid, reaped=status,
+                 stdout_bytes=0, suffix_length=0, suffix_digest=sha(b'').hex(), tip=2, replay=journal)
+            return
+
+        caller = kill_custodian_during_import(f, args, user, variant)
+        retained = history.read_bytes()
+        header = b'WBCH' + struct.pack('<HBIQ', 1, 1, 136, 3) + old_history[-32:]
+        prefix = header + sha(b'warband.custody.header.v1\0' + header)
+        assert len(prefix) == 83 and retained == old_history + prefix[:prefix_length]
+        suffix = retained[len(old_history):]
+        assert head.read_bytes() == old_head and f.db.read_bytes() == database and f.rows() == [[], [], []]
+        blocked = subprocess.run([replay, *args], **user, capture_output=True, text=True, timeout=65)
+        assert (blocked.returncode, blocked.stdout) == (1, '')
+        assert history.read_bytes() == retained and head.read_bytes() == old_head
+        with service(f.root, f.root/'custodian', f.custodian, f.runtime, f.operator):
+            journal = check_baseline()
+        emit(case='prepare_kill', stop=variant, custodian_pid=f.custodian_pid, caller=caller,
+             suffix_length=len(suffix), suffix=suffix.hex(), suffix_digest=sha(suffix).hex(),
+             retained_prefix_digest=sha(old_history).hex(), tip=2, replay=journal)
 
 
 def existing_event_prefix():
@@ -385,6 +442,8 @@ if __name__ == '__main__':
     import_process_kill('before-ack')
     for edge in (1, 2, 3, 4):
         publication_kill(edge)
+    for prefix_length in (None, 0, 83):
+        prepare_kill(prefix_length)
     existing_event_prefix()
     retained_segments()
     emit(result='pass')

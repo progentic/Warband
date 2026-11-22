@@ -15,6 +15,8 @@ build=(odin build cmd/reconcile-custody -target:linux_amd64 -vet -warnings-as-er
 "${build[@]}" "-out:$out/reconcile-custody"
 "${build[@]}" -define:WARBAND_TEST_STOP_AFTER_COMMIT=true "-out:$out/reconcile-custody-stop-after-commit"
 "${build[@]}" -define:WARBAND_TEST_STOP_BEFORE_ACK=true "-out:$out/reconcile-custody-stop-before-ack"
+"${build[@]}" -define:WARBAND_TEST_STOP_BEFORE_PREPARE=true "-out:$out/reconcile-custody-stop-before-prepare"
+sha256sum "$out/reconcile-custody-stop-before-prepare"
 sha256sum "$out/reconcile-custody" "$out/reconcile-custody-stop-after-commit" "$out/reconcile-custody-stop-before-ack"
 
 gate=(odin build cmd/noop-gate -target:linux_amd64 -vet -warnings-as-errors
