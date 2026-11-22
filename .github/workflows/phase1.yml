@@ -72,6 +72,14 @@ jobs:
         run: |
           sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
             /usr/bin/python3 tests/integration/linux/test_volume_exhaustion.py 2>&1 | tee out/linux_amd64/volume.log
+      - name: Measure cold recovery on single custody histories
+        run: |
+          export ODIN_ROOT="$PWD/.local/toolchains/odin-linux_amd64"
+          llvm_bin=$("$LLVM_CONFIG" --bindir)
+          export PATH="$ODIN_ROOT:$llvm_bin:$PATH"
+          python3 tests/measurement/build_capacity.py --recovery 2>&1 | tee out/linux_amd64/cold-capacity-build.log
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/measurement/recovery_capacity.py 2>&1 | tee out/linux_amd64/cold-capacity.log
       - name: Summarize evidence
         if: always()
         run: |
