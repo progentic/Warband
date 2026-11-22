@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.43 - 2026-11-22
+
+### Added
+
+- Verified that recovery after a committed observation produces one evaluation without redispatch, and recovery after a committed acceptance returns the original transition. Missing pledged events halt both entry points. [PR #81](https://github.com/progentic/Warband/pull/81)
+
 ## 0.0.42 - 2026-11-22
 
 ### Added
