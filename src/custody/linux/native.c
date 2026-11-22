@@ -142,6 +142,27 @@ static int proof_fsync(int fd) {
     }
     return fsync(fd);
 }
+#elif defined(WB_TEST_HEAD_ERROR)
+_Static_assert(WB_TEST_HEAD_ERROR >= 1 && WB_TEST_HEAD_ERROR <= 5, "unsupported publication error");
+static int head_fd = -1, first_commit_appended;
+static ssize_t proof_write(int fd, const uint8_t *buf, size_t size) {
+    if (fd != head_fd) return write(fd, buf, size);
+    size_t count = size;
+    if (WB_TEST_HEAD_ERROR <= 2) {
+        if (size == 134) count = 102;
+        else if (WB_TEST_HEAD_ERROR == 2) {
+            fprintf(stderr, "tmp_write %zu -1 ENOSPC\n", size);
+            errno = ENOSPC;
+            return -1;
+        }
+    }
+    ssize_t n = write(fd, buf, count);
+    int saved = errno;
+    fprintf(stderr, "tmp_write %zu %zd\n", size, n);
+    errno = saved;
+    return n;
+}
+#define proof_fsync fsync
 #else
 #define proof_write write
 #define proof_fsync fsync
@@ -160,7 +181,7 @@ static int write_all(int fd, const uint8_t *buf, size_t size) {
 #if defined(WB_TEST_PUBLISH_STOP) || defined(WB_TEST_PENDING_BYTES) || defined(WB_TEST_COMMITTED_STOP) || defined(WB_TEST_ADMIN_STOP)
 #include <signal.h>
 #endif
-#if defined(WB_TEST_PUBLISH_STOP) || defined(WB_TEST_COMMITTED_STOP)
+#if defined(WB_TEST_PUBLISH_STOP) || defined(WB_TEST_COMMITTED_STOP) || defined(WB_TEST_HEAD_ERROR)
 static int is_first_commit(const uint8_t *buf, size_t size) {
     static const uint8_t one_le[8] = {1};
     return size == 251 && buf[6] == 2 && !memcmp(buf+83+64, one_le, 8);
@@ -235,7 +256,7 @@ int wb_append(const uint8_t *buf, size_t size, int first, int sync_directory) {
     proof_fd = -1;
 #endif
     if (close(fd) || !ok) return -1;
-#ifdef WB_TEST_PUBLISH_STOP
+#if defined(WB_TEST_PUBLISH_STOP) || defined(WB_TEST_HEAD_ERROR)
     first_commit_appended = is_first_commit(buf, size);
 #endif
 #ifdef WB_TEST_COMMITTED_STOP
@@ -256,20 +277,40 @@ int wb_append(const uint8_t *buf, size_t size, int first, int sync_directory) {
 #endif
 }
 
+#ifdef WB_TEST_HEAD_ERROR
+static int head_result(const char *operation, int result) {
+    int saved = errno;
+    fprintf(stderr, "%s %d %d\n", operation, result, result < 0 ? saved : 0);
+    errno = saved;
+    return result;
+}
+// Evaluate the syscall once, or inject EIO without performing it. Close always runs.
+#define HEAD_CALL(name, mode, call) (first_commit_appended ? head_result(name, \
+    WB_TEST_HEAD_ERROR == (mode) ? (errno = EIO, -1) : (call)) : (call))
+#else
+#define HEAD_CALL(name, mode, call) (call)
+#endif
+
 int wb_publish(const uint8_t *buf, size_t size) {
     if (unlinkat(data, "head.tmp", 0) && errno != ENOENT) return -1;
     int fd = open_file("head.tmp", O_CREAT|O_EXCL|O_WRONLY);
     if (fd < 0) return -1;
+#ifdef WB_TEST_HEAD_ERROR
+    if (first_commit_appended) head_fd = fd;
+#endif
     int ok = write_all(fd, buf, size) == 0;
     if (ok) {
         publication_stop(1);
-        ok = fsync(fd) == 0;
+        ok = HEAD_CALL("tmp_sync", 3, fsync(fd)) == 0;
     }
-    if (close(fd) || !ok) return -1;
+#ifdef WB_TEST_HEAD_ERROR
+    head_fd = -1;
+#endif
+    if (HEAD_CALL("tmp_close", 0, close(fd)) || !ok) return -1;
     publication_stop(2);
-    if (renameat(data,"head.tmp",data,"head")) return -1;
+    if (HEAD_CALL("head_rename", 4, renameat(data,"head.tmp",data,"head"))) return -1;
     publication_stop(3);
-    int rc = fsync(data);
+    int rc = HEAD_CALL("directory_sync", 5, fsync(data));
 #ifdef WB_TEST_ADMIN_STOP
     if (rc == 0 && epoch_appended && raise(SIGSTOP)) return -1;
 #endif
