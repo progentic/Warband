@@ -95,6 +95,8 @@ def fixture(*, measure=False, proof_variant=None, fresh=False):
         if measure:
             shutil.copy2(OUT/'capacity/custodian',root/'custodian')
             log.touch(mode=0o600)
+        if proof_variant and proof_variant.startswith('append-'):
+            log = root/'append.log'
         first_service = root/'custodian'
         if proof_variant is not None:
             first_service = shutil.copy2(OUT/'custodian'/proof_variant/'custodian', root/'proof-custodian')
@@ -584,6 +586,125 @@ def receipt_transaction_kill(stop):
              bundle=str(bundle), inventory_sha256=inventory)
 
 
+def append_fault(kind, mode):
+    variant = f'append-{kind}-{mode}'
+    with fixture(proof_variant=variant) as (f, genesis, denial):
+        history, head = f.root/'data/history', f.root/'data/head'
+        base, old_head = history.read_bytes(), head.read_bytes()
+        assert f.verify()[3:5] == (b'', 2) and f.rows() == [[], [], []]
+        fd = os.pidfd_open(f.custodian_pid)
+        try:
+            caller = 'Ready' if mode==1 else 'AttestationUncertain'
+            assert f.run(caller,allow=mode==1) == caller
+            if mode!=1:
+                poller = select.poll()
+                poller.register(fd,select.POLLIN)
+                assert poller.poll(5000), 'faulted custodian did not exit'
+        finally:
+            os.close(fd)
+
+        parent = OUT/'append-error'
+        parent.mkdir(exist_ok=True)
+        bundle = Path(tempfile.mkdtemp(dir=parent,prefix=variant+'-'))
+        hashes, owners, sidecars = capture_files(f,bundle)
+        calls = (f.root/'append.log').read_text().splitlines()
+        meta = dict(variant=variant,caller=caller,calls=calls,sidecars=sidecars,file_uid_gid_mode=owners,
+                    host=os.uname().nodename,kernel=os.uname().release,source=subprocess.check_output(
+                        ['git','-c',f'safe.directory={Path.cwd()}','rev-parse','HEAD'],text=True).strip())
+        inventory = seal_capture(bundle,hashes,meta)
+        emit(append_capture=variant,bundle=str(bundle),inventory_sha256=inventory,calls=calls)
+        prefix = 83 if kind==1 else 250
+        first = f'append_write 251 {prefix}'
+        remainder = 251-prefix
+        if mode==3:
+            assert calls == ['append_write 251 251','append_fsync -1 EIO'],calls
+        else:
+            last = str(remainder) if mode==1 else '-1 ENOSPC'
+            assert calls == [first,f'append_write {remainder} {last}'],calls
+        with tempfile.TemporaryDirectory(dir=f.root) as tmp:
+            db = shutil.copytree(bundle/'journal',Path(tmp)/'journal')/'active.db'
+            with contextlib.closing(sqlite3.connect(db)) as conn:
+                conn.execute('BEGIN')
+                rows = [list(conn.execute('SELECT * FROM '+t)) for t in ('events','denial_imports','import_watermarks')]
+        retained = (bundle/'data/history').read_bytes()
+        published = (bundle/'data/head').read_bytes()
+        assert retained.startswith(base)
+        tail = retained[len(base):]
+        ref = STORE,LE(1),LE(1)
+        if rows == [[],[],[]]:
+            assert published == old_head
+            hdr = b'WBCH'+struct.pack('<HBIQ',1,1,136,3)+base[-32:]
+            if tail == hdr+sha(b'warband.custody.header.v1\0'+hdr):
+                state, tip, startup_history, outstanding = 'Ready',2,base,1
+                expected_pledge = b''
+            else:
+                pledge = tail[83:-32]
+                assert len(pledge)==136 and pledge[:72]==STORE+LE(1)+LE(0)+genesis+LE(1)
+                assert pledge[72:104]==sha(b'warband.link.v1\0'+b''.join(ref)+genesis+pledge[104:])
+                assert tail == admin_frame(1,pledge,3,base[-32:])
+                state, tip, startup_history, outstanding = 'PendingEventMissing',3,retained,1
+                expected_pledge = pledge
+            startup_head = old_head
+        else:
+            assert [len(t) for t in rows]==[1,1,1]
+            timestamp, = struct.unpack_from('<Q',rows[0][0][3],40)
+            event, pledge = event_and_pledge(genesis,denial,timestamp)
+            assert rows == [[(*ref,event)],[(STORE,denial[11:19],denial[-32:],*ref[1:])],[(STORE,denial[11:19])]]
+            pending = admin_frame(1,pledge,3,base[-32:])
+            committed = admin_frame(2,pledge,4,pending[-32:])
+            cp = b''.join(ref)+pledge[72:104]
+            body = b'WBHD'+struct.pack('<H',1)+cp+committed[-32:]
+            new_head = body+sha(b'warband.head.v1\0'+body)
+            if tail == pending+committed[:250]:
+                assert published == old_head
+                state, tip, startup_history, outstanding = 'PendingConfirmation',3,base+pending,1
+                expected_pledge, startup_head = pledge, old_head
+            else:
+                assert tail == pending+committed and published in (old_head,new_head)
+                state, tip, startup_history, outstanding = 'Ready',4,retained,0
+                expected_pledge, startup_head = b'',new_head
+        assert (state,tip) == {(1,1):('Ready',4),(2,1):('Ready',4),(1,2):('Ready',2),
+                               (2,2):('PendingConfirmation',3),(1,3):('PendingEventMissing',3),(2,3):('Ready',4)}[kind,mode]
+        assert published == (startup_head if mode==1 else old_head)
+        replay = shutil.copy2(OUT/'reconcile/replay-noop',f.root/'replay')
+        def replay_read():
+            return subprocess.run([replay,f.db,f.root/'endpoints/runtime.sock',str(f.custodian),STORE.hex(),'1'],
+                                  user=f.runtime,group=f.runtime,extra_groups=[],text=True,capture_output=True,timeout=65)
+        recovery = contextlib.nullcontext()
+        if mode!=1:
+            blocked = replay_read()
+            assert (blocked.returncode,blocked.stdout)==(1,'')
+            recovery = service(f.root,f.root/'custodian',f.custodian,f.runtime,f.operator)
+        with recovery:
+            verified = f.verify()
+            assert verified[2:5] == (startup_head[6:70],expected_pledge,tip)
+            assert history.read_bytes()==startup_history and head.read_bytes()==startup_head and f.rows()==rows
+            result = replay_read()
+            assert (result.returncode,result.stdout.splitlines())==(0,[f'Journal {state} OutstandingReceipts {outstanding}'])
+            if state=='PendingEventMissing':
+                assert f.run(state,allow=False)==state and f.verify()==verified and history.read_bytes()==retained
+            if rows[0]:
+                if state=='PendingConfirmation':
+                    assert f.run(state)==state
+                assert f.call(2,pledge)[:5]==(0,committed[-32:],cp,b'',4)
+                assert f.run('Ready')=='Ready' and history.read_bytes()==base+pending+committed and head.read_bytes()==new_head
+            assert f.rows()==rows
+            emit(case='append_error',variant=variant,caller=caller,startup_tip=tip,replay=result.stdout.strip(),
+                 final_tip=f.verify()[4],suffix_bytes=len(tail),inventory_sha256=inventory)
+
+
+def append_fault_reply(kind,mode):
+    with fixture(proof_variant=f'append-{kind}-{mode}') as (f,genesis,denial):
+        event,pledge = event_and_pledge(genesis,denial)
+        if kind==2:
+            prepared = f.call(1,pledge)
+            assert prepared[0]==0 and prepared[1]!=ZERO
+            craft(f,denial,event)
+        reply = f.call(kind,pledge)
+        assert reply[:2]==(14,ZERO) and reply[4]==kind+1
+        emit(case='append_fault_reply',kind=kind,mode=mode,status=reply[0],receipt=reply[1].hex())
+
+
 def existing_event_prefix():
     with fixture() as (f, _, frame):
         vectors = json.loads(VECTORS.read_text())
@@ -849,4 +970,9 @@ if __name__ == '__main__':
     for edge in range(1,6):
         admin_kill(edge)
     established_metadata_loss()
+    for kind in (1,2):
+        for mode in (1,2,3):
+            append_fault(kind,mode)
+            if mode!=1:
+                append_fault_reply(kind,mode)
     emit(result='pass')

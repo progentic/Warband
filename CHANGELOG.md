@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.45 - 2026-11-22
+
+### Added
+
+- Verified that custody completes short writes on PENDING and COMMITTED frames and withholds success on injected ENOSPC or file-sync failure. Custody startup validates the retained history, and the importer checks the SQLite event against the resulting checkpoint and pledge. [PR #83](https://github.com/progentic/Warband/pull/83)
+
 ## 0.0.44 - 2026-11-22
 
 ### Added
