@@ -5,6 +5,7 @@ import json
 import os
 import multiprocessing
 import socket
+import select
 from pathlib import Path
 import pwd
 import shutil
@@ -620,7 +621,7 @@ def interrupted_operator(root, uid, custodian, wire):
         try:
             assert conn.recv(490) == b'', 'unexpected administrative reply bytes'
         except ConnectionResetError:
-            return
+            raise SystemExit(42)  # Distinguish reset from an orderly EOF.
 
 
 def kill_admin(f, wire):
@@ -638,7 +639,8 @@ def kill_admin(f, wire):
         signal.pidfd_send_signal(fd,signal.SIGKILL)
         os.close(fd)
         child.join(35)
-    assert child.exitcode == 0, child.exitcode
+    assert child.exitcode in (0,42), child.exitcode
+    return 'EOF' if child.exitcode == 0 else 'reset'
 
 
 def capture_admin(f, case, wire):
@@ -664,7 +666,7 @@ def capture_admin(f, case, wire):
 
 def admin_kill(edge):
     genesis = edge <= 3
-    with fixture(proof_variant=f'admin-{edge}', fresh=genesis) as (f, _, denial):
+    with fixture(proof_variant=f'admin-{edge}', fresh=genesis) as (f, _, _):
         history, head = f.root/'data/history', f.root/'data/head'
         old_history = b'' if genesis else history.read_bytes()
         if genesis:
@@ -697,7 +699,7 @@ def admin_kill(edge):
         frame = admin_frame(op-1,payload+LE(f.operator),tip+1,old_history[-32:] or ZERO)
         prefix = b'WBHD'+struct.pack('<H',1)+checkpoint+frame[-32:]
         new_head = prefix+sha(b'warband.head.v1\0'+prefix)
-        kill_admin(f,wire)
+        caller = kill_admin(f,wire)
         bundle = capture_admin(f,f'edge-{edge}',wire)
         length = {1:0,2:83,3:len(frame),4:83,5:len(frame)}[edge]
         assert (bundle/'data/history').read_bytes()==old_history+frame[:length]
@@ -731,9 +733,10 @@ def admin_kill(edge):
                     f.provision()
                     f.archives = []
                     f.run('EpochMismatch',allow=False)
+                    assert archive.read_bytes()==old_db
                     f.archives = [archive,(wire[:11]+epoch_payload(ZERO)).hex()]
                     f.run('IntegrityFault',allow=False)
-                    assert f.rows()==[[],[],[]]
+                    assert archive.read_bytes()==old_db and f.rows()==[[],[],[]]
                     f.archives = [archive,wire.hex()]
                     f.run('Ready')
                     assert f.rows()==[[],[],[]] and f.verify()[2:5]==(checkpoint,b'',tip+1)
@@ -744,7 +747,7 @@ def admin_kill(edge):
                 state = 'Ready' if edge==5 else 'PendingEventMissing'
                 assert (result.returncode,result.stdout.splitlines())==(0,[f'Journal {state} OutstandingReceipts 0'])
                 assert archive.read_bytes()==old_db
-        emit(case='admin_kill',edge=edge,reply_bytes=0,retained_length=length,epoch=f.epoch,tip=tip if edge==4 else tip+1)
+        emit(case='admin_kill',edge=edge,caller=caller,custodian_pid=f.custodian_pid,reply_bytes=0,retained_length=length,epoch=f.epoch,tip=tip if edge==4 else tip+1)
 
 
 def established_metadata_loss():
@@ -752,7 +755,14 @@ def established_metadata_loss():
         f.run('Ready')
         old_rows, database = f.rows(), f.db.read_bytes()
         assert len(old_rows[0])==1
-        os.kill(f.custodian_pid,signal.SIGKILL)
+        fd = os.pidfd_open(f.custodian_pid)
+        try:
+            poller = select.poll()
+            poller.register(fd,select.POLLIN)
+            signal.pidfd_send_signal(fd,signal.SIGKILL)
+            assert poller.poll(5000), 'custodian did not exit'
+        finally:
+            os.close(fd)
         for name in ('head','history'):
             (f.root/'data'/name).rename(f.root/('saved-'+name))
         journal = f.root/'journal'
