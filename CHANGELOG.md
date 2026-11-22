@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.40 - 2026-11-21
+
+### Added
+
+- Verified that a durable custody pledge with a missing SQLite event halts the importer on each restart. The kill harness preserves the original files and checksums for operator rehearsal. [PR #78](https://github.com/progentic/Warband/pull/78)
+
 ## 0.0.39 - 2026-11-21
 
 ### Added
