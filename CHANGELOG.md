@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.49 - 2026-11-22
+
+### Added
+
+- Verified that custody refuses and preserves complete corrupt frames, including the final frame. A one-byte change inside a readable SQLite event also withholds the authoritative projection. [PR #87](https://github.com/progentic/Warband/pull/87)
+
 ## 0.0.48 - 2026-11-22
 
 ### Added
