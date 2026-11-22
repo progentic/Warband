@@ -1,8 +1,6 @@
 """Read-only observers for the production x86-64 qualification binaries."""
 import contextlib
-import os
 import re
-import select
 import shutil
 import subprocess
 import time
@@ -62,3 +60,11 @@ def custody_calls(pid, log):
             if p.poll() is None:
                 p.send_signal(2)
             p.wait(timeout=10)
+
+
+def traced_import(f, store, log):
+    args = ['strace','-f','-qq','-yy','-ttt','-s','0','-e',
+            'trace=write,pwrite64,ftruncate,fallocate,fsync,fdatasync','-o',log,'setpriv',
+            f'--reuid={f.runtime}',f'--regid={f.runtime}','--clear-groups','--no-new-privs',
+            f.root/'importer',f.db,f.root/'endpoints/runtime.sock',str(f.custodian),store.hex(),'1','0','-']
+    return subprocess.run(args,capture_output=True,text=True,timeout=70)
