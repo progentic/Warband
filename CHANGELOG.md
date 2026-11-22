@@ -14,7 +14,7 @@ date. Draft candidates are documented in their PR and evidence record until then
 
 ### Added
 
-- Added `replay-noop` to reconstruct task and control state from custody-confirmed events. Replay withholds the whole projection when the event chain or its references fail validation.
+- Added `replay-noop` to reconstruct task and control state from custody-confirmed events. Replay withholds the whole projection when the event chain or its references fail validation. [PR #71](https://github.com/progentic/Warband/pull/71)
 
 ## 0.0.34 - 2026-11-21
 
