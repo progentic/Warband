@@ -7,6 +7,9 @@ import c "../custody"
 import client "../runtime/client"
 import "core:encoding/endian"
 import "core:crypto/sha2"
+import "core:fmt"
+import "base:runtime"
+import "core:sys/linux"
 
 foreign import sqlite_import "warband_sqlite:libsqlite3.a"
 @(private)
@@ -291,6 +294,15 @@ limit_sqlite :: proc() -> bool {
 	return n > 0 && n <= 64*1024*1024
 }
 
+// Only the WAL proof binary registers this callback, immediately before COMMIT.
+@(private)
+stop_in_wal_commit :: proc "c" (_: rawptr, _: Database, _: cstring, frames: i32) -> i32 {
+	context = runtime.default_context()
+	fmt.eprintln("wal_frames", frames)
+	if linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return 1 }
+	return 0
+}
+
 @(private)
 commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: Maybe(Import), bytes: []u8, acceptance: ^AcceptanceCheck = nil) -> bool {
 	state := cast(^WriterState)w
@@ -309,11 +321,22 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 	epoch, seq := word(u64(cp.epoch)), word(u64(cp.sequence)+1)
 	if !change(db,"INSERT INTO events(store_id,epoch,sequence,canonical_event) VALUES(?,?,?,?)",cp.store[:],epoch[:],seq[:],bytes) { return false }
 	if entry, present := receipt.(Import); present {
+		when #config(WARBAND_TEST_STOP_AFTER_EVENT_INSERT, false) {
+			if linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return false }
+		}
 		ord := word(entry.id.ordinal)
 		if !change(db,"INSERT INTO denial_imports(store_id,custody_ordinal,record_hash,epoch,sequence) VALUES(?,?,?,?,?)",cp.store[:],ord[:],entry.id.hash[:],epoch[:],seq[:]) ||
 		   !change(db,"INSERT INTO import_watermarks(store_id,last_imported_ordinal) VALUES(?,?) ON CONFLICT(store_id) DO UPDATE SET last_imported_ordinal=excluded.last_imported_ordinal",cp.store[:],ord[:]) { return false }
 	}
 	if acceptance != nil && !insert_accepted(db,acceptance.attempt,acceptance.event) { return false }
+	when #config(WARBAND_TEST_STOP_IN_WAL_COMMIT, false) {
+		if receipt != nil {
+			threshold, ok := read_scalar(state,"PRAGMA wal_autocheckpoint").(i64)
+			if !ok || threshold <= 0 { return false }
+			fmt.eprintln("wal_threshold", threshold)
+			_ = sqlite3_wal_hook(db,stop_in_wal_commit,nil)
+		}
+	}
 	committed = change(db,"COMMIT")
 	return committed
 }
