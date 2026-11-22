@@ -151,11 +151,11 @@ def restart(state):
             assert after == custody
 
 
-def post_commit_process_kill():
+def import_process_kill(stop):
     with fixture() as (f, genesis, frame):
         before = f.verify()
         assert f.rows() == [[], [], []] and not before[3]
-        binary = shutil.copy2(OUT/'reconcile/reconcile-custody-stop-after-commit', f.root/'fault-importer')
+        binary = shutil.copy2(OUT/'reconcile'/f'reconcile-custody-stop-{stop}', f.root/'fault-importer')
         args = [binary, f.db, f.root/'endpoints/runtime.sock', str(f.custodian), STORE.hex(), '1', '0', '-']
         with subprocess.Popen(args, user=f.runtime, group=f.runtime, extra_groups=[], stdout=subprocess.PIPE) as child:
             try:
@@ -167,7 +167,7 @@ def post_commit_process_kill():
                         break
                     time.sleep(0.01)
                 else:
-                    raise AssertionError(f'importer {child.pid} did not reach its post-COMMIT stop')
+                    raise AssertionError(f'importer {child.pid} did not reach its {stop} stop')
             finally:
                 child.kill()
                 status = child.wait(timeout=10)
@@ -184,6 +184,8 @@ def post_commit_process_kill():
         assert rows == [[(*ref, canonical)], [(STORE, ordinal, frame[-32:], *ref[1:])], [(STORE, ordinal)]]
         replay = shutil.copy2(OUT/'reconcile/replay-noop', f.root/'replay-noop')
 
+        replay_case = 'before_ack_replay' if stop == 'before-ack' else 'post_commit_replay'
+
         def check_replay(stage, custody, expected_tip, expected_journal, expected_outstanding):
             result = subprocess.run([replay, f.db, f.root/'endpoints/runtime.sock', str(f.custodian),
                                      STORE.hex(), str(f.epoch)], user=f.runtime, group=f.runtime,
@@ -192,7 +194,25 @@ def post_commit_process_kill():
             journal = f'Journal {expected_journal} OutstandingReceipts {expected_outstanding}'
             assert result.returncode == 0 and result.stdout.splitlines() == [journal], (result.stdout, result.stderr)
             assert custody[4] == expected_tip and f.verify() == custody and f.rows() == rows
-            emit(case='post_commit_replay', stage=stage, tip=custody[4], output=result.stdout.strip())
+            emit(case=replay_case, stage=stage, tip=custody[4], output=result.stdout.strip())
+
+        if stop == 'before-ack':
+            confirmed = f.verify()
+            assert confirmed[2] == b''.join(ref) + pledge[72:104] and not confirmed[3]
+            check_replay('after_kill', confirmed, 4, 'Ready', 0)
+
+            store, receipt_ordinal, record_hash, epoch, sequence = rows[1][0]
+            retry = (int.from_bytes(receipt_ordinal, 'little'), record_hash)
+            result = f.run('ConfirmedResponsePending', retry)
+            expected_ref = [store.hex(), str(int.from_bytes(epoch, 'little')), str(int.from_bytes(sequence, 'little'))]
+            assert result.split() == ['ConfirmedResponsePending', *expected_ref], result
+            assert f.rows() == rows and f.verify() == confirmed
+            assert f.run('Ready') == 'Ready'
+            assert f.rows() == rows and f.verify() == confirmed
+            check_replay('ordinary_restart', confirmed, 4, 'Ready', 0)
+            emit(case='before_ack_process_kill', pid=child.pid, stopped='SIGSTOP', reaped=status,
+                 stdout_bytes=0, tip=confirmed[4], retry_result=result, receipt_hash=record_hash.hex())
+            return
 
         pending = f.verify()
         tip = pending[4]
@@ -282,7 +302,8 @@ if __name__ == '__main__':
     assert os.getuid()==0 and limits('self')==(256*1024*1024,0)
     for case in ('PendingConfirmation','ConfirmedResponsePending','PendingEventMissing','UnattestedTail','IntegrityFault'):
         restart(case)
-    post_commit_process_kill()
+    import_process_kill('after-commit')
+    import_process_kill('before-ack')
     existing_event_prefix()
     retained_segments()
     emit(result='pass')

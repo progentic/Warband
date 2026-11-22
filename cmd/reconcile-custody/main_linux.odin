@@ -1,6 +1,7 @@
 package main
 
 import "core:os"
+import "core:sys/linux"
 import "core:fmt"
 import "core:mem"
 import "core:strings"
@@ -10,6 +11,8 @@ import e "../../src/domain/events"
 import r "../../src/runtime"
 import c "../../src/runtime/client"
 import s "../../src/store"
+
+TEST_STOP_SIGNAL :: linux.Signal.SIGSTOP
 
 workspace: [128*1024*1024]u8
 
@@ -48,6 +51,9 @@ main :: proc() {
 	}
 	ref: e.EventRef
 	result := r.run(strings.clone_to_cstring(args[1]),&session,archives[:],retry,&ref)
+	when #config(WARBAND_TEST_STOP_BEFORE_ACK, false) {
+		if result == .Ready && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { os.exit(1) }
+	}
 	if ref.sequence != 0 && (result == .ConfirmedResponsePending || result == .PendingConfirmation) {
 		fmt.println(result,args[4],u64(ref.epoch),u64(ref.sequence))
 	} else { fmt.println(result) }
