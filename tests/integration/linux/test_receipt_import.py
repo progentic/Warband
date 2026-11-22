@@ -95,8 +95,8 @@ def fixture(*, measure=False, proof_variant=None, fresh=False):
         if measure:
             shutil.copy2(OUT/'capacity/custodian',root/'custodian')
             log.touch(mode=0o600)
-        if proof_variant and proof_variant.startswith('append-'):
-            log = root/'append.log'
+        if proof_variant and proof_variant.startswith(('append-','publish-err-')):
+            log = root/'storage.log'
         first_service = root/'custodian'
         if proof_variant is not None:
             first_service = shutil.copy2(OUT/'custodian'/proof_variant/'custodian', root/'proof-custodian')
@@ -468,10 +468,12 @@ def transaction_result(f, bundle, genesis, receipt, verified, pledge_valid):
     return 'IntegrityFault', rows
 
 
-def capture_files(f, bundle):
+def capture_files(f, bundle, *, include_tmp=False):
     # No SQLite connection or recovery probe between reap and this quiescent copy.
     files = ['data/history', 'data/head', 'journal/active.db']
     sidecars = {}
+    if include_tmp and (f.root/'data/head.tmp').exists():
+        files.append('data/head.tmp')
     for ext in ('-wal', '-shm', '-journal'):
         name = 'journal/active.db'+ext
         sidecars[name] = (f.root/name).exists()
@@ -586,32 +588,39 @@ def receipt_transaction_kill(stop):
              bundle=str(bundle), inventory_sha256=inventory)
 
 
+def capture_storage_run(f, variant, mode, group):
+    fd = os.pidfd_open(f.custodian_pid)
+    try:
+        caller = 'Ready' if mode==1 else 'AttestationUncertain'
+        assert f.run(caller,allow=mode==1) == caller
+        if mode!=1:
+            poller = select.poll()
+            poller.register(fd,select.POLLIN)
+            assert poller.poll(5000), 'faulted custodian did not exit'
+    finally:
+        os.close(fd)
+
+    parent = OUT/group
+    parent.mkdir(exist_ok=True)
+    bundle = Path(tempfile.mkdtemp(dir=parent,prefix=variant+'-'))
+    hashes, owners, sidecars = capture_files(f,bundle,include_tmp=group=='publish-error')
+    calls = (f.root/'storage.log').read_text().splitlines()
+    meta = dict(variant=variant,caller=caller,calls=calls,sidecars=sidecars,file_uid_gid_mode=owners,
+                host=os.uname().nodename,kernel=os.uname().release,source=subprocess.check_output(
+                    ['git','-c',f'safe.directory={Path.cwd()}','rev-parse','HEAD'],text=True).strip())
+    if group=='publish-error':
+        meta['head_tmp_present'] = 'data/head.tmp' in hashes
+    inventory = seal_capture(bundle,hashes,meta)
+    return bundle, calls, caller, inventory
+
+
 def append_fault(kind, mode):
     variant = f'append-{kind}-{mode}'
     with fixture(proof_variant=variant) as (f, genesis, denial):
         history, head = f.root/'data/history', f.root/'data/head'
         base, old_head = history.read_bytes(), head.read_bytes()
         assert f.verify()[3:5] == (b'', 2) and f.rows() == [[], [], []]
-        fd = os.pidfd_open(f.custodian_pid)
-        try:
-            caller = 'Ready' if mode==1 else 'AttestationUncertain'
-            assert f.run(caller,allow=mode==1) == caller
-            if mode!=1:
-                poller = select.poll()
-                poller.register(fd,select.POLLIN)
-                assert poller.poll(5000), 'faulted custodian did not exit'
-        finally:
-            os.close(fd)
-
-        parent = OUT/'append-error'
-        parent.mkdir(exist_ok=True)
-        bundle = Path(tempfile.mkdtemp(dir=parent,prefix=variant+'-'))
-        hashes, owners, sidecars = capture_files(f,bundle)
-        calls = (f.root/'append.log').read_text().splitlines()
-        meta = dict(variant=variant,caller=caller,calls=calls,sidecars=sidecars,file_uid_gid_mode=owners,
-                    host=os.uname().nodename,kernel=os.uname().release,source=subprocess.check_output(
-                        ['git','-c',f'safe.directory={Path.cwd()}','rev-parse','HEAD'],text=True).strip())
-        inventory = seal_capture(bundle,hashes,meta)
+        bundle,calls,caller,inventory = capture_storage_run(f,variant,mode,'append-error')
         emit(append_capture=variant,bundle=str(bundle),inventory_sha256=inventory,calls=calls)
         prefix = 83 if kind==1 else 250
         first = f'append_write 251 {prefix}'
@@ -693,16 +702,95 @@ def append_fault(kind, mode):
                  final_tip=f.verify()[4],suffix_bytes=len(tail),inventory_sha256=inventory)
 
 
-def append_fault_reply(kind,mode):
-    with fixture(proof_variant=f'append-{kind}-{mode}') as (f,genesis,denial):
+def storage_fault_reply(kind,mode,publication=False):
+    variant = f'publish-err-{mode}' if publication else f'append-{kind}-{mode}'
+    with fixture(proof_variant=variant) as (f,genesis,denial):
         event,pledge = event_and_pledge(genesis,denial)
         if kind==2:
             prepared = f.call(1,pledge)
             assert prepared[0]==0 and prepared[1]!=ZERO
             craft(f,denial,event)
         reply = f.call(kind,pledge)
-        assert reply[:2]==(14,ZERO) and reply[4]==kind+1
-        emit(case='append_fault_reply',kind=kind,mode=mode,status=reply[0],receipt=reply[1].hex())
+        expected_tip = 4 if publication else kind+1  # Publication follows the durable COMMITTED append.
+        assert reply[:5]==(14,ZERO,STORE+LE(1)+LE(0)+genesis,pledge if kind==2 else b'',expected_tip)
+        emit(case='publication_fault_reply' if publication else 'append_fault_reply',kind=kind,mode=mode,status=reply[0],receipt=reply[1].hex())
+
+
+def publication_fault(mode):
+    variant = f'publish-err-{mode}'
+    with fixture(proof_variant=variant) as (f,genesis,denial):
+        history,head = f.root/'data/history',f.root/'data/head'
+        base = history.read_bytes()
+        prefix = b'WBHD'+struct.pack('<H',1)+STORE+LE(1)+LE(0)+genesis+base[-32:]
+        old_head = prefix+sha(b'warband.head.v1\0'+prefix)
+        assert head.read_bytes()==old_head and f.verify()[3:5]==(b'',2) and f.rows()==[[],[],[]]
+        bundle,calls,caller,inventory = capture_storage_run(f,variant,mode,'publish-error')
+        emit(publication_capture=variant,bundle=str(bundle),inventory_sha256=inventory,calls=calls)
+        with tempfile.TemporaryDirectory(dir=f.root) as tmp:
+            db = shutil.copytree(bundle/'journal',Path(tmp)/'journal')/'active.db'
+            with contextlib.closing(sqlite3.connect(db)) as conn:
+                conn.execute('BEGIN')
+                rows = [list(conn.execute('SELECT * FROM '+t)) for t in ('events','denial_imports','import_watermarks')]
+        assert [len(table) for table in rows]==[1,1,1]
+        recorded_time, = struct.unpack_from('<Q',rows[0][0][3],40)
+        event,pledge = event_and_pledge(genesis,denial,recorded_time)
+        ref = STORE,LE(1),LE(1)
+        ordinal = denial[11:19]
+        assert rows==[[(*ref,event)],[(STORE,ordinal,denial[-32:],*ref[1:])],[(STORE,ordinal)]]
+        pending = admin_frame(1,pledge,3,base[-32:])
+        committed = admin_frame(2,pledge,4,pending[-32:])
+        retained = base+pending+committed
+        assert (bundle/'data/history').read_bytes()==retained
+        cp = b''.join(ref)+pledge[72:104]
+        prefix = b'WBHD'+struct.pack('<H',1)+cp+committed[-32:]
+        new_head = prefix+sha(b'warband.head.v1\0'+prefix)
+        assert len(prefix)==102 and len(new_head)==134
+        published = (bundle/'data/head').read_bytes()
+        temporary = bundle/'data/head.tmp'
+        if published==new_head and not temporary.exists():
+            state = 'new_head'
+        elif published==old_head and temporary.exists() and temporary.read_bytes()==prefix:
+            state = 'partial_tmp'
+        elif published==old_head and temporary.exists() and temporary.read_bytes()==new_head:
+            state = 'complete_tmp'
+        else:
+            raise AssertionError(('unexpected publication files',bundle))
+        emit(variant=variant,observed=state)
+        assert state==('new_head','partial_tmp','complete_tmp','complete_tmp','new_head')[mode-1]
+        full = ['tmp_write 134 134']
+        sync_close = ['tmp_sync 0 0','tmp_close 0 0']
+        successful_end = sync_close+['head_rename 0 0','directory_sync 0 0']
+        expected = [
+            ['tmp_write 134 102','tmp_write 32 32']+successful_end,
+            ['tmp_write 134 102','tmp_write 32 -1 ENOSPC','tmp_close 0 0'],
+            full+['tmp_sync -1 5','tmp_close 0 0'],
+            full+sync_close+['head_rename -1 5'],
+            full+sync_close+['head_rename 0 0','directory_sync -1 5'],
+        ]
+        assert calls==expected[mode-1],calls
+        replay = shutil.copy2(OUT/'reconcile/replay-noop',f.root/'replay')
+        def replay_read():
+            return subprocess.run([replay,f.db,f.root/'endpoints/runtime.sock',str(f.custodian),STORE.hex(),'1'],
+                                  user=f.runtime,group=f.runtime,extra_groups=[],text=True,capture_output=True,timeout=65)
+        recovery = contextlib.nullcontext()
+        if mode!=1:
+            blocked = replay_read()
+            assert (blocked.returncode,blocked.stdout)==(1,'')
+            recovery = service(f.root,f.root/'custodian',f.custodian,f.runtime,f.operator)
+        with head.open('rb') as visible, recovery:
+            verified = f.verify()
+            assert verified[2:5]==(cp,b'',4) and f.rows()==rows and history.read_bytes()==retained
+            assert head.read_bytes()==new_head and not (f.root/'data/head.tmp').exists()
+            assert visible.read()==published
+            prior, current = os.fstat(visible.fileno()), head.stat()
+            assert prior.st_dev==current.st_dev and (prior.st_ino!=current.st_ino)==(mode!=1)
+            assert f.call(2,pledge)[:5]==(0,committed[-32:],cp,b'',4)
+            assert f.run('Ready')=='Ready'
+            ready = replay_read()
+            assert (ready.returncode,ready.stdout.splitlines())==(0,['Journal Ready OutstandingReceipts 0'])
+            assert f.verify()==verified and f.rows()==rows and history.read_bytes()==retained and head.read_bytes()==new_head
+            emit(case='publication_error',variant=variant,caller=caller,observed=state,before_inode=prior.st_ino,
+                 after_inode=current.st_ino,tip=verified[4],replay=ready.stdout.strip())
 
 
 def existing_event_prefix():
@@ -974,5 +1062,9 @@ if __name__ == '__main__':
         for mode in (1,2,3):
             append_fault(kind,mode)
             if mode!=1:
-                append_fault_reply(kind,mode)
+                storage_fault_reply(kind,mode)
+    for mode in range(1,6):
+        publication_fault(mode)
+        if mode!=1:
+            storage_fault_reply(2,mode,publication=True)
     emit(result='pass')
