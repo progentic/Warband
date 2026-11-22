@@ -73,7 +73,7 @@ class Fixture:
 
 
 @contextlib.contextmanager
-def fixture(*, measure=False):
+def fixture(*, measure=False, publication_edge=None):
     existing = {p.pw_uid for p in pwd.getpwall()}
     users = [u for u in range(50000,60000) if u not in existing][:3]
     with tempfile.TemporaryDirectory(prefix='warband-import-',dir='/var/lib') as tmp:
@@ -92,7 +92,10 @@ def fixture(*, measure=False):
         if measure:
             shutil.copy2(OUT/'capacity/custodian',root/'custodian')
             log.touch(mode=0o600)
-        with service(root,root/'custodian',*users,stderr_path=log):
+        first_service = root/'custodian'
+        if publication_edge is not None:
+            first_service = shutil.copy2(OUT/f'custodian/publish-{publication_edge}/custodian', root/'proof-custodian')
+        with service(root,first_service,*users,stderr_path=log) as f.custodian_pid:
             receipt = None if measure else denied(f.call(4,ENROLL,denied_admin=True))
             assert f.call(4,ENROLL)[0] == 0
             os.chown(root/'journal',users[1],users[1])
@@ -232,6 +235,82 @@ def import_process_kill(stop):
              receipt_hash=frame[-32:].hex(), watermark=int.from_bytes(ordinal, 'little'))
 
 
+def publication_kill(edge):
+    with fixture(publication_edge=edge) as (f, genesis, frame):
+        head = f.root/'data/head'
+        temporary = f.root/'data/head.tmp'
+        history = f.root/'data/history'
+        old_head, old_history = head.read_bytes(), history.read_bytes()
+        assert f.verify()[4] == 2 and f.rows() == [[], [], []]
+        args = [f.db, f.root/'endpoints/runtime.sock', str(f.custodian), STORE.hex(), '1']
+        user = dict(user=f.runtime, group=f.runtime, extra_groups=[])
+        pid = f.custodian_pid
+        pidfd = os.pidfd_open(pid)
+        try:
+            with subprocess.Popen([f.root/'importer', *args, '0', '-'], **user,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as importer:
+                try:
+                    deadline = time.monotonic() + 25
+                    while time.monotonic() < deadline:
+                        if 'State:\tT (stopped)' in Path(f'/proc/{pid}/status').read_text().splitlines():
+                            break
+                        assert importer.poll() is None, ('importer exited before stop', edge)
+                        time.sleep(0.01)
+                    else:
+                        raise AssertionError(('publication stop not observed', edge, pid))
+                    assert importer.poll() is None
+                finally:
+                    signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+                output, error = importer.communicate(timeout=35)
+                assert (importer.returncode, output.splitlines()) == (1, ['AttestationUncertain']), (output, error)
+        finally:
+            os.close(pidfd)
+
+        # Reconstruct both appended frames and the head before recovery can touch any file.
+        rows = f.rows()
+        assert [len(table) for table in rows] == [1, 1, 1]
+        recorded_time, = struct.unpack_from('<Q', rows[0][0][3], 40)
+        event, pledge = event_and_pledge(genesis, frame, recorded_time)
+        ref = STORE, LE(1), LE(1)
+        ordinal = frame[11:19]
+        assert rows == [[(*ref, event)], [(STORE, ordinal, frame[-32:], *ref[1:])], [(STORE, ordinal)]]
+        retained = old_history
+        for kind, position in ((1, 3), (2, 4)):
+            header = b'WBCH' + struct.pack('<HBIQ', 1, kind, len(pledge), position) + retained[-32:]
+            record = header + sha(b'warband.custody.header.v1\0' + header) + pledge
+            retained += record + sha(b'warband.custody.record.v1\0' + record)
+        assert history.read_bytes() == retained
+        receipt = retained[-32:]
+        checkpoint = b''.join(ref) + pledge[72:104]
+        prefix = b'WBHD' + struct.pack('<H', 1) + checkpoint + receipt
+        new_head = prefix + sha(b'warband.head.v1\0' + prefix)
+        assert old_head != new_head
+        assert head.read_bytes() == (old_head if edge <= 2 else new_head)
+        if edge <= 2:
+            assert temporary.read_bytes() == new_head
+        else:
+            assert not temporary.exists()
+
+        replay = shutil.copy2(OUT/'reconcile/replay-noop', f.root/'replay-noop')
+        def run_replay():
+            return subprocess.run([replay, *args], **user, capture_output=True, text=True, timeout=65)
+        blocked = run_replay()
+        assert (blocked.returncode, blocked.stdout) == (1, ''), (blocked.stdout, blocked.stderr)
+        with service(f.root, f.root/'custodian', f.custodian, f.runtime, f.operator):
+            verified = f.verify()
+            assert verified[2:5] == (checkpoint, b'', 4)
+            assert head.read_bytes() == new_head and not temporary.exists()
+            exact = f.call(2, pledge)
+            assert exact[:5] == (0, receipt, checkpoint, b'', 4)
+            ready = run_replay()
+            assert (ready.returncode, ready.stdout.splitlines()) == (0, ['Journal Ready OutstandingReceipts 0'])
+            assert history.read_bytes() == retained and f.verify() == verified and f.rows() == rows
+            emit(case='publication_kill', edge=edge, custodian_pid=pid, caller=output.strip(),
+                 published_before='old' if edge <= 2 else 'new', temp_before=edge <= 2,
+                 replay_before_exit=blocked.returncode, recovered_tip=verified[4],
+                 exact_confirm_receipt=receipt.hex(), replay_after=ready.stdout.strip())
+
+
 def existing_event_prefix():
     with fixture() as (f, _, frame):
         vectors = json.loads(VECTORS.read_text())
@@ -304,6 +383,8 @@ if __name__ == '__main__':
         restart(case)
     import_process_kill('after-commit')
     import_process_kill('before-ack')
+    for edge in (1, 2, 3, 4):
+        publication_kill(edge)
     existing_event_prefix()
     retained_segments()
     emit(result='pass')

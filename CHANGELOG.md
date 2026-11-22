@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.38 - 2026-11-21
+
+### Added
+
+- Verified recovery after the custodian dies at four points during head publication. The importer reports uncertainty even when the new head is visible. After restart, exact confirmation returns the original receipt. [PR #76](https://github.com/progentic/Warband/pull/76)
+
 ## 0.0.37 - 2026-11-21
 
 ### Added
