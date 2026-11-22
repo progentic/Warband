@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed. Proto approved drafting. The five Phase 3 entry decisions below remain for Proto. All tests in this record are proposed acceptance tests.
+**Accepted by Proto on 2026-11-21** for the preproduction x64-review target. Phase 3 entry and implementation require a completed Phase 2 exit record and separate, explicit entry approval from Proto. The tests below remain implementation proof obligations.
 
 ## Context
 
@@ -10,22 +10,22 @@ An operator needs to know whether an approved local action took effect even if i
 
 The Slice 5 capacity checkpoint landed in PR #66. WB-EXC-001 — **Open / Stop at expiry**. Finish Slice 6 and run the successor qualification in parallel. Write the Phase 2 exit record last, with the fault, replay, recovery, operator rehearsal, runner-label and scoped traceability evidence. Phase 3 implementation requires Phase 2 exit and explicit owner entry approval. [ADR-0008](0008-phase2-resource-limits.md#final-disposition-stop-at-expiry-2026-11-21) · [Slice 6 matrix](../verification/phase2-crash-coverage.md)
 
-## Decision proposed for entry
+## Decision
 
-The following checklist tracks owner decisions. Its five items follow the [phase plan at c18307c, lines 157–193](https://github.com/progentic/Warband/blob/c18307c50ab92d09429090ca183d1e6b365f9ba1/docs/governance/PHASE_PLAN.md#L157-L193).
+Proto made the following design selections under the [Phase 3 entry plan at c18307c](https://github.com/progentic/Warband/blob/c18307c50ab92d09429090ca183d1e6b365f9ba1/docs/governance/PHASE_PLAN.md#L157-L193).
 
-- [ ] Accept this execution-boundary ADR after Phase 2 exit.
-- [ ] Select the evidence target. This draft classifies Linux x64 on x64-review as **preproduction only**. Record the tested kernel, filesystem, sandbox configuration and source alongside each result.
-- [ ] Select the marker action and approve its target, payload, observation, limits, approval and recovery contract below.
-- [ ] Approve the mandatory sandbox controls, exact numeric limits and corresponding kernel tests.
-- [ ] Select the local CLI approval path and require its positive proof through the real runtime.
+- [x] Accepted the execution-boundary design during Phase 2.
+- [x] Selected Linux x64 on x64-review as **preproduction only**. Record the tested kernel, filesystem, sandbox configuration and source alongside each result.
+- [x] Selected exclusive marker creation with the target, approval, observation and recovery contract below.
+- [x] Selected the worker limits, enforcement mechanisms and matching-kernel tests below.
+- [x] Selected the local CLI approval path. Its positive proof must use the real runtime.
 
 ### Marker and approval contract
 
-| Item | Proposed rule |
+| Item | Accepted rule |
 | --- | --- |
 | Action and target | Register one create-marker action. The runtime provisions a private directory for this attempt, establishes its identity and verifies the fixed marker name is absent before dispatch. Keep the directory under exclusive control through observation. The proposal cannot supply a filesystem path or shell command. |
-| Payload | Use bounded, nonsecret canonical bytes bound to this proposal. Display the target, byte length and SHA-256 of the entire payload before approval. Set the encoding and maximum length in the accepted tool profile. |
+| Payload | Use bounded, nonsecret canonical bytes bound to this proposal. Display the target, byte length and SHA-256 of the entire payload before approval. Apply the payload ceiling in the selected worker profile below. |
 | Creation | Exclusively create the regular file at the approved name. An existing entry yields `EEXIST`. The guarantee is **at most one successful creation while the marker remains in place**. Occupancy alone proves neither identity nor contents. |
 | Human approval | The local CLI shows the normalized proposal and records the operator decision through the runtime. Bind approval to the full proposal Ref and fingerprint, store/epoch, task/run, action, target, payload and expected versions. Changed bindings require fresh approval. A rejection or missing approval withholds the grant. |
 | Worker authority | Authenticate the runtime-to-worker request and the worker identity. Bind the single-use capability to the approved action, target, arguments, policy version, task/run, attempt, expected state and expiry. Consume its use at the confirmed claim. Check the issuing execution's live grant and deadline immediately before dispatch. |
@@ -45,7 +45,18 @@ The runtime controls directory ownership and worker lifetime. The worker receive
 | Memory | Exceed the worker's declared memory ceiling. Record kernel enforcement and verify the runtime retains enough resources to record the disposition. |
 | Output | Exceed the declared capture limit and include a recognizable synthetic secret. Verify bounded capture and redaction before persistence, logging, model projection or user display. |
 
-Before acceptance, Proto selects concrete limits for payload bytes, elapsed time, memory and output. The target record must identify the enforcement mechanism for each control and its observed result. Phase 2 runtime budgets alone do not qualify the worker.
+### Selected x64-review worker profile
+
+| Limit | Selected limit | Enforcement |
+| --- | --- | --- |
+| Canonical payload | 4,096 bytes | Check byte length before approval and again at the authenticated create boundary. Bound the resulting file to the approved length. |
+| Elapsed worker time | 5 seconds | Supervisor measures from launch with CLOCK_BOOTTIME, bounded by the remaining enclosing deadline. At expiry terminate the worker scope and verify it is empty before observation. |
+| Worker memory | 32 MiB, zero swap | Dedicated cgroup v2 with memory.max and memory.swap.max. The supervisor runs outside it. |
+| Worker output | 4,096 bytes combined stdout and stderr per attempt | Supervisor counts both streams against one capture budget, terminates on overflow, and redacts before persistence or display. |
+
+Use an inherited authenticated control channel and a syscall allowlist denying new sockets and connections. Confine the worker to one process with pids.max=1 and deny further execution after worker initialization. A trusted create broker holds the private directory descriptor, resolves only the approved fixed name and performs exclusive creation; the worker receives no writable directory descriptor or general filesystem mutation authority. The harness exercises the same exclusive-create boundary twice for the occupancy test.
+
+During implementation verification, record the effective settings and observed kernel results on x64-review.
 
 ## Verification
 
@@ -61,4 +72,4 @@ A successful worker reply is insufficient evidence of filesystem contents. Autom
 
 ## Compatibility and migration
 
-Keep Phase 2 NoOp encodings and historical replay stable. Before implementation, specify versioned marker proposal, approval and evidence encodings, identity bindings and fail-closed handling by older readers. Existing NoOp permits and claims confer no marker authority. This proposal supersedes no accepted ADR and grants no runtime effect permission.
+Keep Phase 2 NoOp encodings and historical replay stable. Before implementation, specify versioned marker proposal, approval and evidence encodings, identity bindings and fail-closed handling by older readers. Existing NoOp permits and claims confer no marker authority. This decision supersedes no accepted ADR and grants no runtime effect permission.
