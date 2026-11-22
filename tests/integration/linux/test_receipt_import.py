@@ -668,9 +668,8 @@ def admin_kill(edge):
     genesis = edge <= 3
     with fixture(proof_variant=f'admin-{edge}', fresh=genesis) as (f, _, _):
         history, head = f.root/'data/history', f.root/'data/head'
-        old_history = b'' if genesis else history.read_bytes()
         if genesis:
-            op, payload, tip = 4, ENROLL, 0
+            op, payload, tip, old_history = 4, ENROLL, 0, b''
             checkpoint = STORE+LE(1)+LE(0)+sha(b'warband.genesis.v1\0'+ENROLL)
         else:
             f.run('Ready')
