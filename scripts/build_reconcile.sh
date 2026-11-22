@@ -34,6 +34,17 @@ accept=(odin build cmd/accept-noop -target:linux_amd64 -vet -warnings-as-errors
 "${accept[@]}" "-out:$out/accept-noop"
 "${accept[@]}" -define:WARBAND_TEST_ACCEPT_BARRIER=true "-out:$out/accept-noop-proof"
 
+# Witness primitive calls without enabling the claim/observation barriers.
+"${gate[@]}" -define:WARBAND_TEST_INVOCATION_WITNESS=true "-out:$out/noop-gate-witness"
+sha256sum "$out/noop-gate-witness"
+for stage in insert commit; do
+    flag=-define:WARBAND_TEST_STOP_AFTER_EVENT_INSERT=true
+    if [[ "$stage" == commit ]]; then flag=-define:WARBAND_TEST_STOP_IN_WAL_COMMIT=true; fi
+    "${gate[@]}" -define:WARBAND_TEST_INVOCATION_WITNESS=true -define:WARBAND_TEST_TRANSACTION_KIND=5 "$flag" "-out:$out/noop-gate-$stage"
+    "${accept[@]}" -define:WARBAND_TEST_TRANSACTION_KIND=7 "$flag" "-out:$out/accept-noop-$stage"
+    sha256sum "$out/noop-gate-$stage" "$out/accept-noop-$stage"
+done
+
 replay=(odin build cmd/replay-noop -target:linux_amd64 -vet -warnings-as-errors
         "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out")
 "${replay[@]}" "-out:$out/replay-noop"

@@ -294,6 +294,19 @@ limit_sqlite :: proc() -> bool {
 	return n > 0 && n <= 64*1024*1024
 }
 
+@(private)
+proof_transaction :: proc(bytes: []u8, receipt: Maybe(Import), acceptance: ^AcceptanceCheck) -> bool {
+	kind :: #config(WARBAND_TEST_TRANSACTION_KIND, 0)
+	when kind == 5 {
+		return receipt == nil && acceptance == nil && len(bytes) >= 8 && bytes[6] == 5 && bytes[7] == 0
+	} else when kind == 7 {
+		return acceptance != nil
+	} else {
+		#assert(kind == 0)
+		return receipt != nil
+	}
+}
+
 // Only the WAL proof binary registers this callback, immediately before COMMIT.
 @(private)
 stop_in_wal_commit :: proc "c" (_: rawptr, _: Database, _: cstring, frames: i32) -> i32 {
@@ -320,17 +333,17 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 	if acceptance != nil && !eligible_in_transaction(w,cp,acceptance^) { return false }
 	epoch, seq := word(u64(cp.epoch)), word(u64(cp.sequence)+1)
 	if !change(db,"INSERT INTO events(store_id,epoch,sequence,canonical_event) VALUES(?,?,?,?)",cp.store[:],epoch[:],seq[:],bytes) { return false }
+	when #config(WARBAND_TEST_STOP_AFTER_EVENT_INSERT, false) {
+		if proof_transaction(bytes,receipt,acceptance) && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return false }
+	}
 	if entry, present := receipt.(Import); present {
-		when #config(WARBAND_TEST_STOP_AFTER_EVENT_INSERT, false) {
-			if linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return false }
-		}
 		ord := word(entry.id.ordinal)
 		if !change(db,"INSERT INTO denial_imports(store_id,custody_ordinal,record_hash,epoch,sequence) VALUES(?,?,?,?,?)",cp.store[:],ord[:],entry.id.hash[:],epoch[:],seq[:]) ||
 		   !change(db,"INSERT INTO import_watermarks(store_id,last_imported_ordinal) VALUES(?,?) ON CONFLICT(store_id) DO UPDATE SET last_imported_ordinal=excluded.last_imported_ordinal",cp.store[:],ord[:]) { return false }
 	}
 	if acceptance != nil && !insert_accepted(db,acceptance.attempt,acceptance.event) { return false }
 	when #config(WARBAND_TEST_STOP_IN_WAL_COMMIT, false) {
-		if receipt != nil {
+		if proof_transaction(bytes,receipt,acceptance) {
 			threshold, ok := read_scalar(state,"PRAGMA wal_autocheckpoint").(i64)
 			if !ok || threshold <= 0 { return false }
 			fmt.eprintln("wal_threshold", threshold)

@@ -460,6 +460,38 @@ def transaction_result(f, bundle, genesis, receipt, verified, pledge_valid):
     return 'IntegrityFault', rows
 
 
+def capture_files(f, bundle):
+    # No SQLite connection or recovery probe between reap and this quiescent copy.
+    files = ['data/history', 'data/head', 'journal/active.db']
+    sidecars = {}
+    for ext in ('-wal', '-shm', '-journal'):
+        name = 'journal/active.db'+ext
+        sidecars[name] = (f.root/name).exists()
+        if sidecars[name]:
+            files.append(name)
+    hashes, ownership = {}, {}
+    for name in files:
+        src, dst = f.root/name, bundle/name
+        dst.parent.mkdir(exist_ok=True)
+        st = src.stat()
+        ownership[name] = [st.st_uid, st.st_gid, oct(st.st_mode & 0o777)]
+        hashes[name] = sha(src.read_bytes()).hex()
+        shutil.copyfile(src, dst)
+        assert sha(dst.read_bytes()).hex() == hashes[name]
+    return hashes, ownership, sidecars
+
+
+def seal_capture(bundle, hashes, meta):
+    manifest = bundle/'capture.json'
+    manifest.write_text(json.dumps(meta, sort_keys=True, indent=2)+'\n')
+    hashes[manifest.name] = sha(manifest.read_bytes()).hex()
+    sums = bundle/'SHA256SUMS'
+    sums.write_text(''.join(f'{digest}  {name}\n' for name, digest in sorted(hashes.items())))
+    bundle.chmod(0o755)  # Hosted artifact collection runs as the unprivileged runner.
+    inventory = sha(sums.read_bytes()).hex()
+    return inventory
+
+
 def receipt_transaction_kill(stop):
     with fixture() as (f, genesis, receipt):
         assert f.query('PRAGMA journal_mode=WAL') == [('wal',)]
@@ -478,24 +510,7 @@ def receipt_transaction_kill(stop):
         with diagnostics.open('wb') as stream:
             pid, status = kill_importer(f, stop, stream)
 
-        # No SQLite connection or recovery probe between reap and this quiescent copy.
-        files = ['data/history', 'data/head', 'journal/active.db']
-        sidecars = {}
-        for ext in ('-wal', '-shm', '-journal'):
-            name = 'journal/active.db'+ext
-            sidecars[name] = (f.root/name).exists()
-            if sidecars[name]:
-                files.append(name)
-        hashes, ownership = {}, {}
-        for name in files:
-            src, dst = f.root/name, bundle/name
-            dst.parent.mkdir(exist_ok=True)
-            st = src.stat()
-            ownership[name] = [st.st_uid, st.st_gid, oct(st.st_mode & 0o777)]
-            hashes[name] = sha(src.read_bytes()).hex()
-            shutil.copyfile(src, dst)
-            assert sha(dst.read_bytes()).hex() == hashes[name]
-
+        hashes, ownership, sidecars = capture_files(f, bundle)
         retained = (bundle/'data/history').read_bytes()
         pending = retained[len(old_history):]
         header = b'WBCH' + struct.pack('<HBIQ', 1, 1, 136, 3) + old_history[-32:]
@@ -522,14 +537,8 @@ def receipt_transaction_kill(stop):
                     sidecars=sidecars, file_uid_gid_mode=ownership, runtime_uid=f.runtime,
                     operator_uid=f.operator, custodian_uid=f.custodian, stop=stop, observed=outcome,
                     baseline_wal=baseline_wal, wal=wal, rows=counts, hook=witness,
-                    sizes={name:(bundle/name).stat().st_size for name in files})
-        manifest = bundle/'capture.json'
-        manifest.write_text(json.dumps(meta, sort_keys=True, indent=2)+'\n')
-        hashes[manifest.name] = sha(manifest.read_bytes()).hex()
-        sums = bundle/'SHA256SUMS'
-        sums.write_text(''.join(f'{digest}  {name}\n' for name, digest in sorted(hashes.items())))
-        bundle.chmod(0o755)  # Hosted artifact collection runs as the unprivileged runner.
-        inventory = sha(sums.read_bytes()).hex()
+                    sizes={name:(bundle/name).stat().st_size for name in hashes})
+        inventory = seal_capture(bundle, hashes, meta)
         emit(capture=str(bundle), stop=stop, inventory_sha256=inventory)
         expected = 'PendingConfirmation' if stop == 'wal-commit' else 'PendingEventMissing'
         assert outcome == expected, (outcome, expected, bundle)
