@@ -368,6 +368,82 @@ def prepare_kill(prefix_length):
              retained_prefix_digest=sha(old_history).hex(), tip=2, replay=journal)
 
 
+def durable_prepare_kill():
+    with fixture() as (f, genesis, receipt):
+        assert f.query('PRAGMA journal_mode=WAL') == [('wal',)]
+        baseline = f.verify()
+        assert baseline[3:5] == (b'', 2) and f.rows() == [[], [], []]
+        history, head = f.root/'data/history', f.root/'data/head'
+        old_history, old_head = history.read_bytes(), head.read_bytes()
+        source = subprocess.check_output(['git', '-c', f'safe.directory={Path.cwd()}', 'rev-parse', 'HEAD'],
+                                         text=True).strip()
+        parent = OUT/'point2-rehearsal'
+        parent.mkdir(exist_ok=True)
+        bundle = Path(tempfile.mkdtemp(dir=parent, prefix='capture-'))
+        pid, status = kill_importer(f, 'after-prepare')
+
+        # No SQLite connection or recovery probe between reap and this quiescent copy.
+        files = ['data/history', 'data/head', 'journal/active.db']
+        sidecars = {}
+        for ext in ('-wal', '-shm', '-journal'):
+            name = 'journal/active.db'+ext
+            sidecars[name] = (f.root/name).exists()
+            if sidecars[name]:
+                files.append(name)
+        hashes, ownership = {}, {}
+        for name in files:
+            src, dst = f.root/name, bundle/name
+            dst.parent.mkdir(exist_ok=True)
+            st = src.stat()
+            ownership[name] = [st.st_uid, st.st_gid, oct(st.st_mode & 0o777)]
+            hashes[name] = sha(src.read_bytes()).hex()
+            shutil.copyfile(src, dst)
+            assert sha(dst.read_bytes()).hex() == hashes[name]
+
+        retained = (bundle/'data/history').read_bytes()
+        pending = retained[len(old_history):]
+        assert retained.startswith(old_history) and len(pending) == 251
+        header = b'WBCH' + struct.pack('<HBIQ', 1, 1, 136, 3) + old_history[-32:]
+        assert pending[:83] == header + sha(b'warband.custody.header.v1\0' + header)
+        assert pending[-32:] == sha(b'warband.custody.record.v1\0' + pending[:-32])
+        pledge = pending[83:-32]
+        ref = STORE + LE(1) + LE(1)
+        assert pledge[:72] == STORE + LE(1) + LE(0) + genesis + LE(1)
+        assert pledge[72:104] == sha(b'warband.link.v1\0' + ref + genesis + pledge[104:])
+        assert (bundle/'data/head').read_bytes() == old_head and baseline[2] == STORE + LE(1) + LE(0) + genesis
+        verified = f.verify()
+        assert verified[2:] == (baseline[2], pledge, 3, receipt)
+
+        def check_halt_state():
+            assert f.rows() == [[], [], []] and f.verify() == verified
+            assert history.read_bytes() == retained and head.read_bytes() == old_head
+
+        check_halt_state()
+        for _ in range(2):
+            assert f.run('PendingEventMissing', allow=False) == 'PendingEventMissing'
+            check_halt_state()
+        replay = shutil.copy2(OUT/'reconcile/replay-noop', f.root/'replay-noop')
+        result = subprocess.run([replay, f.db, f.root/'endpoints/runtime.sock', str(f.custodian), STORE.hex(), '1'],
+                                user=f.runtime, group=f.runtime, extra_groups=[], capture_output=True, text=True, timeout=65)
+        assert (result.returncode, result.stdout.splitlines()) == (0, ['Journal PendingEventMissing OutstandingReceipts 1'])
+        check_halt_state()
+
+        meta = dict(source=source, host=os.uname().nodename, kernel=os.uname().release, arch=os.uname().machine,
+                    pending_ref=ref.hex(), tip=3, pending_record_hash=pending[-32:].hex(),
+                    receipt_ordinal=int.from_bytes(receipt[11:19], 'little'), receipt_hash=receipt[-32:].hex(),
+                    sidecars=sidecars, file_uid_gid_mode=ownership, runtime_uid=f.runtime,
+                    operator_uid=f.operator, custodian_uid=f.custodian)
+        manifest = bundle/'capture.json'
+        manifest.write_text(json.dumps(meta, sort_keys=True, indent=2)+'\n')
+        hashes[manifest.name] = sha(manifest.read_bytes()).hex()
+        sums = bundle/'SHA256SUMS'
+        sums.write_text(''.join(f'{digest}  {name}\n' for name, digest in sorted(hashes.items())))
+        bundle.chmod(0o755)  # Hosted artifact collection runs as the unprivileged runner.
+        emit(case='durable_prepare_kill', importer_pid=pid, reaped=status, stdout_bytes=0, tip=3,
+             restarts=['PendingEventMissing']*2, replay=result.stdout.strip(), bundle=str(bundle),
+             inventory_sha256=sha(sums.read_bytes()).hex())
+
+
 def existing_event_prefix():
     with fixture() as (f, _, frame):
         vectors = json.loads(VECTORS.read_text())
@@ -444,6 +520,7 @@ if __name__ == '__main__':
         publication_kill(edge)
     for prefix_length in (None, 0, 83):
         prepare_kill(prefix_length)
+    durable_prepare_kill()
     existing_event_prefix()
     retained_segments()
     emit(result='pass')
