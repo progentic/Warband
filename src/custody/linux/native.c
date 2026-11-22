@@ -123,7 +123,7 @@ static int write_all(int fd, const uint8_t *buf, size_t size) {
     return 0;
 }
 
-#if defined(WB_TEST_PUBLISH_STOP) || defined(WB_TEST_PENDING_BYTES) || defined(WB_TEST_COMMITTED_STOP)
+#if defined(WB_TEST_PUBLISH_STOP) || defined(WB_TEST_PENDING_BYTES) || defined(WB_TEST_COMMITTED_STOP) || defined(WB_TEST_ADMIN_STOP)
 #include <signal.h>
 #endif
 #if defined(WB_TEST_PUBLISH_STOP) || defined(WB_TEST_COMMITTED_STOP)
@@ -141,9 +141,27 @@ static void publication_stop(int edge) {
 #define publication_stop(edge) ((void)0)
 #endif
 
+#ifdef WB_TEST_ADMIN_STOP
+// 1..3 select GENESIS. 4..5 select EPOCH; startup republishes without appending.
+_Static_assert(WB_TEST_ADMIN_STOP >= 1 && WB_TEST_ADMIN_STOP <= 5, "unsupported admin stop");
+static int epoch_appended;
+#endif
+
 int wb_append(const uint8_t *buf, size_t size, int first, int sync_directory) {
     int fd = open_file("history", O_WRONLY|O_APPEND|(first ? O_CREAT : 0));
     if (fd < 0) return -1;
+#ifdef WB_TEST_ADMIN_STOP
+    const int admin = size >= 83 && buf[6] == (WB_TEST_ADMIN_STOP <= 3 ? 3 : 4);
+    if (admin && (WB_TEST_ADMIN_STOP <= 2 || WB_TEST_ADMIN_STOP == 4)) {
+        const size_t prefix = WB_TEST_ADMIN_STOP == 1 ? 0 : 83;
+        if ((prefix && write_all(fd, buf, prefix)) || raise(SIGSTOP)) {
+            close(fd);
+            return -1;
+        }
+        buf += prefix;
+        size -= prefix;
+    }
+#endif
 #ifdef WB_TEST_PENDING_BYTES
     _Static_assert(WB_TEST_PENDING_BYTES == 0 || WB_TEST_PENDING_BYTES == 83, "unsupported PENDING stop");
     static const uint8_t first_sequence[8] = {1};
@@ -182,11 +200,18 @@ int wb_append(const uint8_t *buf, size_t size, int first, int sync_directory) {
 #ifdef WB_TEST_COMMITTED_STOP
     if (armed && WB_TEST_COMMITTED_STOP == 4 && raise(SIGSTOP)) return -1;
 #endif
+#ifdef WB_TEST_ADMIN_STOP
+    epoch_appended = admin && WB_TEST_ADMIN_STOP == 5;
+#endif
     if (!sync_directory) return 0;
 #ifdef WB_TEST_DIRSYNC_FAILURE
     return fsync(-1);
 #else
-    return fsync(data);
+    int rc = fsync(data);
+#ifdef WB_TEST_ADMIN_STOP
+    if (rc == 0 && admin && WB_TEST_ADMIN_STOP == 3 && raise(SIGSTOP)) return -1;
+#endif
+    return rc;
 #endif
 }
 
@@ -204,6 +229,9 @@ int wb_publish(const uint8_t *buf, size_t size) {
     if (renameat(data,"head.tmp",data,"head")) return -1;
     publication_stop(3);
     int rc = fsync(data);
+#ifdef WB_TEST_ADMIN_STOP
+    if (rc == 0 && epoch_appended && raise(SIGSTOP)) return -1;
+#endif
     if (rc == 0) publication_stop(4);
     return rc;
 }

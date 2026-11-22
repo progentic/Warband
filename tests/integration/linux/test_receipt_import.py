@@ -3,6 +3,9 @@ import contextlib
 import fcntl
 import json
 import os
+import multiprocessing
+import socket
+import select
 from pathlib import Path
 import pwd
 import shutil
@@ -73,7 +76,7 @@ class Fixture:
 
 
 @contextlib.contextmanager
-def fixture(*, measure=False, proof_variant=None):
+def fixture(*, measure=False, proof_variant=None, fresh=False):
     existing = {p.pw_uid for p in pwd.getpwall()}
     users = [u for u in range(50000,60000) if u not in existing][:3]
     with tempfile.TemporaryDirectory(prefix='warband-import-',dir='/var/lib') as tmp:
@@ -96,6 +99,9 @@ def fixture(*, measure=False, proof_variant=None):
         if proof_variant is not None:
             first_service = shutil.copy2(OUT/'custodian'/proof_variant/'custodian', root/'proof-custodian')
         with service(root,first_service,*users,stderr_path=log) as f.custodian_pid:
+            if fresh:
+                yield f, None, None
+                return
             receipt = None if measure else denied(f.call(4,ENROLL,denied_admin=True))
             assert f.call(4,ENROLL)[0] == 0
             os.chown(root/'journal',users[1],users[1])
@@ -595,6 +601,187 @@ def existing_event_prefix():
         assert len(f.rows()[0]) == 2
 
 
+def admin_frame(kind, payload, ordinal, previous):
+    header = b'WBCH'+struct.pack('<HBIQ',1,kind,len(payload),ordinal)+previous
+    body = header+sha(b'warband.custody.header.v1\0'+header)+payload
+    return body+sha(b'warband.custody.record.v1\0'+body)
+
+
+def interrupted_operator(root, uid, custodian, wire):
+    os.setgroups([])
+    os.setgid(uid)
+    os.setuid(uid)
+    assert os.getresuid() == (uid,)*3
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+        conn.settimeout(30)
+        conn.connect(str(root/'endpoints/operator.sock'))
+        assert struct.unpack('3i',conn.getsockopt(socket.SOL_SOCKET,socket.SO_PEERCRED,12))[1] == custodian
+        conn.sendall(wire)
+        conn.shutdown(socket.SHUT_WR)
+        try:
+            assert conn.recv(490) == b'', 'unexpected administrative reply bytes'
+        except ConnectionResetError:
+            raise SystemExit(42)  # Distinguish reset from an orderly EOF.
+
+
+def kill_admin(f, wire):
+    child = multiprocessing.get_context('fork').Process(target=interrupted_operator,
+                      args=(f.root,f.operator,f.custodian,wire))
+    fd = os.pidfd_open(f.custodian_pid)
+    child.start()
+    try:
+        deadline = time.monotonic()+25
+        while 'State:\tT (stopped)' not in Path(f'/proc/{f.custodian_pid}/status').read_text().splitlines():
+            assert child.is_alive() and time.monotonic()<deadline, 'administrative stop was not reached'
+            time.sleep(0.01)
+        assert child.is_alive()
+    finally:
+        signal.pidfd_send_signal(fd,signal.SIGKILL)
+        os.close(fd)
+        child.join(35)
+    assert child.exitcode in (0,42), child.exitcode
+    return 'EOF' if child.exitcode == 0 else 'reset'
+
+
+def capture_admin(f, case, wire):
+    parent = OUT/'point10-admin'
+    parent.mkdir(exist_ok=True)
+    bundle = Path(tempfile.mkdtemp(dir=parent,prefix=case+'-'))
+    files = [p for dirname in ('data','journal') for p in (f.root/dirname).iterdir()]
+    hashes = {}
+    for path in files:
+        name = str(path.relative_to(f.root))
+        dst = bundle/name
+        dst.parent.mkdir(exist_ok=True)
+        hashes[name] = sha(path.read_bytes()).hex()
+        shutil.copyfile(path,dst)
+        assert sha(dst.read_bytes()).hex() == hashes[name]
+    meta = dict(case=case,wbcr=wire.hex(),operator_uid=f.operator,kernel=os.uname().release,
+                host=os.uname().nodename,files=sorted(hashes),source=subprocess.check_output(
+                ['git','-c',f'safe.directory={Path.cwd()}','rev-parse','HEAD'],text=True).strip())
+    inventory = seal_capture(bundle,hashes,meta)
+    emit(admin_capture=case,bundle=str(bundle),inventory_sha256=inventory)
+    return bundle
+
+
+def admin_kill(edge):
+    genesis = edge <= 3
+    with fixture(proof_variant=f'admin-{edge}', fresh=genesis) as (f, _, _):
+        history, head = f.root/'data/history', f.root/'data/head'
+        if genesis:
+            op, payload, tip, old_history = 4, ENROLL, 0, b''
+            checkpoint = STORE+LE(1)+LE(0)+sha(b'warband.genesis.v1\0'+ENROLL)
+        else:
+            f.run('Ready')
+            old_rows, old_cp = f.rows(), f.verify()[2]
+            assert [len(r) for r in old_rows]==[1,1,1] and old_cp[:32]==STORE+LE(1)+LE(1)
+            old_db = f.db.read_bytes()
+            old_head = head.read_bytes()
+            body = bytearray(bytes.fromhex(json.loads(VECTORS.read_text())['task_created']['event_hex'])[:-32])
+            body[32:40] = LE(2)
+            digest = sha(b'warband.event.v1\0'+body)
+            link = sha(b'warband.link.v1\0'+STORE+LE(1)+LE(2)+old_cp[32:]+digest)
+            pledge = old_cp+LE(2)+link+digest
+            response = f.call(1,pledge)
+            assert response[0]==0
+            pending_hash = response[1]
+            old_history = history.read_bytes()
+            prior = f.verify()
+            assert prior[2:5]==(old_cp,pledge,5) and old_history[-32:]==pending_hash
+            auth_reason = bytes([91])*16+struct.pack('<H',6)+b'review'
+            def epoch_payload(binding):
+                next_head = sha(b'warband.epoch.v1\0'+old_cp+LE(2)+auth_reason+binding)
+                return old_cp+LE(2)+LE(0)+next_head+auth_reason+binding
+            op, payload, tip = 5, epoch_payload(pending_hash), prior[4]
+            checkpoint = STORE+LE(2)+LE(0)+payload[80:112]
+        wire = b'WBCR'+struct.pack('<HBI',1,op,len(payload))+payload
+        frame = admin_frame(op-1,payload+LE(f.operator),tip+1,old_history[-32:] or ZERO)
+        prefix = b'WBHD'+struct.pack('<H',1)+checkpoint+frame[-32:]
+        new_head = prefix+sha(b'warband.head.v1\0'+prefix)
+        caller = kill_admin(f,wire)
+        bundle = capture_admin(f,f'edge-{edge}',wire)
+        length = {1:0,2:83,3:len(frame),4:83,5:len(frame)}[edge]
+        assert (bundle/'data/history').read_bytes()==old_history+frame[:length]
+        assert not (bundle/'data/head.tmp').exists() and not (bundle/'journal/epoch2.db').exists()
+        if genesis:
+            assert not head.exists() and not list((f.root/'journal').iterdir())
+        else:
+            assert head.read_bytes()==(new_head if edge==5 else old_head) and f.db.read_bytes()==old_db
+        with service(f.root,f.root/'custodian',f.custodian,f.runtime,f.operator):
+            if edge in (1,2):
+                assert not history.read_bytes() and not head.exists()
+                assert f.call(3,STORE+LE(0)+LE(0))[0]==11
+            elif edge==4:
+                assert f.verify()==prior and history.read_bytes()==old_history and head.read_bytes()==old_head
+                assert f.call(1,pledge)[1]==pending_hash
+            else:
+                f.epoch = 1 if genesis else 2
+                assert f.verify()[2:5]==(checkpoint,b'',tip+1)
+                assert head.read_bytes()==new_head and history.read_bytes()==old_history+frame
+            if edge!=4:
+                assert f.call(op,payload)[:5]==(0,frame[-32:],checkpoint,b'',tip+1)
+                assert history.read_bytes()==old_history+frame and head.read_bytes()==new_head
+            if not genesis:
+                archive = f.db
+                replay = shutil.copy2(OUT/'reconcile/replay-noop',f.root/'replay')
+                if edge==5:
+                    f.db = f.root/'journal/epoch2.db'
+                    f.archives = [archive,wire.hex()]
+                    f.run('LockUnavailable',allow=False)
+                    assert not f.db.exists()
+                    f.provision()
+                    f.archives = []
+                    f.run('EpochMismatch',allow=False)
+                    assert archive.read_bytes()==old_db
+                    f.archives = [archive,(wire[:11]+epoch_payload(ZERO)).hex()]
+                    f.run('IntegrityFault',allow=False)
+                    assert archive.read_bytes()==old_db and f.rows()==[[],[],[]]
+                    f.archives = [archive,wire.hex()]
+                    f.run('Ready')
+                    assert f.rows()==[[],[],[]] and f.verify()[2:5]==(checkpoint,b'',tip+1)
+                else:
+                    f.run('PendingEventMissing',allow=False)
+                cmd = [replay,f.db,f.root/'endpoints/runtime.sock',str(f.custodian),STORE.hex(),str(f.epoch),*f.archives]
+                result = subprocess.run(cmd,user=f.runtime,group=f.runtime,extra_groups=[],capture_output=True,text=True,timeout=65)
+                state = 'Ready' if edge==5 else 'PendingEventMissing'
+                assert (result.returncode,result.stdout.splitlines())==(0,[f'Journal {state} OutstandingReceipts 0'])
+                assert archive.read_bytes()==old_db
+        emit(case='admin_kill',edge=edge,caller=caller,custodian_pid=f.custodian_pid,reply_bytes=0,retained_length=length,epoch=f.epoch,tip=tip if edge==4 else tip+1)
+
+
+def established_metadata_loss():
+    with fixture() as (f, _, _):
+        f.run('Ready')
+        old_rows, database = f.rows(), f.db.read_bytes()
+        assert len(old_rows[0])==1
+        fd = os.pidfd_open(f.custodian_pid)
+        try:
+            poller = select.poll()
+            poller.register(fd,select.POLLIN)
+            signal.pidfd_send_signal(fd,signal.SIGKILL)
+            assert poller.poll(5000), 'custodian did not exit'
+        finally:
+            os.close(fd)
+        for name in ('head','history'):
+            (f.root/'data'/name).rename(f.root/('saved-'+name))
+        journal = f.root/'journal'
+        os.chown(journal,f.operator,f.operator)
+        journal.chmod(0o555)
+        wire = b'WBCR'+struct.pack('<HBI',1,4,len(ENROLL))+ENROLL
+        capture_admin(f,'established-missing',wire)
+        with service(f.root,f.root/'custodian',f.custodian,f.runtime,f.operator):
+            assert f.call(3,STORE+LE(0)+LE(0))[0]==11
+            refusal = f.call(4,ENROLL)
+            assert refusal[0]==16 and refusal[4]==1
+            denial = (f.root/'data/history').read_bytes()
+            body = denial[83:-32]
+            assert body[:26]==STORE+LE(0)+struct.pack('<H',16) and body[64:72]==LE(f.operator)
+            assert body[31:63]==sha(b'warband.custody.denial.v1\0'+struct.pack('<IB',len(wire),1)+wire)
+            assert denial==admin_frame(5,body,1,ZERO) and denial[-32:]==refusal[1]
+            assert not (f.root/'data/head').exists() and f.rows()==old_rows and f.db.read_bytes()==database
+        emit(case='established_metadata_loss',verify='CheckpointMissing',enroll='CheckpointConflict',rejections=1)
+
+
 def retained_segments():
     with fixture() as (f, _, frame):
         with f.db.open('rb') as held:
@@ -659,4 +846,7 @@ if __name__ == '__main__':
         receipt_transaction_kill(stop)
     existing_event_prefix()
     retained_segments()
+    for edge in range(1,6):
+        admin_kill(edge)
+    established_metadata_loss()
     emit(result='pass')

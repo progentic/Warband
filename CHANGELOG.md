@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.44 - 2026-11-22
+
+### Added
+
+- Verified recovery after interrupted enrollment and epoch changes. A torn epoch change preserves the old pending pledge. After custody publishes a new epoch, the runtime requires the matching segment and handoff before admitting progress. [PR #82](https://github.com/progentic/Warband/pull/82)
+
 ## 0.0.43 - 2026-11-22
 
 ### Added
