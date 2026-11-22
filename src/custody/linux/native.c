@@ -123,11 +123,26 @@ static int write_all(int fd, const uint8_t *buf, size_t size) {
     return 0;
 }
 
+#ifdef WB_TEST_PUBLISH_STOP
+#include <signal.h>
+static int first_commit_appended;
+static void publication_stop(int edge) {
+    if (first_commit_appended && edge == WB_TEST_PUBLISH_STOP) raise(SIGSTOP);
+}
+#else
+#define publication_stop(edge) ((void)0)
+#endif
+
 int wb_append(const uint8_t *buf, size_t size, int first, int sync_directory) {
     int fd = open_file("history", O_WRONLY|O_APPEND|(first ? O_CREAT : 0));
     if (fd < 0) return -1;
     int ok = write_all(fd, buf, size) == 0 && fsync(fd) == 0;
     if (close(fd) || !ok) return -1;
+#ifdef WB_TEST_PUBLISH_STOP
+    // WBCH COMMITTED with pledge sequence 1. Recovery only reads retained history.
+    static const uint8_t one_le[8] = {1};
+    first_commit_appended = size == 251 && buf[6] == 2 && !memcmp(buf+83+64, one_le, 8);
+#endif
     if (!sync_directory) return 0;
 #ifdef WB_TEST_DIRSYNC_FAILURE
     return fsync(-1);
@@ -140,9 +155,18 @@ int wb_publish(const uint8_t *buf, size_t size) {
     if (unlinkat(data, "head.tmp", 0) && errno != ENOENT) return -1;
     int fd = open_file("head.tmp", O_CREAT|O_EXCL|O_WRONLY);
     if (fd < 0) return -1;
-    int ok = write_all(fd, buf, size) == 0 && fsync(fd) == 0;
-    if (close(fd) || !ok || renameat(data,"head.tmp",data,"head")) return -1;
-    return fsync(data);
+    int ok = write_all(fd, buf, size) == 0;
+    if (ok) {
+        publication_stop(1);
+        ok = fsync(fd) == 0;
+    }
+    if (close(fd) || !ok) return -1;
+    publication_stop(2);
+    if (renameat(data,"head.tmp",data,"head")) return -1;
+    publication_stop(3);
+    int rc = fsync(data);
+    if (rc == 0) publication_stop(4);
+    return rc;
 }
 
 int wb_sync_history(int64_t truncate_to) {
