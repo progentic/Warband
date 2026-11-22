@@ -89,7 +89,7 @@ issue_and_claim :: proc(w: store.VerifiedWriter, s: ^client.Session, cp: e.Check
 
 @(private)
 invoke_noop :: proc() -> [4]u8 {
-	when PROOF { fmt.println("primitive_invoked") }
+	when PROOF || #config(WARBAND_TEST_INVOCATION_WITNESS,false) { fmt.println("primitive_invoked") }
 	return {'N','O','O','P'}
 }
 

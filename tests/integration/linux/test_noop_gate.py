@@ -8,9 +8,11 @@ import sqlite3
 import struct
 import subprocess
 import time
+import tempfile
+from pathlib import Path
 
 from test_custody_denial import STORE, VECTORS, emit, limits, sha
-from test_receipt_import import OUT, LE, fixture
+from test_receipt_import import OUT, LE, fixture, capture_files, inspect_wal, seal_capture
 
 
 def boottime_ms():
@@ -201,9 +203,10 @@ def expected_task(task, run, versions, complete, auth, consumed, revoked, attemp
                              bit(consumed),bit(revoked),attempt.hex(),obs,verdict,disposition,reason]))
 
 
-def replay_fixture(f, expected_rows, *, live=False, failure=None):
+def replay_fixture(f, expected_rows, *, live=False, failure=None, journal='Ready'):
     before = f.rows(),f.verify()
-    for name in ('replay-noop','replay-noop-proof','replay-noop-proof'):
+    binaries = ('replay-noop','replay-noop-proof','replay-noop-proof') if journal=='Ready' else ('replay-noop',)
+    for name in binaries:
         binary = f.root/name
         if not binary.exists():
             shutil.copy2(OUT/'reconcile'/name,binary)
@@ -213,11 +216,11 @@ def replay_fixture(f, expected_rows, *, live=False, failure=None):
         if failure:
             assert p.returncode==1 and lines==['Failure '+failure+' IntegrityFault'],(lines,p.stderr)
         else:
-            assert p.returncode==0 and lines[0]=='Journal Ready OutstandingReceipts 0',(lines,p.stderr)
+            assert p.returncode==0 and lines[0]==f'Journal {journal} OutstandingReceipts 0',(lines,p.stderr)
             assert [v[5:] for v in lines if v.startswith('Task ')]==expected_rows,lines
             assert [v[5:] for v in lines if v.startswith('Live ')]==(expected_rows if live and name.endswith('-proof') else []),lines
         assert (f.rows(),f.verify())==before
-    emit(replay=failure or 'Ready',oracle=expected_rows,live_comparison=live,tip=before[1][4])
+    emit(replay=failure or journal,oracle=expected_rows,live_comparison=live,tip=before[1][4])
 
 
 def mixed_replay(f, genesis, accepted):
@@ -389,8 +392,151 @@ def exercise(kill_at):
         if kill_at is None: mixed_replay(f,genesis,want)
 
 
+def classify_live_snapshot(db, genesis, custody, receipt, accepting):
+    # A single SQLite snapshot must reproduce the custody-confirmed prefix before its tail is inspected.
+    _, _, cp, pledge, tip, captured_receipt = custody
+    assert captured_receipt == receipt
+    seq = int.from_bytes(cp[24:32], 'little')
+    rows = list(db.execute('SELECT * FROM events ORDER BY sequence'))  # fixture sequences 1..8
+    events = [row[3] for row in rows]
+    head = genesis
+    for n, row in enumerate(rows[:seq], 1):
+        assert row[:3] == (STORE, LE(1), LE(n)) and row[3][8:40] == b''.join(row[:3])
+        assert row[3][-32:] == head
+        head = linked_head(row[3])
+    assert cp == STORE+LE(1)+LE(seq)+head and len(rows) >= seq
+    prefix = events[:seq]
+    assert [ev[6] for ev in prefix] == ([1,2,8,3,4,5,6] if accepting else [1,2,8,3,4])
+    assert prefix[2][60:92] == sha(receipt)
+    imports = [(STORE, receipt[11:19], receipt[-32:], LE(1), LE(3))]
+    assert list(db.execute('SELECT * FROM denial_imports')) == imports
+    assert list(db.execute('SELECT * FROM import_watermarks')) == [(STORE, receipt[11:19])]
+    ref = STORE+LE(1)+LE(seq+1)
+    assert pledge[:72] == cp+LE(seq+1)
+    assert pledge[72:104] == sha(b'warband.link.v1\0'+ref+head+pledge[104:])
+    attempt = prefix[4][88:104]
+    bindings = list(db.execute('SELECT * FROM accepted_attempts')) if accepting else []
+    if len(events) == seq and not bindings:
+        return 'PendingEventMissing', events, bindings
+    if len(events) != seq+1:
+        return 'IntegrityFault', events, bindings
+    wire = events[-1]
+    if (rows[-1][:3] != (STORE,LE(1),LE(seq+1)) or wire[8:40] != ref or wire[-32:] != head
+            or linked_head(wire) != pledge[72:104] or sha(b'warband.event.v1\0'+wire[:-32]) != pledge[104:]):
+        return 'IntegrityFault', events, bindings
+    if accepting:
+        tid = wire[120:136]
+        expected = [(STORE,LE(1),attempt,tid,LE(seq+1))]
+        if (bindings != expected or wire[6:8] != LE(7)[:2] or wire[56:120] != prefix[-1][8:40]+prefix[4][8:40]
+                or wire[136:161] != LE(1)+LE(2)+LE(2)+b'\x02'):
+            return 'IntegrityFault', events, bindings
+        for key, value in [('attempt_id',attempt), ('transition_id',tid), ('sequence',LE(seq+1))]:
+            found = db.execute('SELECT * FROM accepted_attempts WHERE store_id=? AND epoch=? AND '+key+'=?',
+                               (STORE,LE(1),value)).fetchall()
+            assert found == expected, (key,found)
+    elif wire[6:8] != LE(5)[:2] or wire[56:88] != prefix[4][8:40] or wire[104:111] != b'\x01\x01\0NOOP':
+        return 'IntegrityFault', events, bindings
+    return 'PendingConfirmation', events, bindings
+
+
+def live_transaction_kill(accepting, stage):
+    actor = 'accept-noop' if accepting else 'noop-gate'
+    with fixture() as (f, genesis, receipt):
+        seed(f)
+        common = [f.db,f.root/'endpoints/runtime.sock',str(f.custodian),STORE.hex(),'1']
+        user = dict(user=f.runtime,group=f.runtime,extra_groups=[],text=True)
+        def binary(name):
+            return shutil.copy2(OUT/'reconcile'/name, f.root/name)
+        def run(cmd, expected, rc):
+            p = subprocess.run(cmd,**user,capture_output=True,timeout=65)
+            assert p.returncode == rc and p.stdout.splitlines()[-1] == expected,(p.stdout,p.stderr)
+            return p.stdout.splitlines().count('primitive_invoked')
+
+        gate = [binary('noop-gate-witness'), *common, '2']
+        invocations = 0
+        if accepting:
+            invocations = run(gate,'gate_result Dispatched',0)
+            events = confirmed_events(f,genesis)
+            check_evidence(events,events[:5],True)
+            accept = binary('accept-noop')
+            assert run([accept,*common,'provision-index'],'IndexVerified',0) == 0
+            args = [*common,str(len(events)),'1','2']
+            fresh = [accept,*args]
+        else:
+            args, fresh = gate[1:], gate
+        proof = binary(actor+'-'+stage)
+        with subprocess.Popen([proof,*args],**user,stdout=subprocess.PIPE,stderr=subprocess.PIPE) as child:
+            try:
+                wait_for_stop(child)
+            finally:
+                child.kill()
+                output, err = child.communicate(timeout=65)
+            assert child.returncode == -signal.SIGKILL
+        parent = OUT/'point9-transactions'
+        parent.mkdir(exist_ok=True)
+        bundle = Path(tempfile.mkdtemp(dir=parent,prefix=actor+'-'+stage+'-'))
+        hashes, owners, sidecars = capture_files(f,bundle)
+        invocations += output.splitlines().count('primitive_invoked')
+        assert invocations == 1
+        assert not any(s.startswith(('gate_result','Accepted','Recorded')) for s in output.splitlines())
+        wal = inspect_wal(bundle/'journal/active.db-wal')
+        witness = dict(line.split() for line in err.splitlines())
+        custody = f.verify()
+        meta = dict(actor=actor,stage=stage,wal=wal,hook=witness,sidecars=sidecars,file_uid_gid_mode=owners,
+                    tip=custody[4],kernel=os.uname().release,host=os.uname().nodename,pledge=custody[3].hex(),
+                    source=subprocess.check_output(['git','-c',f'safe.directory={Path.cwd()}','rev-parse','HEAD'],text=True).strip())
+        inventory = seal_capture(bundle,hashes,meta)
+        emit(point9_capture=str(bundle),actor=actor,stage=stage,inventory_sha256=inventory)
+        with tempfile.TemporaryDirectory(dir=f.root) as tmp:
+            journal = shutil.copytree(bundle/'journal',Path(tmp)/'journal')
+            with contextlib.closing(sqlite3.connect(journal/'active.db')) as db:
+                db.execute('BEGIN')
+                outcome, events, bindings = classify_live_snapshot(db,genesis,custody,receipt,accepting)
+        emit(actor=actor,stage=stage,observed=outcome,events=len(events),bindings=len(bindings),wal=wal)
+        assert outcome == ('PendingConfirmation' if stage=='commit' else 'PendingEventMissing')
+        if stage=='commit':
+            assert 0 < wal['last_commit'] == wal['valid_frames'] == int(witness['wal_frames']) < int(witness['wal_threshold'])
+        else:
+            assert not witness
+        task, run_id, attempt = events[0][56:72],events[0][72:88],events[4][88:104]
+        def projection(complete, observed):
+            return expected_task(task,run_id,(2,3) if complete else (1,2),complete,1,True,False,attempt,observed,observed)
+        before = projection(False,int(accepting))
+        replay_fixture(f,[before],journal=outcome)
+        def snapshot():
+            binding_rows = f.query('SELECT * FROM accepted_attempts') if accepting else []
+            return f.rows(),binding_rows,f.verify()
+        original = snapshot()
+        if outcome=='PendingEventMissing':
+            refusal = 'ReconciliationRequired' if accepting else 'gate_result ReconciliationRequired'
+            for _ in range(2):
+                assert run(fresh,refusal,1) == 0 and snapshot() == original
+            replay_fixture(f,[before],journal=outcome)
+        else:
+            if accepting:
+                result = ' '.join(['Recorded',STORE.hex(),'1',str(len(events)),events[-1][120:136].hex(),'2','3'])
+            else:
+                result = 'gate_result EvaluationVerified'
+            assert run(fresh,result,0) == 0
+            final = confirmed_events(f,genesis)
+            if accepting:
+                assert final == events and snapshot()[:2] == original[:2]
+            else:
+                assert final[:-1] == events
+                check_evidence(final,events[:5],True)
+            settled = snapshot()
+            assert settled[-1][4] == custody[4]+(1 if accepting else 3)
+            assert run(fresh,result,0) == 0 and snapshot() == settled
+            replay_fixture(f,[projection(accepting,1)],live=True)
+        emit(case='live_transaction_kill',actor=actor,stage=stage,observed=outcome,initial_tip=custody[4],
+             final_tip=f.verify()[4],total_invocations=invocations,bundle=str(bundle),inventory_sha256=inventory)
+
+
 if __name__ == '__main__':
     assert os.getuid() == 0 and limits('self') == (256*1024*1024,0)
     for boundary in (None,'claim','return','observation'):
         exercise(boundary)
+    for accepting in (False, True):
+        for stage in ('insert', 'commit'):
+            live_transaction_kill(accepting, stage)
     emit(result='pass')
