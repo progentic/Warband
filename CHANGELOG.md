@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.36 - 2026-11-21
+
+### Added
+
+- Verified that replay counts a denial receipt as outstanding after the importer dies with its SQLite transaction committed. The count drops to zero once custody confirms the import and stays zero on a second restart. [PR #74](https://github.com/progentic/Warband/pull/74)
+
 ## 0.0.35 - 2026-11-21
 
 ### Added
