@@ -12,6 +12,7 @@ from test_receipt_import import ENROLL, LE, OUT, admin_frame, event_and_pledge, 
 
 
 def inventory(bundle, expected):
+    assert not bundle.is_symlink() and not any(p.is_symlink() for p in bundle.rglob('*'))
     sums = (bundle/'SHA256SUMS').read_bytes()
     assert sha(sums).hex()==expected, 'inventory differs from the capture log'
     allowed = {'capture.json','data/head','data/history','journal/active.db',
@@ -24,6 +25,7 @@ def inventory(bundle, expected):
         assert sha(files[name]).hex()==digest,name
     assert set(files)=={str(p.relative_to(bundle)) for p in bundle.rglob('*') if p.is_file()}-{'SHA256SUMS'}
     meta = json.loads(files.pop('capture.json'))
+    assert set(meta['sidecars'])=={'journal/active.db'+ext for ext in ('-wal','-shm','-journal')}
     assert all(present==(name in files) for name,present in meta['sidecars'].items())
     return files,meta
 
@@ -44,6 +46,7 @@ def inspect(bundle, expected):
         rows = f.rows()
         ref = STORE,LE(1),LE(1)
         if pending:
+            assert 'pending_record_hash' in meta
             state,provenance = 'PendingEventMissing','process kill after durable Prepare, before SQLite transaction'
             assert tip==3 and rows==[[],[],[]]
             assert pending[:72]==cp+LE(1) and pending[72:104]==sha(b'warband.link.v1\0'+b''.join(ref)+cp[32:]+pending[104:])
@@ -68,7 +71,7 @@ def inspect(bundle, expected):
         assert (f.root/'data/history').read_bytes()==history and (f.root/'data/head').read_bytes()==head
     assert inventory(bundle,expected)==(inputs,meta)
     report = dict(case=state,provenance=provenance,source=meta['source'],inventory_sha256=expected,tip=tip,
-                  checkpoint=cp.hex(),pending_record_hash=frame[-32:].hex() if pending else None,
+                  checkpoint=cp.hex(),receipt_hash=receipt[-32:].hex(),pending_record_hash=frame[-32:].hex() if pending else None,
                   event_ref=b''.join(ref).hex(),event_digest=digest.hex(),event_rows=len(rows[0]),
                   replay=p.stdout.strip(),preserved=True)
     print(json.dumps(report,sort_keys=True),flush=True)
