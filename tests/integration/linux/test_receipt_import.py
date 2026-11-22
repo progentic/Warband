@@ -76,10 +76,24 @@ class Fixture:
 
 
 @contextlib.contextmanager
-def fixture(*, measure=False, proof_variant=None, fresh=False, seed_files=None):
+def verified_tmpfs_mount(args, target):
+    subprocess.run(['mount',*args,target],check=True)
+    query = ['findmnt','-n','-M',target,'-o','ID,FSTYPE,OPTIONS']
+    record = subprocess.check_output(query,text=True).strip()
+    try:
+        assert record.split()[1]=='tmpfs',record
+        yield record
+    finally:
+        assert subprocess.check_output(query,text=True).strip()==record
+        subprocess.run(['umount',target],check=True)
+        assert not os.path.ismount(target)
+
+
+@contextlib.contextmanager
+def fixture(*, measure=False, proof_variant=None, fresh=False, seed_files=None, storage_mount=None):
     existing = {p.pw_uid for p in pwd.getpwall()}
     users = [u for u in range(50000,60000) if u not in existing][:3]
-    with tempfile.TemporaryDirectory(prefix='warband-import-',dir='/var/lib') as tmp:
+    with tempfile.TemporaryDirectory(prefix='warband-import-',dir='/var/lib') as tmp, contextlib.ExitStack() as mounts:
         root = Path(tmp)
         root.chmod(0o755)
         for name,uid,mode in [('endpoints',users[0],0o755),('data',users[0],0o700),('journal',users[2],0o555)]:
@@ -87,6 +101,8 @@ def fixture(*, measure=False, proof_variant=None, fresh=False, seed_files=None):
             path.mkdir()
             os.chown(path,uid,uid)
             path.chmod(mode)
+        if storage_mount:
+            mounts.enter_context(storage_mount(root))
         for name,path in [('custodian',OUT/'custodian/normal/custodian'),('importer',OUT/'reconcile/reconcile-custody'),
                           ('provision',OUT/'provision-store')]:
             shutil.copy2(path,root/name)
@@ -453,7 +469,7 @@ def inspect_wal(path):
     return info
 
 
-def transaction_result(f, bundle, genesis, receipt, verified, pledge_valid):
+def captured_rows(f, bundle):
     # Open all sidecars together on a disposable copy. Keep the capture pristine.
     with tempfile.TemporaryDirectory(dir=f.root) as tmp:
         journal = shutil.copytree(bundle/'journal', Path(tmp)/'journal')
@@ -461,6 +477,11 @@ def transaction_result(f, bundle, genesis, receipt, verified, pledge_valid):
             db.execute('BEGIN')
             rows = [list(db.execute('SELECT * FROM '+table)) for table in
                     ('events', 'denial_imports', 'import_watermarks')]
+    return rows
+
+
+def transaction_result(f, bundle, genesis, receipt, verified, pledge_valid):
+    rows = captured_rows(f,bundle)
     if not pledge_valid:
         return 'IntegrityFault', rows
     if rows == [[], [], []]:

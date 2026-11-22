@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.50 - 2026-11-22
+
+### Added
+
+- Verified recovery when a bounded volume fills during custody history append, head publication, or SQLite WAL writing. On x64-review the failed WAL write surfaced as SQLITE_FULL at COMMIT, and the missing pledged event kept the importer halted after space was freed. [PR #88](https://github.com/progentic/Warband/pull/88)
+
 ## 0.0.49 - 2026-11-22
 
 ### Added
