@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.46 - 2026-11-22
+
+### Added
+
+- Verified recovery from custody head write, sync, and rename errors. If directory sync fails after rename, the importer withholds success and startup republishes the verified head without adding a custody record. [PR #84](https://github.com/progentic/Warband/pull/84)
+
 ## 0.0.45 - 2026-11-22
 
 ### Added
