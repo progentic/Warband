@@ -711,7 +711,8 @@ def storage_fault_reply(kind,mode,publication=False):
             assert prepared[0]==0 and prepared[1]!=ZERO
             craft(f,denial,event)
         reply = f.call(kind,pledge)
-        assert reply[:2]==(14,ZERO) and reply[4]==kind+1
+        expected_tip = 4 if publication else kind+1  # Publication follows the durable COMMITTED append.
+        assert reply[:5]==(14,ZERO,STORE+LE(1)+LE(0)+genesis,pledge if kind==2 else b'',expected_tip)
         emit(case='publication_fault_reply' if publication else 'append_fault_reply',kind=kind,mode=mode,status=reply[0],receipt=reply[1].hex())
 
 
