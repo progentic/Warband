@@ -47,7 +47,7 @@ EXCEPTION_FIELDS = (
     ('Expires before phase', r'[3-6]'),
     ('Exception owner', r'Proto'),
     ('Independent reviewer', r'\S[^\n]*'),
-    ('Disposition record', r'Pending|https://github\.com/progentic/Warband/commit/[0-9a-f]{40}'),
+    ('Disposition record', r'Pending|(?:Stop at expiry — )?https://github\.com/progentic/Warband/commit/[0-9a-f]{40}'),
     ('Status', r'Proposed|Accepted'),
 )
 DECISION_STATUS_PREFIX = '- **Status:** '
@@ -210,6 +210,9 @@ def resource_exception_findings(inventory: Inventory) -> tuple[Finding, ...]:
     reviewed_disposition = (fields['Status'] == 'Accepted'
                             and fields['Independent reviewer'] not in ('Pending', fields['Exception owner'])
                             and fields['Disposition record'] != 'Pending')
+    if fields['Disposition record'].startswith('Stop at expiry — '):
+        if not reviewed_disposition or fields['Exception status'] != 'Open' or expiry != 3:
+            return (Finding(FindingCode.EXCEPTION_RECORD, RESOURCE_DECISION, 'stop at expiry'),)
     if (fields['Exception status'] == 'Closed' or expiry != 3) and not reviewed_disposition:
         return (Finding(FindingCode.EXCEPTION_RECORD, RESOURCE_DECISION, 'reviewed disposition'),)
     if fields['Exception status'] == 'Open' and inventory.phase >= expiry:
