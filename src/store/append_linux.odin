@@ -48,6 +48,9 @@ append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,pri
 	}
 	reply, prepared := client.exchange(s,{.Prepare,p},deadline)
 	if !prepared || reply.committed != cp || reply.pending != p || reply.receipt == ([32]u8{}) { return {},false }
+	when #config(WARBAND_TEST_STOP_AFTER_PREPARE, false) {
+		if entry != nil && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return {},false }
+	}
 	now := client.wb_elapsed_ms()
 	if now < start || now >= deadline || !client.within_budget(s,u64(cp.sequence)+1) || !commit_event(w,cp,prior,entry,bytes,acceptance) { return {},false }
 	when STOP_AFTER_COMMIT {
