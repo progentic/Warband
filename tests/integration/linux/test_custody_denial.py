@@ -172,6 +172,10 @@ def cold_history_refusal(f, files):
             path.chmod(0o600)
         binary = shutil.copy2(f.root/'custodian',root/'custodian')
         with (root/'data/head').open('rb') as held:
+            def inventory():
+                return {str(path.relative_to(root)):path.read_bytes() for sub in ('data','journal')
+                        for path in (root/sub).iterdir()}
+            assert inventory()==files
             for _ in range(2):
                 p = subprocess.run(['systemd-run','--wait','--pipe','--quiet','--collect','--service-type=exec',
                                     '-p','MemoryMax=32M','-p','MemorySwapMax=0','/usr/bin/setpriv',
@@ -181,8 +185,7 @@ def cold_history_refusal(f, files):
                 assert p.returncode==4,(p.returncode,p.stderr)
                 assert not list((root/'endpoints').iterdir())
                 assert os.path.samestat(os.fstat(held.fileno()),(root/'data/head').stat())
-                assert {str(path.relative_to(root)):path.read_bytes() for sub in ('data','journal')
-                        for path in (root/sub).iterdir()}==files
+                assert inventory()==files
 
 
 def run(normal, fault):

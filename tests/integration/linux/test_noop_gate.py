@@ -419,7 +419,7 @@ def corruption_cases(f, events, want):
     bundle = Path(tempfile.mkdtemp(dir=parent,prefix='baseline-'))
     assert f.query('PRAGMA wal_checkpoint(TRUNCATE)')==[(0,0,0)]
     hashes,_,sidecars = capture_files(f,bundle)
-    assert not any(sidecars.values()),sidecars
+    assert not any(sidecars.values()) and not (f.root/'data/head.tmp').exists(),sidecars
     base = {name:(bundle/name).read_bytes() for name in hashes}
     baseline = f.verify()
     rows = f.rows()+[f.query('SELECT * FROM accepted_attempts')]
@@ -461,17 +461,17 @@ def corruption_cases(f, events, want):
                 if key==name:
                     expected = expected[:offset]+bytes([old^1])+expected[offset+1:]
                 assert raw==expected
-            receipt_fault = name==history_name
+            custody_fault = name==history_name
             artifact = Path(tempfile.mkdtemp(dir=parent,prefix=label+'-'))
             digests,_,present = capture_files(copy,artifact)
             assert not any(present.values())
             metadata = dict(source=source,baseline_inventory=inventory,mutation=label,file=name,offset=offset,
-                            ordinal=ordinal,event_ref=None if receipt_fault else wire[8:40].hex(),
+                            ordinal=ordinal,event_ref=None if custody_fault else wire[8:40].hex(),
                             original_byte=old,altered_byte=old^1,original_digest=hashes[name],altered_digest=digests[name])
             digest = seal_capture(artifact,digests,metadata)
             emit(corruption_capture=label,bundle=str(artifact),inventory_sha256=digest)
             with (copy.root/'data/head').open('rb') as held:
-                if receipt_fault:
+                if custody_fault:
                     _,fault = history_inventory(altered[name])
                     assert fault==(ordinal,mismatch),fault
                     reply = copy.call(3,STORE+LE(1)+LE(0))
@@ -482,11 +482,11 @@ def corruption_cases(f, events, want):
                                        (STORE,LE(1),wire[32:40]))
                     assert exact==[(wire[:40]+bytes([wire[40]^1])+wire[41:],)]
                 expected_rows = copy.rows()+[copy.query('SELECT * FROM accepted_attempts')]
-                if receipt_fault:
+                if custody_fault:
                     assert expected_rows==rows
                 for binary,args,output in [
-                    ('replay-noop',[],[] if receipt_fault else ['Failure IntegrityFault IntegrityFault']),
-                    ('reconcile-custody',['0','-'],['CustodyUnavailable' if receipt_fault else 'IntegrityFault']),
+                    ('replay-noop',[],[] if custody_fault else ['Failure IntegrityFault IntegrityFault']),
+                    ('reconcile-custody',['0','-'],['CustodyUnavailable' if custody_fault else 'IntegrityFault']),
                     ('noop-gate-witness',['2'],['gate_result ReconciliationRequired']),
                     ('accept-noop',[str(len(events)-1),'1','2'],['ReconciliationRequired'])]:
                     cmd = shutil.copy2(OUT/'reconcile'/binary,copy.root/('probe-'+binary))
@@ -496,12 +496,12 @@ def corruption_cases(f, events, want):
                     assert (p.returncode,p.stdout.splitlines())==(1,output),(label,binary,p.stdout,p.stderr)
                     assert copy.rows()+[copy.query('SELECT * FROM accepted_attempts')]==expected_rows
                     assert contents()==altered and os.path.samestat(os.fstat(held.fileno()),(copy.root/'data/head').stat())
-                if receipt_fault:
+                if custody_fault:
                     cold_history_refusal(copy,altered)
                 else:
                     assert copy.verify()==baseline
-            emit(case='corruption_refusal',mutation=label,verify_status=10 if receipt_fault else 0,
-                 cold_exits=[4,4] if receipt_fault else [],task_rows=0,inventory_sha256=digest)
+            emit(case='corruption_refusal',mutation=label,verify_status=10 if custody_fault else 0,
+                 cold_exits=[4,4] if custody_fault else [],task_rows=0,inventory_sha256=digest)
 
 
 def classify_live_snapshot(db, genesis, custody, receipt, accepting):
