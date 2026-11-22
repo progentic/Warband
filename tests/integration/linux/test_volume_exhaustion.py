@@ -110,6 +110,8 @@ def run_case(case):
                     stats['failure'] = space(vol)
                 hashes,owners,sidecars = capture_files(f,out,include_tmp=True)
                 traces = (out/'custody-io.log').read_text()+(out/'fault-io.log').read_text()
+                traces = re.sub(r'<((?:\\x[0-9a-f]{2})+)>',
+                                lambda m:'<'+bytes.fromhex(m[1].replace('\\x','')).decode()+'>',traces)
                 failures = [l for l in traces.splitlines() if ' = -1 ENOSPC' in l]
                 sql = steps(out/'fault-sql.log') if qualified and fault_attached else []
                 wal_state = inspect_wal(out/'journal/active.db-wal')
