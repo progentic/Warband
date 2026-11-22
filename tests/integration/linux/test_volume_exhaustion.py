@@ -41,11 +41,10 @@ def space(vol):
 
 def run_case(case):
     out = OUT/'volume-exhaustion'/case
-    out.parent.mkdir(parents=True,exist_ok=True)
-    out.mkdir()  # Fresh trace and inventory for every arm.
+    out.mkdir(parents=True)  # Fresh trace and inventory for every arm.
     with fixture(storage_mount=volume) as (f, _, _):
         vol,db = f.root/'volume',f.db
-        assert not out.resolve().is_relative_to(vol) and out.stat().st_dev!=vol.stat().st_dev
+        assert out.stat().st_dev!=vol.stat().st_dev
         assert f.query('PRAGMA journal_mode=WAL')==[('wal',)]
         wal = Path(str(db)+'-wal')
         history,head = f.root/'data/history',f.root/'data/head'
@@ -75,6 +74,7 @@ def run_case(case):
             receipt = f.verify(int.from_bytes(rows[2][0][1],'little'))[5]
             assert receipt and before[3]==b'' and cost>0
             baseline_wal = inspect_wal(wal)
+            baseline_wal_hash = sha(wal.read_bytes()).hex()
             leave = cost if case=='head' else 0
             mount_record = [subprocess.check_output(['findmnt','-nM',p,'-o','ID,FSTYPE,OPTIONS'],text=True).strip() for p in (vol,history.parent,db.parent)]
             stats = {'baseline':space(vol)}
@@ -101,7 +101,7 @@ def run_case(case):
                 wal_state = inspect_wal(out/'journal/active.db-wal')
                 meta = dict(arm=case,kernel=os.uname().release,mounts=mount_record,stats=stats,leave=leave,
                             filler_bytes=os.fstat(filler.fileno()).st_blocks*512,observer_qualified=qualified and fault_attached,owner=owners,sidecars=sidecars,
-                            baseline_wal=baseline_wal,wal=wal_state,sql=sql,errors=failures,result=failed.stdout.strip(),
+                            baseline_wal=baseline_wal,baseline_wal_hash=baseline_wal_hash,wal=wal_state,sql=sql,errors=failures,result=failed.stdout.strip(),
                             source=subprocess.check_output(['git','-c',f'safe.directory={Path.cwd()}','rev-parse','HEAD'],text=True).strip(),
                             binaries={p.name:sha(p.read_bytes()).hex() for p in (args[0],f.root/'custodian')})
                 assert meta['filler_bytes']==stats['baseline']['free']-leave
@@ -111,19 +111,9 @@ def run_case(case):
             (vol/'filler').unlink()
             stats['relieved'] = space(vol)
             assert (failed.returncode,failed.stdout.strip())==(1,'AttestationUncertain'),failed
-            wanted = {'history':history,'head':f.root/'data/head.tmp','wal':wal}[case]
-            assert any(str(wanted)+'>' in l and re.search(r'\b(pwrite64|write)\(',l) for l in failures),failures
-            if case=='head':
-                assert (out/'data/head.tmp').read_bytes()==b''
-            if case=='wal':
-                assert baseline_wal['valid_frames']>0 and any(int(l.split(') =')[0].rsplit(',',1)[1])>=32 for l in failures if 'pwrite64(' in l and str(wal)+'>' in l)
-            if case!='history':
-                completed = [l for l in traces.splitlines() if str(history)+'>' in l and l.endswith(' = 251')]
-                synced = [l for l in traces.splitlines() if 'fsync(' in l and str(history)+'>' in l and l.endswith(' = 0')]
-                assert len(completed)==len(synced)==(2 if case=='head' else 1)
             assert stats['first_observation']['free']==stats['failure']['free']==0 and stats['relieved']['free']>0
         # Classify the captured history and a fresh snapshot on a disposable copy before recovery.
-        actual = [sorted(t) for t in captured_rows(f.root,out)]
+        actual = [sorted(t) for t in captured_rows(f,out)]
         raw = (out/'data/history').read_bytes()
         assert raw.startswith(base) and (out/'data/head').read_bytes()==oldhead
         tail = raw[len(base):]
@@ -134,7 +124,7 @@ def run_case(case):
                 attempted = bytes.fromhex(write.split('"')[1].replace('\\x',''))
                 assert len(attempted)==251 and attempted==admin_frame(1,attempted[83:-32],before[4]+1,base[-32:])
                 assert tail==attempted[:len(tail)] and len(tail)==int(write.split(' = ')[-1])
-                observed='Ready'
+                observed='TornFinalRecord' if tail else 'Ready'
             else:
                 pledge=tail[83:-32]
                 assert tail==admin_frame(1,pledge,before[4]+1,base[-32:]) and pledge[:72]==before[2]+LE(seq)
@@ -149,7 +139,17 @@ def run_case(case):
             assert tail==pending+admin_frame(2,pledge,before[4]+2,pending[-32:])
             observed='HeadPublicationPending'
         emit(arm=case,observed=observed,space=stats,sql_errors=[r for r in sql if int(r[0]) not in (100,101)])
-        assert observed=={'wal':'PendingEventMissing','history':'Ready','head':'HeadPublicationPending'}[case]
+        wanted = {'history':history,'head':f.root/'data/head.tmp','wal':wal}[case]
+        assert any(str(wanted)+'>' in l and re.search(r'\b(pwrite64|write)\(',l) for l in failures),failures
+        if case=='head':
+            assert (out/'data/head.tmp').read_bytes()==b''
+        if case=='wal':
+            assert baseline_wal['valid_frames']>0 and any(int(l.split(') =')[0].rsplit(',',1)[1])>=32 for l in failures if 'pwrite64(' in l and str(wal)+'>' in l)
+        if case!='history':
+            completed = [l for l in traces.splitlines() if str(history)+'>' in l and l.endswith(' = 251')]
+            synced = [l for l in traces.splitlines() if 'fsync(' in l and str(history)+'>' in l and l.endswith(' = 0')]
+            assert len(completed)==len(synced)==(2 if case=='head' else 1)
+        assert observed=={'wal':'PendingEventMissing','history':'TornFinalRecord','head':'HeadPublicationPending'}[case]
         recovery=contextlib.nullcontext() if case=='wal' else service(f.root,f.root/'custodian',f.custodian,f.runtime,f.operator)
         with recovery:
             view=f.verify()
@@ -160,10 +160,13 @@ def run_case(case):
             if case=='wal':
                 assert view[3]==pledge and f.run(observed,allow=False)==observed and f.verify()==view
                 assert wal_state['last_commit']==baseline_wal['last_commit']
+                assert sha((out/'journal/active.db-wal').read_bytes()[:baseline_wal['size']]).hex()==baseline_wal_hash
                 if qualified and fault_attached: assert any(r[2]=='COMMIT' and int(r[0]) in (10,13) for r in sql),sql
             else:
                 assert f.run('Ready')=='Ready' and f.verify()[4]==before[4]+2
-                assert len(f.rows()[0])==len(rows[0])+1
+                complete=f.rows()
+                assert sorted(complete[0][:-1])==sorted(rows[0]) and len(complete[0])==len(complete[1])==seq
+                assert complete[1][-1]==(STORE,receipt[11:19],receipt[-32:],LE(1),LE(seq)) and complete[2]==[(STORE,receipt[11:19])]
             replay=shutil.copy2(OUT/'reconcile/replay-noop',f.root/'replay')
             p=subprocess.run([replay,*args[1:6]],user=f.runtime,group=f.runtime,extra_groups=[],capture_output=True,text=True)
             assert (p.returncode,p.stdout.splitlines())==(0,[f"Journal {'PendingEventMissing' if case=='wal' else 'Ready'} OutstandingReceipts {int(case=='wal')}"])

@@ -469,8 +469,9 @@ def inspect_wal(path):
     return info
 
 
-def captured_rows(parent, bundle):
-    with tempfile.TemporaryDirectory(dir=parent) as tmp:
+def captured_rows(f, bundle):
+    # Open all sidecars together on a disposable copy. Keep the capture pristine.
+    with tempfile.TemporaryDirectory(dir=f.root) as tmp:
         journal = shutil.copytree(bundle/'journal', Path(tmp)/'journal')
         with contextlib.closing(sqlite3.connect(journal/'active.db')) as db:
             db.execute('BEGIN')
@@ -480,8 +481,7 @@ def captured_rows(parent, bundle):
 
 
 def transaction_result(f, bundle, genesis, receipt, verified, pledge_valid):
-    # Open all sidecars together on a disposable copy. Keep the capture pristine.
-    rows = captured_rows(f.root,bundle)
+    rows = captured_rows(f,bundle)
     if not pledge_valid:
         return 'IntegrityFault', rows
     if rows == [[], [], []]:
