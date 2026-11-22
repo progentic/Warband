@@ -11,7 +11,7 @@ import time
 import tempfile
 from pathlib import Path
 
-from test_custody_denial import STORE, VECTORS, emit, limits, sha
+from test_custody_denial import STORE, VECTORS, emit, limits, sha, cold_history_refusal
 from test_receipt_import import OUT, LE, fixture, capture_files, inspect_wal, seal_capture
 
 
@@ -389,7 +389,119 @@ def exercise(kill_at):
         else:
             want = expected_task(task,run,(1,2),False,1,True,False,events[4][88:104],2,2)
         replay_fixture(f,[want],live=True)
-        if kill_at is None: mixed_replay(f,genesis,want)
+        if kill_at is None:
+            corruption_cases(f,events,want)
+            mixed_replay(f,genesis,want)
+
+
+def history_inventory(history):
+    frames = []
+    offset, previous = 0, bytes(32)
+    while offset<len(history):
+        size = 115+int.from_bytes(history[offset+7:offset+11],'little')
+        frame = history[offset:offset+size]
+        ordinal = len(frames)+1
+        assert len(frame)==size and frame[:6]==b'WBCH\x01\0'
+        assert frame[11:51]==LE(ordinal)+previous
+        if sha(b'warband.custody.header.v1\0'+frame[:51])!=frame[51:83]:
+            return frames,(ordinal,'header')
+        if sha(b'warband.custody.record.v1\0'+frame[:-32])!=frame[-32:]:
+            return frames,(ordinal,'record')
+        frames.append((ordinal,frame[6],offset,size))
+        previous,offset = frame[-32:],offset+size
+    return frames,None
+
+
+def corruption_cases(f, events, want):
+    source = subprocess.check_output(['git','-c',f'safe.directory={Path.cwd()}','rev-parse','HEAD'],text=True).strip()
+    parent = OUT/'interior-corruption'
+    parent.mkdir(exist_ok=True)
+    bundle = Path(tempfile.mkdtemp(dir=parent,prefix='baseline-'))
+    assert f.query('PRAGMA wal_checkpoint(TRUNCATE)')==[(0,0,0)]
+    hashes,_,sidecars = capture_files(f,bundle)
+    assert not any(sidecars.values()),sidecars
+    base = {name:(bundle/name).read_bytes() for name in hashes}
+    baseline = f.verify()
+    rows = f.rows()+[f.query('SELECT * FROM accepted_attempts')]
+    assert len(rows[3])==1 and baseline[2]==events[-1][8:40]+linked_head(events[-1])
+    inventory = seal_capture(bundle,hashes,dict(source=source,tip=baseline[4],oracle=want,sidecars=sidecars))
+    emit(corruption_capture='baseline',bundle=str(bundle),inventory_sha256=inventory)
+    history_name, db_name = 'data/history','journal/active.db'
+    frames,issue = history_inventory(base[history_name])
+    assert issue is None and len(frames)==baseline[4]
+    mid = next(frame for frame in frames[1:-1] if frame[1]==1)
+    last = frames[-1]
+    assert last[1]==2 and last[3]==251
+    wire = events[-1]
+    assert base[db_name].count(wire)==1, 'confirmed event must have one physical encoding'
+    cases = [('interior-payload',history_name,mid[2]+83,mid[0],'record'),
+             ('interior-header-hash',history_name,mid[2]+51,mid[0],'header'),
+             ('final-payload',history_name,last[2]+83,last[0],'record'),
+             ('sqlite-event',db_name,base[db_name].index(wire)+40,None,None)]
+    for label,name,offset,ordinal,mismatch in cases:
+        with fixture(seed_files=base) as (copy, _, _):
+            def contents():
+                return {str(p.relative_to(copy.root)):p.read_bytes() for sub in ('data','journal')
+                        for p in (copy.root/sub).iterdir()}
+            replay_fixture(copy,[want],live=True)
+            assert copy.verify()==baseline and contents()==base
+            assert all(sha(v).hex()==hashes[k] for k,v in base.items())
+            path = copy.root/name
+            with path.open('r+b') as damaged:
+                damaged.seek(offset)
+                old = damaged.read(1)[0]
+                damaged.seek(offset)
+                damaged.write(bytes([old^1]))
+                damaged.flush()
+                os.fsync(damaged.fileno())
+            altered = contents()
+            assert altered.keys()==base.keys()
+            for key,raw in altered.items():
+                expected = base[key]
+                if key==name:
+                    expected = expected[:offset]+bytes([old^1])+expected[offset+1:]
+                assert raw==expected
+            receipt_fault = name==history_name
+            artifact = Path(tempfile.mkdtemp(dir=parent,prefix=label+'-'))
+            digests,_,present = capture_files(copy,artifact)
+            assert not any(present.values())
+            metadata = dict(source=source,baseline_inventory=inventory,mutation=label,file=name,offset=offset,
+                            ordinal=ordinal,event_ref=None if receipt_fault else wire[8:40].hex(),
+                            original_byte=old,altered_byte=old^1,original_digest=hashes[name],altered_digest=digests[name])
+            digest = seal_capture(artifact,digests,metadata)
+            emit(corruption_capture=label,bundle=str(artifact),inventory_sha256=digest)
+            with (copy.root/'data/head').open('rb') as held:
+                if receipt_fault:
+                    _,fault = history_inventory(altered[name])
+                    assert fault==(ordinal,mismatch),fault
+                    reply = copy.call(3,STORE+LE(1)+LE(0))
+                    assert reply[:2]==(10,bytes(32)) and contents()==altered
+                else:
+                    assert copy.verify()==baseline and copy.query('PRAGMA integrity_check')==[('ok',)]
+                    exact = copy.query('SELECT canonical_event FROM events WHERE store_id=? AND epoch=? AND sequence=?',
+                                       (STORE,LE(1),wire[32:40]))
+                    assert exact==[(wire[:40]+bytes([wire[40]^1])+wire[41:],)]
+                expected_rows = copy.rows()+[copy.query('SELECT * FROM accepted_attempts')]
+                if receipt_fault:
+                    assert expected_rows==rows
+                for binary,args,output in [
+                    ('replay-noop',[],[] if receipt_fault else ['Failure IntegrityFault IntegrityFault']),
+                    ('reconcile-custody',['0','-'],['CustodyUnavailable' if receipt_fault else 'IntegrityFault']),
+                    ('noop-gate-witness',['2'],['gate_result ReconciliationRequired']),
+                    ('accept-noop',[str(len(events)-1),'1','2'],['ReconciliationRequired'])]:
+                    cmd = shutil.copy2(OUT/'reconcile'/binary,copy.root/('probe-'+binary))
+                    p = subprocess.run([cmd,copy.db,copy.root/'endpoints/runtime.sock',str(copy.custodian),
+                                        STORE.hex(),'1',*args],user=copy.runtime,group=copy.runtime,extra_groups=[],
+                                       capture_output=True,text=True,timeout=65)
+                    assert (p.returncode,p.stdout.splitlines())==(1,output),(label,binary,p.stdout,p.stderr)
+                    assert copy.rows()+[copy.query('SELECT * FROM accepted_attempts')]==expected_rows
+                    assert contents()==altered and os.path.samestat(os.fstat(held.fileno()),(copy.root/'data/head').stat())
+                if receipt_fault:
+                    cold_history_refusal(copy,altered)
+                else:
+                    assert copy.verify()==baseline
+            emit(case='corruption_refusal',mutation=label,verify_status=10 if receipt_fault else 0,
+                 cold_exits=[4,4] if receipt_fault else [],task_rows=0,inventory_sha256=digest)
 
 
 def classify_live_snapshot(db, genesis, custody, receipt, accepting):

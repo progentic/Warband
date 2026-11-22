@@ -155,6 +155,36 @@ def service(root, binary, custodian, runtime, operator, *, stderr_path=None):
         subprocess.run(['systemctl', 'stop', unit], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def cold_history_refusal(f, files):
+    with tempfile.TemporaryDirectory(prefix='warband-cold-',dir='/var/lib') as tmp:
+        root = Path(tmp)
+        root.chmod(0o755)
+        for name,uid,mode in [('data',f.custodian,0o700),('endpoints',f.custodian,0o755),('journal',f.runtime,0o700)]:
+            directory = root/name
+            directory.mkdir()
+            os.chown(directory,uid,uid)
+            directory.chmod(mode)
+        for name,data in files.items():
+            path = root/name
+            path.write_bytes(data)
+            uid = f.runtime if path.parent==root/'journal' else f.custodian
+            os.chown(path,uid,uid)
+            path.chmod(0o600)
+        binary = shutil.copy2(f.root/'custodian',root/'custodian')
+        with (root/'data/head').open('rb') as held:
+            for _ in range(2):
+                p = subprocess.run(['systemd-run','--wait','--pipe','--quiet','--collect','--service-type=exec',
+                                    '-p','MemoryMax=32M','-p','MemorySwapMax=0','/usr/bin/setpriv',
+                                    f'--reuid={f.custodian}',f'--regid={f.custodian}','--clear-groups','--no-new-privs',
+                                    binary,root.name,str(f.runtime),str(f.operator),STORE.hex()],
+                                   capture_output=True,timeout=65)
+                assert p.returncode==4,(p.returncode,p.stderr)
+                assert not list((root/'endpoints').iterdir())
+                assert os.path.samestat(os.fstat(held.fileno()),(root/'data/head').stat())
+                assert {str(path.relative_to(root)):path.read_bytes() for sub in ('data','journal')
+                        for path in (root/sub).iterdir()}==files
+
+
 def run(normal, fault):
     assert os.getuid() == 0 and limits('self') == (256*1024*1024, 0)
     # Use free numeric test identities; no persistent accounts or memberships.
