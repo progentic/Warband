@@ -72,6 +72,13 @@ jobs:
         run: |
           sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
             /usr/bin/python3 tests/integration/linux/test_volume_exhaustion.py 2>&1 | tee out/linux_amd64/volume.log
+      - name: Qualify SQLite commit after a WAL sync failure
+        run: |
+          sudo apt-get install -y --no-install-recommends libfuse3-dev
+          dpkg-query -W libfuse3-dev libfuse3-3 > out/linux_amd64/wal-sync-packages.txt
+          clang-19 -std=c11 -O2 -Wall -Wextra -Werror tests/integration/linux/wal_sync_fs.c -lfuse3 -o out/linux_amd64/wal-sync-fs
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_wal_sync.py --hosted 2>&1 | tee out/linux_amd64/wal-sync.log
       - name: Measure cold recovery on single custody histories
         run: |
           export ODIN_ROOT="$PWD/.local/toolchains/odin-linux_amd64"

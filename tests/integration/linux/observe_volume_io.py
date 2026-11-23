@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 @contextlib.contextmanager
-def sqlite_steps(binary, log):
+def sqlite_steps(binary, log, *, sync_calls=False):
     # Verify the accessor loads in this exact pinned, optimized binary before
     # reading Vdbe.db, Vdbe.zSql and the connection error fields at return.
     try:
@@ -32,6 +32,17 @@ uretprobe:{binary}:sqlite3_step /@stmt[tid]/ {{
   delete(@stmt[tid]);
 }}
 BEGIN {{ printf("attached\\n"); }}
+'''
+    if sync_calls:
+        # Attribute the syscall to its enclosing sqlite3_step on the same thread.
+        for call in ('fsync','fdatasync'):
+            script += f'''
+tracepoint:syscalls:sys_enter_{call} /@stmt[tid]/ {{ @syncfd[tid] = args->fd; }}
+tracepoint:syscalls:sys_exit_{call} /@stmt[tid]/ {{
+  $s = @stmt[tid]; $sql = *uptr((uint64*)($s+248));
+  printf("sqlsync %d %d {call} %d %s\\n",tid,@syncfd[tid],args->ret,str(uptr((uint8*)$sql)));
+  delete(@syncfd[tid]);
+}}
 '''
     with log.open('w') as out, subprocess.Popen(['bpftrace','-q','-B','line','-e',script],
                                                  stdout=out,stderr=subprocess.STDOUT) as p:
@@ -62,9 +73,22 @@ def custody_calls(pid, log):
             p.wait(timeout=10)
 
 
-def traced_import(f, store, log):
+def traced_import(f, store, log, *, mapping=False):
+    calls = 'write,pwrite64,ftruncate,fallocate,fsync,fdatasync'+(',mmap,flock,fcntl' if mapping else '')
     args = ['strace','-f','-qq','-yy','-ttt','-s','0','-e',
-            'trace=write,pwrite64,ftruncate,fallocate,fsync,fdatasync','-o',log,'setpriv',
+            'trace='+calls,'-o',log,'setpriv',
             f'--reuid={f.runtime}',f'--regid={f.runtime}','--clear-groups','--no-new-privs',
             f.root/'importer',f.db,f.root/'endpoints/runtime.sock',str(f.custodian),store.hex(),'1','0','-']
     return subprocess.run(args,capture_output=True,text=True,timeout=70)
+
+
+def check_commit_steps(log, fault, pid, fd, call, count):
+    sql = log.read_text().splitlines()
+    assert {'step 101 101 PRAGMA synchronous=FULL','step 100 100 PRAGMA journal_mode=WAL',
+            'step 100 100 PRAGMA synchronous','step 100 100 PRAGMA journal_mode'}<=set(sql)
+    done = [l for l in sql if l.startswith('step 101 101 INSERT INTO ')]
+    assert [l.split()[5].split('(')[0] for l in done]==['events','denial_imports','import_watermarks'],done
+    assert [l for l in sql if l.startswith('step ') and l.endswith(' COMMIT')]==[
+        'step 10 1034 COMMIT' if fault else 'step 101 101 COMMIT'],sql[-12:]
+    assert [l for l in sql if l.startswith(f'sqlsync {pid} {fd} ')]==[
+        f'sqlsync {pid} {fd} {call} {(-5 if fault and i==count-1 else 0)} COMMIT' for i in range(count)]
