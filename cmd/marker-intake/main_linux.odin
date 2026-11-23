@@ -13,19 +13,8 @@ workspace: [128*1024*1024]u8
 run :: proc(scratch: ^mem.Arena) -> int {
 	if len(os.args)!=1 { fmt.eprintln("usage: marker-intake < payload"); return 2 }
 	buf: [a.MarkerPayloadLimit+1]u8
-	size := 0
-	start := c.wb_elapsed_ms()
-	for size<len(buf) {
-		now := c.wb_elapsed_ms()
-		if start<0 || now<start || now-start>=30_000 { return 1 }
-		poll := [?]l.Poll_Fd{{fd=0,events={.IN}}}
-		ready,wait := l.poll(poll[:],i32(30_000-(now-start)))
-		if wait!=.NONE || ready!=1 { return 1 }
-		n,err := l.read(0,buf[size:])
-		if err!=.NONE { return 1 }
-		if n==0 { break }
-		size+=n
-	}
+	size := c.read_payload(buf[:])
+	if size<0 { return 1 }
 	if size>a.MarkerPayloadLimit { fmt.println("PayloadTooLarge"); return 1 }
 	prepared,status := r.marker_intake(buf[:size],scratch)
 	if status!=.ConfirmedProposal {

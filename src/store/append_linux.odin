@@ -55,7 +55,12 @@ append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,pri
 		if marker && linux.kill(linux.getpid(),TEST_STOP_SIGNAL)!=.NONE { return {},false }
 	}
 	now := client.wb_elapsed_ms()
-	if now < start || now >= deadline || !client.within_budget(s,u64(cp.sequence)+1) || !commit_event(w,cp,prior,entry,bytes,acceptance) { return {},false }
+	if now < start || now >= deadline || !client.within_budget(s,u64(cp.sequence)+1) || !commit_event(w,cp,prior,entry,bytes,acceptance,marker) { return {},false }
+	edge :: #config(WARBAND_DECISION_COMMIT_STOP,0)
+	when edge!=0 {
+		#assert(edge==12 || edge==13)
+		if marker && bytes[6]==edge && linux.kill(linux.getpid(),TEST_STOP_SIGNAL)!=.NONE { return {},false }
+	}
 	when STOP_AFTER_COMMIT {
 		if entry != nil && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return {},false }
 	}
@@ -116,9 +121,9 @@ append_noop :: proc(w: VerifiedWriter, session: ^client.Session, cp: e.Checkpoin
 	return {},false
 }
 
-// Only the live marker intake opts into kind-11 read-back. All v1 callers keep their reader.
+// Only the live marker path opts into marker read-back. All v1 callers keep their reader.
 append_intake :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,mark: u64,
-                      event: union {a.TaskCreated,a.MarkerProposal}, deadline: i64) -> (e.Checkpoint,bool) {
+                      event: union {a.TaskCreated,a.MarkerProposal,a.MarkerApproval,a.MarkerPermit}, deadline: i64) -> (e.Checkpoint,bool) {
 	start := client.wb_elapsed_ms()
 	if start<0 || cp.sequence==max(e.Sequence) { return {},false }
 	next := e.EventRef{cp.store,cp.epoch,cp.sequence+1}
@@ -135,6 +140,18 @@ append_intake :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,mark
 		digest,de := a.digest_marker_proposal(v,cp.store,cp.epoch)
 		if err!=.None || de!=.None { return {},false }
 		return append_pledged(w,s,cp,mark,nil,wire.data[:wire.length],digest,start,deadline,marker=true)
+	case a.MarkerApproval:
+		if v.reference!=next || v.previous_head!=cp.head { return {},false }
+		wire,err := a.encode_marker_approval(v,cp.store,cp.epoch)
+		digest,de := a.digest_marker_approval(v,cp.store,cp.epoch)
+		if err!=.None || de!=.None { return {},false }
+		return append_pledged(w,s,cp,mark,nil,wire[:],digest,start,deadline,marker=true)
+	case a.MarkerPermit:
+		if v.reference!=next || v.previous_head!=cp.head { return {},false }
+		wire,err := a.encode_marker_permit(v,cp.store,cp.epoch)
+		digest,de := a.digest_marker_permit(v,cp.store,cp.epoch)
+		if err!=.None || de!=.None { return {},false }
+		return append_pledged(w,s,cp,mark,nil,wire[:],digest,start,deadline,marker=true)
 	}
 	return {},false
 }
