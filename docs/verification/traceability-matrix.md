@@ -43,6 +43,12 @@ For WB-CON-003/006/008 and WB-INV-005, the [isolated no-op observation and evalu
 
 WB-INV-007 and WB-NEG-008 have pure codec evidence for kinds 11/12. A changed binding withholds a match against the original approval. The real CLI approval and denial-before-dispatch tests are still owed. [Golden and compatibility results](../decisions/0009-controlled-local-marker-execution.md#proposal-and-approval-codec-qualification)
 
+### Marker evidence codec qualification
+
+The portable audit codecs encode and decode the five fixed formats in [ADR-0009](../decisions/0009-controlled-local-marker-execution.md#marker-event-wire-profile-1). The independent literals in `tests/odin/audit/marker_evidence_vectors.odin` extend the published kind-12 head through permit, claim, observation, evaluation and acceptance. The 169/200/180/203/193-byte records reproduce each event digest and linked head. The final head is `2a9ae56e6a96ea3f7ca3a6c72b8bf83639ed42273752715f6dda201976d7c3c1`.
+
+The tests distinguish an absent marker (zero length and hash) from a fully read empty regular file (zero length and SHA-256 of the empty string). They check all proof-flag combinations, all delivery and verdict codes, fixed fields, Ref scope/order and checked version increments. Ref resolution against actual producer roles, history-wide uniqueness and a positive marker projection belong to replay qualification. The live worker, CLI approval and denial before dispatch remain separate obligations. The manifest verified 68 named tests in seven packages on macOS ARM64 and Linux x64.
+
 ## Historical Phase 1 implementation evidence
 
 At Phase 1 closure the constitutional rows were planned. Foundation tests do not establish runtime authority, model isolation, evidence acceptance, or replay.
