@@ -43,6 +43,12 @@ For WB-CON-003/006/008 and WB-INV-005, the [isolated no-op observation and evalu
 
 WB-INV-007 and WB-NEG-008 have pure codec evidence for kinds 11/12. A changed binding withholds a match against the original approval. The real CLI approval and denial-before-dispatch tests are still owed. [Golden and compatibility results](../decisions/0009-controlled-local-marker-execution.md#proposal-and-approval-codec-qualification)
 
+### Confirmed marker proposal intake
+
+On x64-review (kernel `6.8.0-142-generic`), the ordinary runtime created and confirmed v1 TaskCreated and v2 MarkerProposal from an enrolled GENESIS store. Empty input reached sequence 2 at custody tip 5. With a pre-enrollment denial, the importer reconciled its receipt first and 4,096 payload bytes reached sequence 3 at tip 8. The independent reader reconstructed the event chain, proposal fingerprint and full payload digest. It compared the recorded device and inode with the stopped runtime’s open directory descriptor. Confirmed replay returned task 1 / control 0; the directory remained empty. A 4,097-byte input, an untrusted anchor and an orphan directory each withheld intake.
+
+After death before the proposal transaction, two ordinary starts returned PendingEventMissing at tip 7. After COMMIT, altered event bytes or a substituted directory withheld confirmation. Restoring the exact inputs let the normal intake confirm once to tip 8; repeats preserved all rows and custody bytes. A task-only committed tail recovered its task to tip 6 and held further intake. Competing writers were refused while the interrupted writer held the gate. The v1 no-op gate and replay command both withheld progress on the marker history. The hosted receipt job runs the same cases and emits `marker_intake` records. This is proposal intake evidence for WB-CON-001/002/006/007/008. WB-INV-007 and WB-NEG-008 still require the operator approval and dispatch paths. [Deployment and scope](../engineering/phase3-entry-review.md#entry-decisions-and-first-increment)
+
 ### Marker evidence codec qualification
 
 The portable audit codecs encode and decode the five fixed formats in [ADR-0009](../decisions/0009-controlled-local-marker-execution.md#marker-event-wire-profile-1). The independent literals in `tests/odin/audit/marker_evidence_vectors.odin` extend the published kind-12 head through permit, claim, observation, evaluation and acceptance. The 169/200/180/203/193-byte records reproduce each event digest and linked head. The final head is `2a9ae56e6a96ea3f7ca3a6c72b8bf83639ed42273752715f6dda201976d7c3c1`.

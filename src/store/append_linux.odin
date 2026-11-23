@@ -9,9 +9,9 @@ import "core:sys/linux"
 TEST_STOP_SIGNAL :: linux.Signal.SIGSTOP
 STOP_AFTER_COMMIT :: #config(WARBAND_TEST_STOP_AFTER_COMMIT, false)
 
-confirm_stored :: proc(w: VerifiedWriter, s: ^client.Session, p: e.Pledge, expected: Maybe(Import), deadline: i64) -> bool {
+confirm_stored :: proc(w: VerifiedWriter, s: ^client.Session, p: e.Pledge, expected: Maybe(Import), deadline: i64, marker := false) -> bool {
 	if !client.within_budget(s,1) { return false }
-	row, ok := event_row((cast(^WriterState)w).db, {p.store,p.epoch,p.sequence})
+	row, ok := event_row((cast(^WriterState)w).db, {p.store,p.epoch,p.sequence},marker=marker)
 	if !ok || row.pledge != p || row.receipt != expected { return false }
 	if row.acceptance != nil {
 		checkpoint := e.Checkpoint{p.store,p.epoch,p.sequence,p.head}
@@ -38,7 +38,7 @@ append_verified_event :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpo
 }
 
 @(private)
-append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,prior: u64,entry: Maybe(Import),bytes: []u8,digest: [32]u8,start,cutoff: i64, acceptance: ^AcceptanceCheck = nil) -> (e.Checkpoint,bool) {
+append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,prior: u64,entry: Maybe(Import),bytes: []u8,digest: [32]u8,start,cutoff: i64, acceptance: ^AcceptanceCheck = nil, marker := false) -> (e.Checkpoint,bool) {
 	if start < 0 || cp.sequence == max(e.Sequence) { return {},false }
 	p := e.Pledge{store=cp.store,epoch=cp.epoch,previous_sequence=cp.sequence,previous_head=cp.head,sequence=cp.sequence+1,digest=digest}
 	p.head = c.derive_head(p)
@@ -51,14 +51,21 @@ append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,pri
 	when #config(WARBAND_TEST_STOP_AFTER_PREPARE, false) {
 		if entry != nil && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return {},false }
 	}
+	when #config(WARBAND_INTAKE_STOP, 0)==1 {
+		if marker && linux.kill(linux.getpid(),TEST_STOP_SIGNAL)!=.NONE { return {},false }
+	}
 	now := client.wb_elapsed_ms()
 	if now < start || now >= deadline || !client.within_budget(s,u64(cp.sequence)+1) || !commit_event(w,cp,prior,entry,bytes,acceptance) { return {},false }
 	when STOP_AFTER_COMMIT {
 		if entry != nil && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return {},false }
 	}
+	when #config(WARBAND_INTAKE_STOP, 0)==2 || #config(WARBAND_INTAKE_STOP, 0)==4 {
+		target := marker if #config(WARBAND_INTAKE_STOP, 0)==2 else bytes[6]==1
+		if target && linux.kill(linux.getpid(),TEST_STOP_SIGNAL)!=.NONE { return {},false }
+	}
 	mark := prior
 	if imported, present := entry.(Import); present { mark = imported.id.ordinal }
-	if !watermark_matches(w,cp.store,mark) || !confirm_stored(w,s,p,entry,deadline) { return {},false }
+	if !watermark_matches(w,cp.store,mark) || !confirm_stored(w,s,p,entry,deadline,marker) { return {},false }
 	return {p.store,p.epoch,p.sequence,p.head},true
 }
 
@@ -105,6 +112,29 @@ append_noop :: proc(w: VerifiedWriter, session: ^client.Session, cp: e.Checkpoin
 		d, de := a.digest_rejection_recorded(v,cp.store,cp.epoch)
 		if err != .None || de != .None { return {},false }
 		return append_pledged(w,session,cp,mark,nil,b.data[:b.length],d,start,cutoff)
+	}
+	return {},false
+}
+
+// Only the live marker intake opts into kind-11 read-back. All v1 callers keep their reader.
+append_intake :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,mark: u64,
+                      event: union {a.TaskCreated,a.MarkerProposal}, deadline: i64) -> (e.Checkpoint,bool) {
+	start := client.wb_elapsed_ms()
+	if start<0 || cp.sequence==max(e.Sequence) { return {},false }
+	next := e.EventRef{cp.store,cp.epoch,cp.sequence+1}
+	switch v in event {
+	case a.TaskCreated:
+		if v.reference!=next || v.previous_head!=cp.head { return {},false }
+		wire,err := a.encode_task_created(v,cp.store,cp.epoch)
+		digest,de := a.digest_task_created(v,cp.store,cp.epoch)
+		if err!=.None || de!=.None { return {},false }
+		return append_pledged(w,s,cp,mark,nil,wire[:],digest,start,deadline)
+	case a.MarkerProposal:
+		if v.reference!=next || v.previous_head!=cp.head { return {},false }
+		wire,err := a.encode_marker_proposal(v,cp.store,cp.epoch)
+		digest,de := a.digest_marker_proposal(v,cp.store,cp.epoch)
+		if err!=.None || de!=.None { return {},false }
+		return append_pledged(w,s,cp,mark,nil,wire.data[:wire.length],digest,start,deadline,marker=true)
 	}
 	return {},false
 }

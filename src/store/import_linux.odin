@@ -82,7 +82,7 @@ transaction_change :: proc(db: Database, receipt: bool, label: string, sql: cstr
 }
 
 @(private)
-event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) -> (Row, bool) {
+event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil, marker := false) -> (Row, bool) {
 	ref := ref
 	epoch, sequence := word(u64(ref.epoch)), word(u64(ref.sequence))
 	query :: "SELECT canonical_event,custody_ordinal,record_hash FROM events LEFT JOIN denial_imports USING(store_id,epoch,sequence) WHERE store_id=? AND epoch=? AND sequence=?"
@@ -188,6 +188,10 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil) ->
 			history.terminal = true
 			history.control_revision += 1
 		}
+	case 11:
+		if !marker || history!=nil { return {},false }
+		v,err := a.decode_marker_proposal(b,ref.store,ref.epoch)
+		if err!=.None || v.reference!=ref { return {},false }
 	case: return {},false
 	}
 	// Hash the persisted body itself after the kind decoder has validated its representation.
@@ -231,7 +235,7 @@ mark_matches :: proc(state: ^WriterState, id: e.StoreId, expected: u64) -> bool 
 // Check every row in the installed epoch segment, including the checkpoint-covered prefix.
 // Numbered primary-key lookups preserve numeric order with little-endian BLOB keys.
 @(private)
-inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([32]u8), imports: ^[dynamic]Import, s: ^client.Session, history: ^NoopHistory = nil, bindings: ^[dynamic]AcceptedBinding = nil) -> (Segment,bool) {
+inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([32]u8), imports: ^[dynamic]Import, s: ^client.Session, history: ^NoopHistory = nil, bindings: ^[dynamic]AcceptedBinding = nil, marker := false) -> (Segment,bool) {
 	total, ok := read_scalar(state,"SELECT count(*) FROM events").(i64)
 	if !ok || total < 0 || !client.within_budget(s,u64(total)) { return {},false }
 	result := Segment{journal={store=cp.store,epoch=cp.epoch}}
@@ -239,7 +243,7 @@ inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([3
 	} else if cp.sequence == 0 { result.journal.head = cp.head }
 	start_count := len(imports)
 	for n in 1..=total {
-		row, found := event_row(state.db,{cp.store,cp.epoch,e.Sequence(n)},history)
+		row, found := event_row(state.db,{cp.store,cp.epoch,e.Sequence(n)},history,marker)
 		if !found || !client.within_budget(s) { return {},false }
 		p := row.pledge
 		if n == 1 && genesis == nil && cp.sequence != 0 { result.journal.head = p.previous_head }
@@ -279,8 +283,8 @@ limit_writer_cache :: proc(w: VerifiedWriter) -> bool {
 	return configure_cache(cast(^WriterState)w)
 }
 
-inspect_writer :: proc(w: VerifiedWriter, cp: e.Checkpoint, genesis: Maybe([32]u8), imports: ^[dynamic]Import, session: ^client.Session) -> (Segment,bool) {
-	return inspect_segment(cast(^WriterState)w,cp,genesis,imports,session)
+inspect_writer :: proc(w: VerifiedWriter, cp: e.Checkpoint, genesis: Maybe([32]u8), imports: ^[dynamic]Import, session: ^client.Session, marker := false) -> (Segment,bool) {
+	return inspect_segment(cast(^WriterState)w,cp,genesis,imports,session,marker=marker)
 }
 
 watermark_matches :: proc(w: VerifiedWriter, id: e.StoreId, ordinal: u64) -> bool {

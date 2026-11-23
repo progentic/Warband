@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.1.3 - 2026-11-23
+
+### Added
+
+- Activated Phase 3 Linux marker intake. The runtime provisions a private attempt directory and confirms the task and normalized proposal through custody before reporting the proposal binding. [Qualification](docs/verification/traceability-matrix.md#confirmed-marker-proposal-intake)
+
 ## 0.1.2 - 2026-11-22
 
 ### Added

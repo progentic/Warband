@@ -54,3 +54,11 @@ replay=(odin build cmd/replay-noop -target:linux_amd64 -vet -warnings-as-errors
         "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out")
 "${replay[@]}" "-out:$out/replay-noop"
 "${replay[@]}" -define:WARBAND_REPLAY_LIVE_COMPARE=true "-out:$out/replay-noop-proof"
+
+intake=(odin build cmd/marker-intake -target:linux_amd64 -vet -warnings-as-errors
+        "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out")
+"${intake[@]}" "-out:$out/marker-intake"
+for edge in 1 2 3 4; do
+    "${intake[@]}" "-define:WARBAND_INTAKE_STOP=$edge" "-out:$out/marker-intake-$edge"
+done
+sha256sum "$out/marker-intake" "$out"/marker-intake-[1234]
