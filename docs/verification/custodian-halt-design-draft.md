@@ -1,6 +1,6 @@
 # Controlled halt on x64-review: decisions for re-review
 
-Design proposal against the [reserve review](../decisions/0008-phase2-resource-limits.md#candidate-cutoff-calculation-for-meta-paper-review). Proto owns acceptance. Meta reviews independence, continuity and the reserve. Rule A is accepted for the isolated target. Drain isolation across restart, enforceable history restrictions and physical reserves remain under review. WB-EXC-001 is Open with disposition Pending.
+Archived, unimplemented successor proposal. The [November 22 disposition](../decisions/0008-phase2-resource-limits.md#owner-ruling-and-independent-disposition-2026-11-22) records the bounded Phase 2 exit. A future proposal for sustained-load qualification must establish its own exception and envelope.
 
 ## Admission and observation
 

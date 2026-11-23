@@ -56,7 +56,10 @@ class GovernanceTests(unittest.TestCase):
     def test_resource_exception_expiry_and_reviewed_disposition(self):
         self.declare_phase(3)
         decision = self.root / 'docs/decisions/0008-phase2-resource-limits.md'
-        original = decision.read_text()
+        # Exercise the historical open-stop rule independently of the current expiry record.
+        original = decision.read_text().replace('Exception status:** Expired', 'Exception status:** Open')
+        original = original.replace('Disposition record:** Expired at Phase 2 exit', 'Disposition record:** Stop at expiry')
+        decision.write_text(original)
         self.assertIn('expired_resource_exception', self.codes())
         for candidate in (original.replace('Exception status:** Open', 'Exception status:** Closed'),
                           original.replace('Expires before phase:** 3', 'Expires before phase:** 4')):
@@ -80,6 +83,25 @@ class GovernanceTests(unittest.TestCase):
         decision.write_text(reviewed)
         self.declare_phase(4)
         self.assertIn('expired_resource_exception', self.codes())
+
+    def test_bounded_phase_two_exit_requires_review_and_keeps_entry_separate(self):
+        self.declare_phase(3)
+        decision = self.root / 'docs/decisions/0008-phase2-resource-limits.md'
+        original = decision.read_text()
+        self.assertEqual(self.codes(), {'invalid_phase'})
+        for old, new in (('Exception status:** Expired', 'Exception status:** Closed'),
+                         ('Exception status:** Expired', 'Exception status:** Open'),
+                         ('Expired at Phase 2 exit — ', ''), ('Expired at Phase 2 exit — ', 'Stop at expiry — '),
+                         ('Expires before phase:** 3', 'Expires before phase:** 4'),
+                         ('Independent reviewer:** Meta', 'Independent reviewer:** Pending'),
+                         ('Independent reviewer:** Meta', 'Independent reviewer:** Proto')):
+            with self.subTest(new=new):
+                self.assertIn(old, original)
+                decision.write_text(original.replace(old, new))
+                self.assertIn('invalid_resource_exception', self.codes())
+        decision.write_text(original)
+        (self.root / 'docs/governance/phase2-exit.md').unlink()
+        self.assertIn('invalid_resource_exception', self.codes())
 
     def test_phase_zero_rejects_source(self):
         (self.root / 'src').mkdir()

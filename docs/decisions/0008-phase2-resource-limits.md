@@ -2,12 +2,12 @@
 
 - **Status:** Accepted
 - **Exception ID:** WB-EXC-001
-- **Exception status:** Open
+- **Exception status:** Expired
 - **Exception owner:** Proto
 - **Expires before phase:** 3
 - **Independent reviewer:** Meta
-- **Disposition record:** Stop at expiry — https://github.com/progentic/Warband/commit/50f1bd4fc1e171b7da07d04970a94afba704d2fd
-- **Review date:** 2026-11-21
+- **Disposition record:** Expired at Phase 2 exit — https://github.com/progentic/Warband/commit/5bd5bd82b71c2610f7d24bab9abfc3bc6bfdbefb
+- **Review date:** 2026-11-22
 - **Scope:** Phase 2 no-op custody, recovery and measurement
 - **Supersedes:** None
 - **Implementation authority:** Separate scope approval required
@@ -73,9 +73,15 @@ Meta's review gate is a bound covering every permitted state in all four resourc
 
 ## Final disposition: stop at expiry (2026-11-21)
 
-Proto, project owner, approved **stop at expiry**. Meta, the independent reviewer, concurred. Closure was requested, reviewed and denied on the current evidence. This decision supersedes the extension recommendation. WB-EXC-001 remains Open and expires at Phase 2 exit. While it is open, withhold the Phase 2 exit record and block Phase 3 entry. Reconsideration requires a new recorded owner ruling and a new independent reviewer disposition.
+The November 21 ruling below applied until the November 22 owner ruling and independent disposition. Proto, project owner, approved **stop at expiry**. Meta, the independent reviewer, concurred. Closure was requested, reviewed and denied on the current evidence. This decision supersedes the extension recommendation. WB-EXC-001 remains Open and expires at Phase 2 exit. While it is open, withhold the Phase 2 exit record and block Phase 3 entry. Reconsideration requires a new recorded owner ruling and a new independent reviewer disposition.
 
 Successor qualification proceeds alongside Slice 6. Closure requires an approved and implemented custodian drain with enforceable history restrictions, numerical approval of disk, visit, elapsed-time and memory reserves for the same envelope, and evidence of warning delivery and the prescribed operator action. Review the saturation, sustained-denial, fsync-failure and interrupted-recovery runs against that envelope, including receipt continuity and exactly-once import. Until closure is granted on that evidence, Slice 6 exit traceability must carry WB-EXC-001 as an open Phase 2 exit blocker.
+
+### Owner ruling and independent disposition, 2026-11-22
+
+Proto approved ending Phase 2 on the bounded, verified no-op core. Meta concurred as the independent reviewer identified above. Meta credited the evidence for custody continuity, exactly-once receipt import and bounded recovery. The review excluded a sustained-denial storage guarantee beyond the measured workload.
+
+This ruling supersedes the November 21 requirement to withhold the Phase 2 exit record until successor qualification. The [Phase 2 exit record](../governance/phase2-exit.md) effects expiry when this reviewed package merges. WB-EXC-001 — expired at Phase 2 exit, 2026-11-22. Technical closure was denied and is no longer sought for Phase 2. The custodian drain remains unimplemented. The development limits and the measured one-task envelope stand. A future sustained-load envelope claim requires a new exception and separate qualification of admission, drain, reserves, warning delivery and fault recovery. Phase 3 entry requires separate explicit approval from Proto after the exit record.
 
 ## Provisional limits and outcomes
 
@@ -112,6 +118,8 @@ Four focused Odin tests cover strict boundaries, invalid observations, nested re
 
 ## Capacity and closure review
 
+These were the qualification criteria before administrative expiry. They remain relevant to a future envelope claim.
+
 Evaluate a supported finite store envelope with operator archive-and-new-store handoff before snapshots/resume. ADR-0005 genesis enrolls an empty store but has no typed predecessor-head handoff or archive-verification procedure. A free-text reason cannot prove continuity. A successor design must bind and verify the archived store's final trusted head, preserve evidence, resolve pending pledges/imports and define task disposition across distinct stores. Epoch rotation alone cannot bound recovery because custody ordinals and authorization uniqueness span retained history. The stop-at-expiry ruling governs progression while this exception remains open.
 
 Propose CAPACITY_WARNING as a status field at an estimated 80,000 visits. Anchor the estimate to the exact visit count and validated metadata from the last successful recovery in this process. Apply conservative factors only to custody-ordinal/event growth since that observation, including denial frames, repeated scans and import amplification. The observation is volatile diagnostic data; every restart recomputes recovery. A changed epoch, scan algorithm or workload invalidates the estimate unless its factors cover that change. Unknown factors, missing observations or checked-arithmetic overflow report CAPACITY_UNKNOWN. The estimate never substitutes for recovery validation.
@@ -124,4 +132,4 @@ The accepted development verification profile is Ubuntu 24.04 x64 with the repos
 
 Use bounded arenas for application allocations, configure and query sqlite3_hard_heap_limit64 and cache_size, and record cgroup limits and actual memory including native/SQLite overhead. The hard heap cap is process-wide; cache size is advisory. Prove allocation refusal and cgroup termination separately. Retained-history saturation follows ADR-0005's storage-fault disposition; audit-preserving capacity/admission or retention mechanisms require successor design review.
 
-The [verification plan](../verification/phase2-verification-plan.md#proposed-limits-and-measurement) supplies per-limit cases and measurement workloads. Owner adoption accepts exception ownership, provisional values and the development profile/enforcement proposal; independent review remains required for closure or extension. Runtime contract and negative-path alignment accompanies implementation authorization. The current disposition fixes expiry at Phase 2 exit; provisional-value confirmation and exception closure are separate Phase 2 exit requirements.
+The [verification plan](../verification/phase2-verification-plan.md#proposed-limits-and-measurement) supplies per-limit cases and measurement workloads. Owner adoption accepts exception ownership, provisional values and the development profile/enforcement proposal; independent review remains required for closure or extension. Runtime contract and negative-path alignment accompanies implementation authorization. The [November 22 ruling](#owner-ruling-and-independent-disposition-2026-11-22) records expiry at bounded Phase 2 exit. The exit inventory identifies which limits have measured evidence.

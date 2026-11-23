@@ -8,7 +8,7 @@
 
 An operator needs to know whether an approved local action took effect even if its worker crashed or its reply was lost. Phase 2 established how to authorize an attempt and accept evidence. Here the evidence must come from observing an actual filesystem effect. The worker's report cannot establish completion.
 
-The Slice 5 capacity checkpoint landed in PR #66. WB-EXC-001 — **Open / Stop at expiry**. Finish Slice 6 and run the successor qualification in parallel. Write the Phase 2 exit record last, with the fault, replay, recovery, operator rehearsal, runner-label and scoped traceability evidence. Phase 3 implementation requires Phase 2 exit and explicit owner entry approval. [ADR-0008](0008-phase2-resource-limits.md#final-disposition-stop-at-expiry-2026-11-21) · [Slice 6 matrix](../verification/phase2-crash-coverage.md)
+The [Phase 2 exit record](../governance/phase2-exit.md) accepts the measured no-op core. WB-EXC-001 expired at Phase 2 exit on 2026-11-22. Phase 3 entry and implementation require separate explicit approval from Proto.
 
 ## Decision
 
