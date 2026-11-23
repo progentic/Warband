@@ -8,6 +8,8 @@ This matrix links constitutional rules to contracts, planned implementation, ver
 
 The [runtime debit boundary proof](phase2-crash-coverage.md#runtime-session-debit-boundary) checks WB-CON-007/008/009 recovery behavior. The harness in `tests/measurement/runtime_debit_boundary.py` verifies the confirmed checkpoint, pending pledge and SQLite receipt binding when the runtime refuses further work.
 
+The [custodian cold-start cases](phase2-crash-coverage.md#custodian-cold-start-boundaries) exercise WB-CON-007/008/009 with the ordinary Linux service and startup witnesses. `tests/measurement/cold_start_boundaries.py` compares custody bytes, the published head and authenticated readiness across byte, arena and deadline boundaries.
+
 | Requirement | Contract | Planned implementation | Planned verification | User behavior | Status |
 |---|---|---|---|---|---|
 | WB-CON-001 | `docs/contracts/authoritative-state.md` | `src/state/transition.odin` | `tests/invariants/no_direct_state_mutation_test.odin` | The AI cannot directly mark work complete. | planned |
