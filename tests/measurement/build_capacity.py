@@ -95,8 +95,67 @@ with tempfile.TemporaryDirectory(dir=root/'.local') as temp:
     odin = root/'.local/toolchains/odin-linux_amd64/odin'
     sqlite = root/'.local/dependencies/sqlite/555e07ef33f69a0957d24d8e555b702464a131d6f1607f4c3c1e4551e8e6ca76/linux_amd64'
     targets = ('custodian-cold','custodian','reconcile-custody','debit-boundary','replay-noop','replay-live') if recovery else ('custodian','reconcile-custody','noop-gate','accept-noop')
+    if recovery:
+        targets += ('cold-limits',)
     for cmd in targets:
         binary = dest/cmd
+        if cmd=='cold-limits':
+            # This target is built last. Only its disposable source copy has these observations.
+            def edit(name, pairs):
+                file = work/name
+                source = file.read_text()
+                for old,new in pairs:
+                    assert source.count(old)==1, (name,old)
+                    source = source.replace(old,new)
+                file.write_text(source)
+            # PIE relocation preserves the low six bits. Preserve the production arena's
+            # base modulo the authorization map's alignment without changing usable bytes.
+            symbols = subprocess.check_output(['nm','-an',out/'custodian/normal/custodian'],text=True)
+            address, = [l.split()[0] for l in symbols.splitlines() if l.endswith(' main::workspace')]
+            base = int(address,16)%64
+            edit('cmd/custodian/main_linux.odin', [
+                ('workspace: [8*1024*1024]u8','storage: [8*1024*1024+63]u8'),
+                ('mem.arena_init(&arena,workspace[:])', f'''offset := (64+{base}-int(uintptr(&storage[0])%64))%64
+    workspace := storage[offset:offset+8*1024*1024]
+    fmt.eprintln("ARENA",uintptr(raw_data(workspace))%64,len(workspace))
+    mem.arena_init(&arena,workspace)'''),
+                ('main :: proc()', '''trace_alloc :: proc(data: rawptr, mode: mem.Allocator_Mode, size, alignment: int, old: rawptr, old_size: int, loc := #caller_location) -> ([]byte,mem.Allocator_Error) {
+    arena := cast(^mem.Arena)data
+    before := arena.offset
+    buf,err := mem.arena_allocator_proc(data,mode,size,alignment,old,old_size,loc)
+    context.allocator = context.temp_allocator
+    if mode==.Alloc || mode==.Alloc_Non_Zeroed || mode==.Resize || mode==.Resize_Non_Zeroed {
+        fmt.eprintln("ALLOC",loc.procedure,size,alignment,before,arena.offset,err)
+    }
+    return buf,err
+}
+main :: proc()'''),
+                ('if len(args) != 5', 'if len(args) != 6'),
+                ('arena: mem.Arena', 'stage,valid := strconv.parse_int(args[5]); if !valid || stage<0 || stage>5 { os.exit(2) }; m.stage=stage; arena: mem.Arena'),
+                ('cold := time.tick_now()', 'context.allocator.procedure = trace_alloc\n\tcold := time.tick_now()'),
+                ('a := svc.wb_listen(0)', 'fmt.eprintln("LISTEN"); a := svc.wb_listen(0)')])
+            edit('src/custody/linux/service_linux.odin', [
+                ('import c "../"', 'import "core:fmt"\nimport "core:time"\nimport c "../"'),
+                ('if size < 0 || size > 8*1024*1024', 'fmt.eprintln("SIZE",size); if size < 0 || size > 8*1024*1024'),
+                ('return data, wb_read("history", raw_data(data), uintptr(size)) == 0',
+                 'rc := wb_read("history",raw_data(data),uintptr(size)); fmt.eprintln("READ",size,rc); return data,rc==0'),
+                ('recover_checkpoint :: proc', '''cold_now :: proc(start: i64, site: int) -> i64 {
+    if m.stage==5 && site==2 { time.sleep(60_050*time.Millisecond) }
+    now := wb_millis()
+    if m.stage>=1 && m.stage<=4 {
+        now = start+59_999
+        if m.stage==site+1 { now=start+60_000 }
+    }
+    fmt.eprintln("CLOCK",site,now-start)
+    return now
+}
+recover_checkpoint :: proc'''),
+                ('if present && head == nil', 'fmt.eprintln("VALID",status,view.ordinal); if present && head == nil'),
+                ('elapsed := wb_millis() - start','elapsed := cold_now(start,1) - start'),
+                ('now := wb_millis()\n\tif now < start','now := cold_now(start,2)\n\tif now < start'),
+                ('now = wb_millis()\n\tif now < start','now = cold_now(start,3)\n\tif now < start'),
+                ('if wb_sync_history(i64(end))','fmt.eprintln("TRIM",end); if wb_sync_history(i64(end))')])
+            cmd='custodian'
         cold = cmd=='custodian-cold'
         if cold:
             cmd='custodian'

@@ -13,6 +13,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'integration/linux'))
 from test_custody_denial import STORE, denied, emit, limits, service, sha
 from test_noop_gate import confirmed_events, history_inventory
 from test_receipt_import import ENROLL, LE, OUT, fixture
+from cold_start_boundaries import qualify as cold_boundaries
 from capacity import predict
 from runtime_debit_boundary import boundary
 
@@ -105,3 +106,4 @@ if __name__=='__main__':
             emit(frames=row['frames'],rep=rep,recovery_ns=row['recovery_ns'],replay_debits=row['replay']['debits'])
     for case in ('D1','D2'):
         boundary(case)
+    cold_boundaries()

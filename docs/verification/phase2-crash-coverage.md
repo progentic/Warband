@@ -157,6 +157,27 @@ D2 retained the event, binding and watermark in SQLite, with sequence 106 confir
 
 Use the recovery measurement command above. The Linux artifact contains `D1-importer.json`, `D2-importer.json` and each corresponding `metered-importer.json` (prefixed with the case). It records generation and invocation times separately, the custody calls, debit trace, checkpoint and pending pledge.
 
+### Custodian cold-start boundaries
+
+The byte and arena inputs are crafted offline. A real operator Enroll payload supplies the store and authorization. The fixture records the operator UID separately. A real denied request in epoch 1 supplies the fixed 88-byte rejection payload. The generator varies the GENESIS reason and rebuilds each frame’s ordinal, header checksum, previous link and record digest. A separate parser checks the chain and the harness compares its payloads and expected sequence-zero head. The deadline controls use a production-enrolled three-frame store.
+
+The ordinary custodian runs with its 8 MiB arena in the 32 MiB, zero-swap Linux service. A separate build from a disposable source copy records size, allocation site, requested bytes, alignment, offsets, read result, validator status, clock site and entry to listener setup. The first probe build exposed a 32-byte difference in workspace address modulo 64 on x64-review: the ordinary binary accepted an input the probe refused. The qualified probe reads the ordinary ELF symbol and selects an equally aligned **8,388,608-byte** backing slice. Each target independently calibrates the adjacent inputs. The original compiler invocation also caught a deprecated integer parser before that build ran.
+
+The x64-review run (kernel `6.8.0-142-generic`, production source `015c55e`) recorded the following results. The 134-byte head read uses a fixed local value. These arena measurements cover the history slice and the validator’s authorization map.
+
+| Case | Input and observed outcome |
+|---|---|
+| B1 | One 242-byte GENESIS and 41,322 REJECTION frames. At 8,388,608 bytes the file passed the size guard and was read in full. The map then requested 384 bytes aligned to 64 and validation returned MemoryLimitExceeded. Startup exited 4. |
+| B2 | The same history plus the first byte of the next header. At 8,388,609 bytes, the size guard refused allocation and the history had zero content reads and zero truncations. |
+| A1/A2 | At 41,318 frames, both binaries served an authenticated Verify at 8,388,216 bytes. At 8,388,217, the full file was read and the map allocation failed. Both refusal runs kept the original head inode and all input bytes. The one-byte difference comes from the GENESIS reason at fixed frame count. |
+| T1 | At supplied 59,999 ms the healthy store served Verify. On a separate copy a validated 83-byte tear was trimmed before publication and the original tip 3 verified. |
+| T2 | At supplied 60,000 ms before truncation, the tear survived. At equality before publication, the original head inode survived. At equality after publication, the path had a different inode with identical head bytes. Every refusal exited 4 before either listener. |
+| T3 | After a real pause, the unchanged pre-publication comparison observed 60,060 ms on each run and refused. The ordinary healthy control reached authenticated Verify in 105.8 ms including launch and request overhead. On the largest ready arena input the measured final startup check took 1,238–1,652 ms. |
+
+Each refusal ran twice on fresh copies. After checking history and journal bytes, head contents and inode, and empty endpoints, the harness restored the sealed healthy input under the same store identity and required authenticated Verify. The measurement binary alone supplies T1/T2 observations and the T3 pause. The 60,000 ms comparison and the ordinary binary retain their production values.
+
+Reproduce with the cold-capacity build/run command above. The Linux artifact includes `cold-start-boundaries.jsonl` and its SHA-256 in `cold-capacity.log`, along with the generator inputs and binary digests. The x64-review capture contained 63 starts including calibration and recovery controls. Its retrieved SHA-256 was `71cf9dd4427dcea606bce5f863e66eab5a3d1713fb6ba15821f66697f315d372`.
+
 ## Operator reconciliation rehearsal
 
 The [operator procedure](../engineering/operator-reconciliation.md) uses sealed source bundles and separate x64-review working copies. The custodian authenticates Verify before the runtime reads the disposable SQLite copy. Both inputs below share epoch 1, published sequence 0 and proposed sequence 1, in store `01010101010101010101010101010101`.
@@ -176,6 +197,6 @@ After the decisions, the original inventory digests matched the run records agai
 ## Separate remaining proofs
 
 - **Replay evidence for remaining runs.** Apply the [qualified replay command](../decisions/0005-event-integrity-acceptance-and-recovery.md#slice-6-functional-replay-qualification) to each newly retained artifact. The functional proof covers the four live gate fixtures and one independent mixed history. Point 4 now also has replay evidence on its own retained state at all three observations.
-- **Capacity boundaries.** The receipt-workload scaling criterion is satisfied by the measurement and projection above. The [runtime session boundary](#runtime-session-debit-boundary) is qualified. Cold-start history-read, arena and elapsed-time boundaries remain open.
+- **Capacity boundaries.** The receipt-workload scaling criterion is satisfied by the measurement and projection above. The [runtime session boundary](#runtime-session-debit-boundary) is qualified. The [cold-start proof](#custodian-cold-start-boundaries) covers the history-read, shared-arena and elapsed-time guards on x64-review.
 - **Operator rehearsal.** Complete for both operator-only states with the [recorded continued-halt decisions](#operator-reconciliation-rehearsal).
 - **Exit inventory.** Bind results to the tested source, target, toolchain, exact test inventory, raw outcomes and remaining gaps. Scope Phase 2 claims to WB-CON-001–009 and applicable INV/NEG paths. Positive approval is Phase 3 and learned promotion is Phase 4. Phase 2 exit also requires the WB-EXC-001 and runner-label dispositions.

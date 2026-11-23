@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.54 - 2026-11-22
+
+### Added
+
+- Qualified Linux custodian cold startup at the history byte cap, the shared arena allocation boundary and the recovery deadline. [PR #93](https://github.com/progentic/Warband/pull/93)
+
 ## 0.0.53 - 2026-11-22
 
 ### Fixed
