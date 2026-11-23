@@ -78,14 +78,14 @@ attempt_entry :: proc(fd: l.Fd) -> (string,bool) {
 }
 
 @(private)
-attempt_dir :: proc(parent: l.Fd,p: ^a.MarkerProposal,create: bool) -> (l.Fd,bool) {
+attempt_dir :: proc(parent: l.Fd,p: ^a.MarkerProposal,create: bool,unused := true) -> (l.Fd,bool) {
 	name := strings.clone_to_cstring(string(hex.encode(p.directory[:])))
 	if create && l.mkdirat(parent,name,transmute(l.Mode)u32(0o700))!=.NONE { return -1,false }
 	fd,err := l.openat(parent,name,DirectoryFlags)
 	if err!=.NONE { return -1,false }
 	st,ok := private_dir(fd)
 	leaf: l.Stat
-	if !ok || l.fstatat(fd,"marker",&leaf,{.SYMLINK_NOFOLLOW})!=.ENOENT ||
+	if !ok || (unused && l.fstatat(fd,"marker",&leaf,{.SYMLINK_NOFOLLOW})!=.ENOENT) ||
 	   (!create && (p.device!=u64(st.dev) || p.inode!=u64(st.ino))) ||
 	   (create && (l.fsync(fd)!=.NONE || l.fsync(parent)!=.NONE)) {
 		l.close(fd)

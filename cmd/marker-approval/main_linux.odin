@@ -67,17 +67,17 @@ operator_cli :: proc(fd: i32,runtime: u32,deadline: i64) -> int {
 run :: proc(arena: ^mem.Arena) -> int {
 	if len(os.args)!=2 { return 2 }
 	mode := os.args[1]
-	if mode!="decide" && mode!="serve" && mode!="receipts" { return 2 }
+	if mode!="decide" && mode!="serve" && mode!="receipts" && mode!="gate" { return 2 }
 	start := c.wb_elapsed_ms()
 	if start<0 { return 1 }
 	peer: u32
 	sock := c.wb_approval_socket(i32(mode!="decide"),&peer)
 	if sock<0 { return 1 }
-	defer l.close(l.Fd(sock))
+	defer if sock>=0 { l.close(l.Fd(sock)) }
 	if mode=="decide" { return operator_cli(sock,peer,start+180_000) }
 	prepared: r.PreparedProposal
 	live: ^r.PreparedProposal
-	if mode=="serve" {
+	if mode=="serve" || mode=="gate" {
 		buf: [a.MarkerPayloadLimit+1]u8
 		n := c.read_payload(buf[:])
 		if n<0 || n>a.MarkerPayloadLimit { return 1 }
@@ -86,11 +86,12 @@ run :: proc(arena: ^mem.Arena) -> int {
 		if status!=.ConfirmedProposal { fmt.println(status); return 1 }
 		live=&prepared
 	}
-	defer if live!=nil { l.close(live.directory_fd) }
+	defer if live!=nil && live.directory_fd>=0 { l.close(live.directory_fd) }
 	if mode=="receipts" {
-		task,control,ok := r.marker_review_versions(peer,start,arena)
+		task,control,consumed,ok := r.marker_review_versions(peer,start,arena)
 		if !ok { return 1 }
 		fmt.println("ConfirmedProjection",task,control)
+		if consumed { fmt.println("ConfirmedClaimConsumed") }
 	}
 	fmt.println("AwaitingOperator")
 	fd := c.wb_approval_accept(sock,peer,start+180_000)
@@ -98,6 +99,13 @@ run :: proc(arena: ^mem.Arena) -> int {
 	defer l.close(l.Fd(fd))
 	result := r.marker_review(fd,peer,live,start,arena)
 	fmt.println(result.status,"LiveGrant",result.grant!=nil)
+	if mode=="gate" && result.status==.Permitted {
+		l.close(l.Fd(sock))
+		sock=-1
+		outcome := r.marker_threshold(live,&result.grant,peer,start,arena)
+		fmt.println("Threshold",outcome)
+		return 0 if outcome==.Eligible else 1
+	}
 	return 0 if result.status==.Permitted || result.status==.Rejected || result.status==.Recorded else 1
 }
 main :: proc() {
