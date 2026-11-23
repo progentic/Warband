@@ -10,6 +10,8 @@ The [runtime debit boundary proof](phase2-crash-coverage.md#runtime-session-debi
 
 The [custodian cold-start cases](phase2-crash-coverage.md#custodian-cold-start-boundaries) exercise WB-CON-007/008/009 with the ordinary Linux service and startup witnesses. `tests/measurement/cold_start_boundaries.py` compares custody bytes, the published head and authenticated readiness across byte, arena and deadline boundaries.
 
+The [SQLite WAL sync proof](phase2-crash-coverage.md#sqlite-wal-commit-sync-failure) supplies scoped WB-CON-007/008/009 recovery evidence. On x64-review a failed COMMIT sync withheld acknowledgment. The retained receipt event and pledge supported one exact confirmation on restart.
+
 | Requirement | Contract | Planned implementation | Planned verification | User behavior | Status |
 |---|---|---|---|---|---|
 | WB-CON-001 | `docs/contracts/authoritative-state.md` | `src/state/transition.odin` | `tests/invariants/no_direct_state_mutation_test.odin` | The AI cannot directly mark work complete. | planned |

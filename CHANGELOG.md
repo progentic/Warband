@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.55 - 2026-11-22
+
+### Added
+
+- Qualified receipt recovery after the filesystem returned EIO on the SQLite WAL commit sync. The importer withheld acknowledgment and recovered the captured event with one custody confirmation. [PR #94](https://github.com/progentic/Warband/pull/94)
+
 ## 0.0.54 - 2026-11-22
 
 ### Added
