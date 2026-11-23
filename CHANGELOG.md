@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.1.1 - 2026-11-22
+
+### Added
+
+- Added portable codecs for marker permits, claims, observations, evaluations and accepted transitions. [Wire-format qualification](docs/verification/traceability-matrix.md#marker-evidence-codec-qualification)
+
 ## 0.1.0 - 2026-11-22
 
 ### Changed
