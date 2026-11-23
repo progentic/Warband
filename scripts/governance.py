@@ -30,7 +30,8 @@ RUNTIME_DIRECTORIES = frozenset(('src', 'cmd'))
 DOCUMENTATION_PHASE = 0
 FOUNDATION_PHASE = 1
 AUTHORITY_PHASE = 2
-ALLOWED_PHASES = (DOCUMENTATION_PHASE, FOUNDATION_PHASE, AUTHORITY_PHASE)
+EXECUTION_PHASE = 3
+ALLOWED_PHASES = (DOCUMENTATION_PHASE, FOUNDATION_PHASE, AUTHORITY_PHASE, EXECUTION_PHASE)
 PHASE_TWO_ADR = 'docs/decisions/0005-event-integrity-acceptance-and-recovery.md'
 PHASE_TWO_RECORDS = (
     PHASE_TWO_ADR, 'docs/governance/PHASE_PLAN.md',
@@ -40,6 +41,12 @@ PHASE_TWO_RECORDS = (
     'docs/security/trust-model.md',
 )
 ACCEPTED_DECISION_LINE = '- **Status:** Accepted'
+PHASE_THREE_RECORDS = (
+    ('docs/engineering/phase3-entry-review.md', '- **Runtime activation:** ', r'- \*\*Runtime activation:\*\* Proto authorized proposal intake on 2026-11-23\.'),
+    ('docs/governance/phase2-exit.md', '**Owner decision,', r'\*\*Owner decision, 2026-11-22\.\*\* Proto \(Ian\) accepts the bounded Phase 2 no-op authority core\..*'),
+    ('docs/decisions/0009-controlled-local-marker-execution.md', '**Accepted by Proto on', r'\*\*Accepted by Proto on 2026-11-21\*\* for the preproduction x64-review target\..*'),
+    ('docs/engineering/phase3-entry-review.md', '**Entry authorized', r'\*\*Entry authorized by Proto \(Ian\), 2026-11-22\. Execution-boundary owner: Proto \(Ian\)\.\*\* The accepted Phase 2 exit is on main at `a975149635948821fdd0aa421b26c393d9785f51`\..*'),
+)
 RESOURCE_DECISION = 'docs/decisions/0008-phase2-resource-limits.md'
 EXCEPTION_FIELDS = (
     ('Exception ID', r'WB-EXC-001'),
@@ -143,7 +150,7 @@ def validate_inventory(inventory: Inventory) -> tuple[Finding, ...]:
             + guidance_findings(inventory) + contract_findings(inventory)
             + link_findings(inventory) + traceability_findings(inventory)
             + symlink_findings(inventory) + phase_two_record_findings(inventory)
-            + phase_two_acceptance_findings(inventory)
+            + phase_two_acceptance_findings(inventory) + phase_three_entry_findings(inventory)
             + resource_exception_findings(inventory))
 
 
@@ -173,7 +180,7 @@ def phase_findings(inventory: Inventory) -> tuple[Finding, ...]:
 
 
 def phase_two_record_findings(inventory: Inventory) -> tuple[Finding, ...]:
-    if inventory.phase != AUTHORITY_PHASE:
+    if inventory.phase not in (AUTHORITY_PHASE, EXECUTION_PHASE):
         return ()
     missing = tuple(Finding(FindingCode.MISSING_REQUIRED, path)
                     for path in PHASE_TWO_RECORDS if path not in inventory.files)
@@ -185,12 +192,21 @@ def phase_two_record_findings(inventory: Inventory) -> tuple[Finding, ...]:
 
 
 def phase_two_acceptance_findings(inventory: Inventory) -> tuple[Finding, ...]:
-    if inventory.phase != AUTHORITY_PHASE:
+    if inventory.phase not in (AUTHORITY_PHASE, EXECUTION_PHASE):
         return ()
     return tuple(Finding(FindingCode.ACCEPTANCE_PROVENANCE, d.path, prefix)
                  for d in inventory.documents if d.path == PHASE_TWO_ADR
                  for prefix, pattern in ACCEPTANCE_LINES
                  if not matches_line_pattern(d.headings, prefix, pattern))
+
+
+def phase_three_entry_findings(inventory: Inventory) -> tuple[Finding, ...]:
+    if inventory.phase != EXECUTION_PHASE:
+        return ()
+    documents = {d.path: d for d in inventory.documents}
+    return tuple(Finding(FindingCode.ACCEPTANCE_PROVENANCE, path, prefix)
+                 for path, prefix, pattern in PHASE_THREE_RECORDS
+                 if path not in documents or not matches_line_pattern(documents[path].headings, prefix, pattern))
 
 
 def resource_exception_findings(inventory: Inventory) -> tuple[Finding, ...]:

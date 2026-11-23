@@ -1295,8 +1295,157 @@ def retained_segments():
         assert f.rows() == result
 
 
+
+def marker_intake_case(size, stop=0):
+    clean = size==0 and stop==0
+    with fixture(fresh=clean) as (f, genesis, receipt):
+        if clean:
+            assert f.call(4,ENROLL)[0]==0
+            os.chown(f.db.parent,f.runtime,f.runtime)
+            f.db.parent.chmod(0o700)
+            f.provision()
+            genesis=f.verify()[2][32:]
+        seq_proposal, final_tip = (2,5) if clean else (3,8)
+        anchor=f.root/'intake.anchor'
+        anchor.write_bytes(STORE+LE(1)+LE(0)+genesis+struct.pack('<I',f.custodian))
+        anchor.chmod(0o444)
+        parent=f.root/'attempts'
+        parent.mkdir(mode=0o700)
+        os.chown(parent,f.runtime,f.runtime)
+        normal=shutil.copy2(OUT/'reconcile/marker-intake',f.root/'intake')
+        user=dict(cwd=f.root,user=f.runtime,group=f.runtime,extra_groups=[])
+        payload=bytes(i%256 for i in range(size))
+        def invoke(*args, data=payload):
+            return subprocess.run([normal,*args],input=data,capture_output=True,timeout=65,**user)
+        def snapshot():
+            return f.verify(),f.rows(),(f.root/'data/history').read_bytes(),(f.root/'data/head').read_bytes()
+        base=snapshot()
+        if size>4096:
+            p=invoke()
+            assert (p.returncode,p.stdout)==(1,b'PayloadTooLarge\n') and snapshot()==base and not list(parent.iterdir())
+            assert invoke('--target','elsewhere',data=b'').returncode==2 and snapshot()==base
+            anchor.chmod(0o666)
+            assert invoke(data=b'').stdout==b'Unavailable\n' and snapshot()==base
+            anchor.chmod(0o444)
+            trusted=anchor.read_bytes()
+            anchor.write_bytes(trusted[:32]+bytes(32)+trusted[64:])
+            assert invoke(data=b'').stdout==b'IntegrityFault\n' and snapshot()==base
+            anchor.write_bytes(trusted)
+            orphan=parent/('1'*32)
+            orphan.mkdir(mode=0o700)
+            os.chown(orphan,f.runtime,f.runtime)
+            p=invoke(data=b'valid')
+            assert (p.returncode,p.stdout)==(1,b'DirectoryHold\n') and snapshot()==base and list(parent.iterdir())==[orphan]
+            emit(marker_intake='oversize_and_orphan',size=size,tip=base[0][4])
+            return
+        if stop:
+            proof=shutil.copy2(OUT/'reconcile'/f'marker-intake-{stop}',f.root/'intake-proof')
+            with subprocess.Popen([proof],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,**user) as child:
+                try:
+                    child.stdin.write(payload)
+                    child.stdin.close()
+                    until=time.monotonic()+65
+                    while time.monotonic()<until:
+                        ev=os.waitid(os.P_PID,child.pid,os.WSTOPPED|os.WEXITED|os.WNOHANG|os.WNOWAIT)
+                        if ev:
+                            assert (ev.si_pid,ev.si_code,ev.si_status)==(child.pid,os.CLD_STOPPED,signal.SIGSTOP),ev
+                            break
+                        time.sleep(.01)
+                    else: raise TimeoutError('marker intake stop')
+                    directory,=parent.iterdir()
+                    held,=[p for p in Path(f'/proc/{child.pid}/fd').iterdir() if os.readlink(p)==str(directory)]
+                    identity=held.stat()
+                    assert identity.st_uid==f.runtime and identity.st_mode&0o7777==0o700 and not list(directory.iterdir())
+                    if stop in (1,2,4):
+                        competing=invoke()
+                        assert (competing.returncode,competing.stdout)==(1,b'LockUnavailable\n')
+                    if stop==3: os.kill(child.pid,signal.SIGCONT)
+                    else: child.kill()
+                    output=child.stdout.read()
+                    assert child.wait(timeout=15)==(0 if stop==3 else -signal.SIGKILL)
+                finally:
+                    if child.poll() is None: child.kill()
+        else:
+            p=invoke()
+            assert p.returncode==0,(p.stdout,p.stderr)
+            output=p.stdout
+            directory,=parent.iterdir()
+            identity=directory.stat()
+        view,rows,history,head=snapshot()
+        assert os.path.samestat(identity,directory.stat()) and not list(directory.iterdir())
+        events=sorted(rows[0],key=lambda row:int.from_bytes(row[2],'little'))
+        assert [int.from_bytes(row[3][6:8],'little') for row in events]==([] if clean else [8])+([1] if stop in (1,4) else [1,11])
+        prior=genesis
+        for seq,(store,epoch,key,wire) in enumerate(events,1):
+            ref=STORE+LE(1)+LE(seq)
+            assert store+epoch+key==ref==wire[8:40] and wire[-32:]==prior
+            digest=sha(b'warband.event.v1\0'+wire[:-32])
+            link=sha(b'warband.link.v1\0'+ref+prior+digest)
+            if wire[6]==8: assert wire[60:92]==sha(receipt)
+            if wire[6]==1:
+                assert wire[104:136]==sha(b'warband.task.v1\0'+wire[56:104])
+                task=wire
+                task_cp=ref+link
+            if wire[6]==11:
+                assert wire[:8]==b'WBEV\x02\0\x0b\0' and wire[48:56]==struct.pack('<HHI',1,1,131+size)
+                assert wire[56:88]==task[56:88] and wire[120:136].hex()==directory.name
+                ids=[task[o:o+16] for o in (56,72,88,136)]+[wire[o:o+16] for o in (88,104,120)]
+                assert len(set(ids))==7 and bytes(16) not in ids
+                assert wire[136:187]==struct.pack('<5QHBHBBI',identity.st_dev,identity.st_ino,1,0,2,2,1,2,1,1,size)
+                assert wire[187:-32]==payload
+                fingerprint=sha(b'warband.marker.proposal.v1\0'+ref+wire[56:-32])
+            prior=link
+        if stop==4:
+            assert output==b'' and view[3][64:104]==LE(2)+prior and view[3][104:]==digest and view[4]==5
+            assert invoke().stdout==b'RecoveredConfirmation\n'
+            settled=snapshot()
+            assert settled[0][2:5]==(task_cp,b'',6) and settled[1]==rows and not list(directory.iterdir())
+            assert invoke().stdout==b'ExistingTask\n' and snapshot()==settled
+            emit(marker_intake='recovered_task_only',tip=6)
+            return
+        if stop in (1,2):
+            assert output==b'' and view[2]==task_cp and view[4]==7
+            pending=view[3]
+            assert pending[:72]==task_cp+LE(3) and history[-168:-32]==pending
+            if stop==1:
+                assert all(invoke().stdout==b'PendingEventMissing\n' and snapshot()==(view,rows,history,head) for _ in range(2))
+                emit(marker_intake='PendingEventMissing',tip=7,directory=directory.name)
+                return
+            assert pending==task_cp+LE(3)+link+digest
+            changed=bytearray(wire)
+            changed[187]^=1
+            f.query('UPDATE events SET canonical_event=? WHERE sequence=?',(bytes(changed),LE(3)))
+            assert invoke().stdout==b'IntegrityFault\n' and f.verify()==view
+            f.query('UPDATE events SET canonical_event=? WHERE sequence=?',(wire,LE(3)))
+            saved=f.root/'preserved-directory'
+            directory.rename(saved)
+            directory.mkdir(mode=0o700)
+            os.chown(directory,f.runtime,f.runtime)
+            assert invoke().stdout==b'DirectoryHold\n' and snapshot()==(view,rows,history,head)
+            directory.rmdir()
+            saved.rename(directory)
+            recovered=invoke()
+            assert (recovered.returncode,recovered.stdout)==(0,b'RecoveredConfirmation\n')
+            assert (f.root/'data/history').read_bytes()==history+admin_frame(2,pending,8,history[-32:])
+        else:
+            assert output.split()==[b'ConfirmedProposal',STORE.hex().encode(),b'1',str(seq_proposal).encode(),fingerprint.hex().encode(),str(size).encode(),sha(payload).hex().encode(),b'1',b'0']
+        settled=snapshot()
+        assert settled[0][2:5]==(ref+prior,b'',final_tip) and settled[1]==rows
+        assert invoke().stdout==b'AlreadyProposed\n' and snapshot()==settled
+        common=[f.db,f.root/'endpoints/runtime.sock',str(f.custodian),STORE.hex(),'1']
+        for name,args,message in [('noop-gate',[str(seq_proposal)],b'gate_result ReconciliationRequired'),('replay-noop',[],b'Failure IntegrityFault IntegrityFault')]:
+            binary=shutil.copy2(OUT/'reconcile'/name,f.root/name)
+            refused=subprocess.run([binary,*common,*args],capture_output=True,timeout=65,**user)
+            assert (refused.returncode,refused.stdout.strip())==(1,message) and snapshot()==settled
+        assert list(parent.iterdir())==[directory] and not list(directory.iterdir())
+        emit(marker_intake='verified',stop=stop,size=size,tip=final_tip,seq=seq_proposal,fingerprint=fingerprint.hex(),
+             digest=sha(payload).hex(),device=identity.st_dev,inode=identity.st_ino,held_fd=bool(stop))
+
+
 if __name__ == '__main__':
     assert os.getuid()==0 and limits('self')==(256*1024*1024,0)
+    for size,stop in ((0,0),(4096,0),(4096,3),(4097,0),(3,1),(3,2),(3,4)):
+        marker_intake_case(size,stop)
     for case in ('PendingConfirmation','ConfirmedResponsePending','PendingEventMissing','UnattestedTail','IntegrityFault'):
         artifact = restart(case)
         if artifact: tail_artifact = artifact

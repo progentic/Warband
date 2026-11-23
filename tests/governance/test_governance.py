@@ -75,7 +75,7 @@ class GovernanceTests(unittest.TestCase):
             decision.write_text(reviewed)
             self.assertNotIn('invalid_resource_exception', self.codes())
             self.assertNotIn('expired_resource_exception', self.codes())
-            self.assertIn('invalid_phase', self.codes())
+            self.assertNotIn('invalid_phase', self.codes())
             decision.write_text(reviewed.replace('Independent reviewer:** Reviewer B', 'Independent reviewer:** Pending'))
             self.assertIn('invalid_resource_exception', self.codes())
             decision.write_text(reviewed.replace('Independent reviewer:** Reviewer B', 'Independent reviewer:** Proto'))
@@ -88,7 +88,8 @@ class GovernanceTests(unittest.TestCase):
         self.declare_phase(3)
         decision = self.root / 'docs/decisions/0008-phase2-resource-limits.md'
         original = decision.read_text()
-        self.assertEqual(self.codes(), {'invalid_phase'})
+        (self.root / 'docs/engineering/phase3-entry-review.md').unlink()
+        self.assertIn('missing_acceptance_provenance', self.codes())
         for old, new in (('Exception status:** Expired', 'Exception status:** Closed'),
                          ('Exception status:** Expired', 'Exception status:** Open'),
                          ('Expired at Phase 2 exit — ', ''), ('Expired at Phase 2 exit — ', 'Stop at expiry — '),
@@ -114,7 +115,7 @@ class GovernanceTests(unittest.TestCase):
         self.assertEqual(self.codes(), set())
 
     def test_invalid_phase_values_fail_closed(self):
-        for value in (3, -1, True, 1.0, '1', None):
+        for value in (4, -1, True, 1.0, '1', None):
             with self.subTest(value=value):
                 self.declare_phase(value)
                 self.assertIn('invalid_phase', self.codes())
@@ -154,6 +155,23 @@ class GovernanceTests(unittest.TestCase):
         self.declare_phase(2)
         (self.root / 'docs/governance/PHASE_PLAN.md').unlink()
         self.assertIn('missing_required_file', self.codes())
+
+    def test_phase_three_requires_exit_adr_owner_and_phase_two_acceptance(self):
+        self.declare_phase(3)
+        self.assertEqual(self.codes(), set())
+        for path, text in [('docs/governance/phase2-exit.md', 'accepts the bounded'),
+                           ('docs/decisions/0009-controlled-local-marker-execution.md', '**Accepted by Proto on'),
+                           ('docs/engineering/phase3-entry-review.md', 'Execution-boundary owner: Proto (Ian)'),
+                           ('docs/engineering/phase3-entry-review.md', 'Proto authorized proposal intake'),
+                           ('docs/engineering/phase3-entry-review.md', 'a975149635948821fdd0aa421b26c393d9785f51'),
+                           ('docs/decisions/0005-event-integrity-acceptance-and-recovery.md', '- **Acceptance record:**')]:
+            record = self.root / path
+            original = record.read_text()
+            with self.subTest(path=path, text=text):
+                self.assertIn(text, original)
+                record.write_text(original.replace(text, 'Pending'))
+                self.assertIn('missing_acceptance_provenance', self.codes())
+            record.write_text(original)
 
     def test_missing_phase_fails(self):
         (self.root / 'project.json').unlink()

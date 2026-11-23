@@ -12,7 +12,7 @@ from document_io import read_phase, unique_object
 
 ROOT = Path(__file__).resolve().parents[1]
 TEST_PATTERN = re.compile(r'@\(test\)\s*([a-zA-Z_][a-zA-Z_0-9]*)\s*::\s*proc\s*\(')
-TEST_PHASES = (1, 2)
+TEST_PHASES = (1, 2, 3)
 
 
 def main():
