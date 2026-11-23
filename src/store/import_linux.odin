@@ -200,6 +200,10 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil, ma
 		if !marker || history!=nil { return {},false }
 		v,err := a.decode_marker_permit(b,ref.store,ref.epoch)
 		if err!=.None || v.reference!=ref { return {},false }
+	case 14:
+		if !marker || history!=nil { return {},false }
+		v,err := a.decode_marker_claim(b,ref.store,ref.epoch)
+		if err!=.None || v.reference!=ref { return {},false }
 	case: return {},false
 	}
 	// Hash the persisted body itself after the kind decoder has validated its representation.

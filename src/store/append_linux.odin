@@ -61,6 +61,9 @@ append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,pri
 		#assert(edge==12 || edge==13)
 		if marker && bytes[6]==edge && linux.kill(linux.getpid(),TEST_STOP_SIGNAL)!=.NONE { return {},false }
 	}
+	when #config(WARBAND_MARKER_GATE_PROOF,false) {
+		if marker && (bytes[6]==14 || bytes[6]==8 && bytes[56]==3) && linux.kill(linux.getpid(),TEST_STOP_SIGNAL)!=.NONE { return {},false }
+	}
 	when STOP_AFTER_COMMIT {
 		if entry != nil && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return {},false }
 	}
@@ -123,7 +126,7 @@ append_noop :: proc(w: VerifiedWriter, session: ^client.Session, cp: e.Checkpoin
 
 // Only the live marker path opts into marker read-back. All v1 callers keep their reader.
 append_intake :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,mark: u64,
-                      event: union {a.TaskCreated,a.MarkerProposal,a.MarkerApproval,a.MarkerPermit}, deadline: i64) -> (e.Checkpoint,bool) {
+                      event: union {a.TaskCreated,a.MarkerProposal,a.MarkerApproval,a.MarkerPermit,a.MarkerClaim,a.RejectionRecorded}, deadline: i64) -> (e.Checkpoint,bool) {
 	start := client.wb_elapsed_ms()
 	if start<0 || cp.sequence==max(e.Sequence) { return {},false }
 	next := e.EventRef{cp.store,cp.epoch,cp.sequence+1}
@@ -152,6 +155,18 @@ append_intake :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,mark
 		digest,de := a.digest_marker_permit(v,cp.store,cp.epoch)
 		if err!=.None || de!=.None { return {},false }
 		return append_pledged(w,s,cp,mark,nil,wire[:],digest,start,deadline,marker=true)
+	case a.MarkerClaim:
+		if v.reference!=next || v.previous_head!=cp.head { return {},false }
+		wire,err := a.encode_marker_claim(v,cp.store,cp.epoch)
+		digest,de := a.digest_marker_claim(v,cp.store,cp.epoch)
+		if err!=.None || de!=.None { return {},false }
+		return append_pledged(w,s,cp,mark,nil,wire[:],digest,start,deadline,marker=true)
+	case a.RejectionRecorded:
+		if v.reference!=next || v.previous_head!=cp.head || v.producer!=2 || v.stage!=3 || v.related==nil { return {},false }
+		wire,err := a.encode_rejection_recorded(v,cp.store,cp.epoch)
+		digest,de := a.digest_rejection_recorded(v,cp.store,cp.epoch)
+		if err!=.None || de!=.None { return {},false }
+		return append_pledged(w,s,cp,mark,nil,wire.data[:wire.length],digest,start,deadline,marker=true)
 	}
 	return {},false
 }

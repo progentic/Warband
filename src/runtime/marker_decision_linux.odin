@@ -29,9 +29,9 @@ decision_packet :: proc(p: a.MarkerProposal,d: a.MarkerDecision) -> (DecisionPac
 ReviewStatus :: enum u8 {Withheld, Display, Permitted, Rejected, Recorded, BindingMismatch, DecisionConflict,
                          DirectoryHold, ReconciliationRequired, Uncertain, Unavailable, LockUnavailable, RecoveryLimitExceeded}
 ReviewResult :: struct {status: ReviewStatus, decision: e.EventRef, grant: Maybe(LiveGrant)}
-ReviewDisplay :: struct {proposal: a.MarkerProposal, checkpoint: e.Checkpoint, task_version, control_revision: u64}
+ReviewDisplay :: struct {proposal: a.MarkerProposal, checkpoint: e.Checkpoint, task_version, control_revision: u64, consumed: bool}
 @(private)
-ReviewHistory :: struct {proposal: a.MarkerProposal, task_evidence: e.EvidenceId, decision: Maybe(a.MarkerApproval), permit: Maybe(a.MarkerPermit)}
+ReviewHistory :: struct {proposal: a.MarkerProposal, task_evidence: e.EvidenceId, decision: Maybe(a.MarkerApproval), permit: Maybe(a.MarkerPermit), claim: Maybe(a.MarkerClaim)}
 
 // Replay has already validated role, scope, uniqueness, versions and digest chain.
 // This endpoint accepts only the single marker intake and its first decision/permit.
@@ -59,6 +59,10 @@ review_history :: proc(s: IntakeSnapshot) -> (ReviewHistory,bool) {
 			v,err := a.decode_marker_permit(row.bytes,row.ref.store,row.ref.epoch)
 			if err!=.None { return {},false }
 			h.permit=v
+		case 14:
+			v,err := a.decode_marker_claim(row.bytes,row.ref.store,row.ref.epoch)
+			if err!=.None { return {},false }
+			h.claim=v
 		case: return {},false
 		}
 	}
@@ -67,17 +71,7 @@ review_history :: proc(s: IntakeSnapshot) -> (ReviewHistory,bool) {
 
 @(private)
 continuous_directory :: proc(prepared: ^PreparedProposal,p: a.MarkerProposal) -> bool {
-	if prepared==nil || prepared.proposal!=p { return false }
-	held,ok := private_dir(prepared.directory_fd)
-	if !ok || u64(held.dev)!=p.device || u64(held.ino)!=p.inode { return false }
-	parent,err := l.open("attempts",DirectoryFlags)
-	if err!=.NONE { return false }
-	defer l.close(parent)
-	if _,secure := private_dir(parent); !secure { return false }
-	p := p
-	current,matched := attempt_dir(parent,&p,false)
-	if matched { l.close(current) }
-	return matched
+	return prepared!=nil && prepared.proposal==p && dispatch_directory(prepared,p)==.Eligible
 }
 
 @(private)
@@ -130,21 +124,37 @@ recover_decision :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Chec
 		v,err := a.decode_marker_approval(tail.bytes,s.store,s.epoch)
 		if err!=.None || h.decision!=nil { return {status=.ReconciliationRequired} }
 		approval=v
-	case 13:
+	case 13,14,8:
+		if tail.bytes[6]==14 && (h.permit==nil || h.claim!=nil) { return {status=.ReconciliationRequired} }
+		if tail.bytes[6]==8 {
+			v,err := a.decode_rejection_recorded(tail.bytes,s.store,s.epoch)
+			c,claimed := h.claim.(a.MarkerClaim)
+			permit,permitted := h.permit.(a.MarkerPermit)
+			if !permitted || err!=.None || v.producer!=2 || v.stage!=3 { return {status=.ReconciliationRequired} }
+			related := c.reference if claimed else permit.reference
+			if v.related!=related { return {status=.ReconciliationRequired} }
+		}
 		v,exists := h.decision.(a.MarkerApproval)
 		if !exists || !a.marker_approval_matches(v,h.proposal,s.store,s.epoch) { return {status=.ReconciliationRequired} }
 		approval=v
 	case: return {status=.ReconciliationRequired}
 	}
 	if approval.operator_uid!=u64(peer) || approval.decision!=d { return {status=.DecisionConflict} }
-	parent,err := l.open("attempts",DirectoryFlags)
-	if err!=.NONE { return {status=.DirectoryHold} }
-	defer l.close(parent)
-	if _,secure := private_dir(parent); !secure { return {status=.DirectoryHold} }
-	p := h.proposal
-	fd,ok := attempt_dir(parent,&p,false)
-	if !ok { return {status=.DirectoryHold} }
-	defer l.close(fd)
+	// A refusal may itself document a missing directory or an occupied leaf.
+	// Completing its exact historical receipt confers no directory authority.
+	parent,fd := l.Fd(-1),l.Fd(-1)
+	defer if parent>=0 { l.close(parent) }
+	defer if fd>=0 { l.close(fd) }
+	if tail.bytes[6]!=8 {
+		err: l.Errno
+		parent,err = l.open("attempts",DirectoryFlags)
+		if err!=.NONE { return {status=.DirectoryHold} }
+		if _,secure := private_dir(parent); !secure { return {status=.DirectoryHold} }
+		p := h.proposal
+		ok: bool
+		fd,ok = attempt_dir(parent,&p,false)
+		if !ok { return {status=.DirectoryHold} }
+	}
 	if !store.confirm_stored(w,s,pledge,nil,deadline,marker=true) { return {status=.Uncertain} }
 	return {status=.Recorded,decision=approval.reference}
 }
@@ -157,6 +167,7 @@ review_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpo
 		if (status!=.Ready && status!=.PendingConfirmation) || len(snap.replay.tasks)!=1 || !snap.replay.tasks[0].marker {
 			return {status=.ReconciliationRequired}
 		}
+		display.consumed=snap.replay.tasks[0].consumed
 		display.task_version,display.control_revision=snap.replay.tasks[0].task_version,snap.replay.tasks[0].control_revision
 		return {status=.Display}
 	}
@@ -227,10 +238,10 @@ review_round :: proc(prepared: ^PreparedProposal,display: ^ReviewDisplay,packet:
 }
 
 // The receipt service reports the confirmed versions even when outstanding receipts block a new decision.
-marker_review_versions :: proc(operator: u32,admission: i64,scratch: ^mem.Arena) -> (u64,u64,bool) {
+marker_review_versions :: proc(operator: u32,admission: i64,scratch: ^mem.Arena) -> (u64,u64,bool,bool) {
 	display: ReviewDisplay
 	result := review_round(nil,&display,nil,operator,admission,scratch,inspect_only=true)
-	return display.task_version,display.control_revision,result.status==.Display
+	return display.task_version,display.control_revision,display.consumed,result.status==.Display
 }
 
 marker_review :: proc(fd: i32,operator: u32,prepared: ^PreparedProposal,admission: i64,scratch: ^mem.Arena) -> ReviewResult {

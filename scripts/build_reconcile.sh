@@ -70,3 +70,5 @@ for edge in 12 13; do
     "${review[@]}" "-define:WARBAND_DECISION_COMMIT_STOP=$edge" "-out:$out/marker-approval-$edge"
 done
 sha256sum "$out/marker-approval" "$out"/marker-approval-{12,13}
+"${review[@]}" -define:WARBAND_MARKER_GATE_PROOF=true "-out:$out/marker-approval-gate-proof"
+sha256sum "$out/marker-approval-gate-proof"

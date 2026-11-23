@@ -31,11 +31,13 @@ def server(f, mode, projection=None):
     p = subprocess.Popen(['./review',mode], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE, bufsize=0, **identity(f.root,f.runtime))
     try:
-        if mode=='serve':
+        if mode in ('serve','gate'):
             p.stdin.write(PAYLOAD)
         p.stdin.close()
         if mode=='receipts':
             assert line(p)==f'ConfirmedProjection 1 {projection}'
+            if projection==2:
+                assert line(p)=='ConfirmedClaimConsumed'
         assert line(p)=='AwaitingOperator'
         yield p
     finally:
@@ -215,3 +217,5 @@ def approval_case(case):
 def run():
     for case in ('approve','reject','ref','fingerprint','length','digest','unauthorized','directory','role_change','stale','lost_reply','commit12','commit13'):
         approval_case(case)
+    from test_marker_dispatch import run as dispatch_cases
+    dispatch_cases()

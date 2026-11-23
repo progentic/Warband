@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.1.5 - 2026-11-23
+
+### Added
+
+- Added a Linux marker gate that confirms the single-use claim and rechecks the offered request against its approval before broker handoff. A changed payload produces a custody-confirmed refusal. [WB-NEG-008 evidence](docs/verification/traceability-matrix.md#post-claim-marker-gate)
+
 ## 0.1.4 - 2026-11-23
 
 ### Added
