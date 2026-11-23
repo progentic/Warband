@@ -39,6 +39,10 @@ WB-CON-005/008 and WB-INV-003 require a [fresh-runtime dispatch denial](phase2-v
 
 For WB-CON-003/006/008 and WB-INV-005, the [isolated no-op observation and evaluation proof](phase2-verification-plan.md#no-op-observed-return-and-verdict) covers confirmed evidence and idempotent evaluation. For this path, WB-CON-001/006/008 and WB-INV-001/005/008 also have [state acceptance and competing-acceptor evidence](phase2-verification-plan.md#isolated-state-acceptance-and-contention).
 
+## Phase 3 marker binding
+
+WB-INV-007 and WB-NEG-008 have pure codec evidence for kinds 11/12. A changed binding withholds a match against the original approval. The real CLI approval and denial-before-dispatch tests are still owed. [Golden and compatibility results](../decisions/0009-controlled-local-marker-execution.md#proposal-and-approval-codec-qualification)
+
 ## Historical Phase 1 implementation evidence
 
 At Phase 1 closure the constitutional rows were planned. Foundation tests do not establish runtime authority, model isolation, evidence acceptance, or replay.
