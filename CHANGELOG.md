@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.52 - 2026-11-22
+
+### Added
+
+- Added an operator runbook and verified inspection of a missing pledged event and a crafted unattested tail using preserved custody and SQLite files. [PR #91](https://github.com/progentic/Warband/pull/91)
+
 ## 0.0.51 - 2026-11-22
 
 ### Added

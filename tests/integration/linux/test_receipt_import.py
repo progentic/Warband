@@ -158,6 +158,16 @@ def restart(state):
             assert f.call(1,pledge)[0] == 0
         if state != 'PendingEventMissing':
             craft(f,frame,event)
+        if state == 'UnattestedTail':
+            parent = OUT/'operator-rehearsal'
+            parent.mkdir(exist_ok=True)
+            bundle = Path(tempfile.mkdtemp(dir=parent,prefix='crafted-tail-'))
+            hashes,owners,sidecars = capture_files(f,bundle)
+            meta = dict(construction='Crafted: canonical kind-8 denial import at recorded time 456, inserted with binding and watermark in SQLite without custody Prepare or Confirm.',
+                        operator_uid=f.operator,sidecars=sidecars,file_uid_gid_mode=owners,
+                        source=subprocess.check_output(['git','-c',f'safe.directory={Path.cwd()}','rev-parse','HEAD'],text=True).strip())
+            inventory = seal_capture(bundle,hashes,meta)
+            emit(crafted_tail=str(bundle),inventory_sha256=inventory)
         if state in ('ConfirmedResponsePending','IntegrityFault'):
             assert f.call(2,pledge)[0] == 0
         if state == 'IntegrityFault':
@@ -185,6 +195,8 @@ def restart(state):
             assert f.verify() == after and f.rows() == before
         else:
             assert after == custody
+    if state=='UnattestedTail':
+        return bundle,inventory
 
 
 def kill_importer(f, stop, diagnostics=None):
@@ -616,6 +628,8 @@ def receipt_transaction_kill(stop):
         emit(case='durable_prepare_kill' if point2 else 'sqlite_commit_kill', stop=stop, importer_pid=pid,
              reaped=status, stdout_bytes=0, tip=3, restarts=restarts, replay=replay_before, replay_after=replay_after,
              bundle=str(bundle), inventory_sha256=inventory)
+    if point2:
+        return bundle,inventory
 
 
 def capture_storage_run(f, variant, mode, group):
@@ -1284,7 +1298,8 @@ def retained_segments():
 if __name__ == '__main__':
     assert os.getuid()==0 and limits('self')==(256*1024*1024,0)
     for case in ('PendingConfirmation','ConfirmedResponsePending','PendingEventMissing','UnattestedTail','IntegrityFault'):
-        restart(case)
+        artifact = restart(case)
+        if artifact: tail_artifact = artifact
     import_process_kill('after-commit')
     import_process_kill('before-ack')
     for edge in (1, 2, 3, 4):
@@ -1293,7 +1308,8 @@ if __name__ == '__main__':
     for prefix_length in (None, 0, 83):
         prepare_kill(prefix_length)
     for stop in ('after-prepare', 'event-insert', 'wal-commit'):
-        receipt_transaction_kill(stop)
+        artifact = receipt_transaction_kill(stop)
+        if artifact: pending_artifact = artifact
     existing_event_prefix()
     retained_segments()
     for edge in range(1,6):
@@ -1314,4 +1330,6 @@ if __name__ == '__main__':
     layouts = calibrate_sqlite_full()
     for case in ('event','binding','veto','control'):
         sqlite_fault_case(case, layouts['event' if case=='event' else 'binding'])
+    for bundle,digest in (pending_artifact,tail_artifact):
+        subprocess.run(['/usr/bin/python3',Path(__file__).with_name('operator_rehearsal.py'),bundle,digest],check=True)
     emit(result='pass')
