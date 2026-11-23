@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.0.57 - 2026-11-22
+
+### Added
+
+- Added portable marker proposal and approval codecs and a pure check that binds a recorded affirmative decision to its exact proposal. [Codec qualification](docs/decisions/0009-controlled-local-marker-execution.md#proposal-and-approval-codec-qualification)
+
 ## 0.0.56 - 2026-11-22
 
 ### Added

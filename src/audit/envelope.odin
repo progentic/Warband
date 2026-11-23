@@ -11,10 +11,10 @@ Error :: enum {None, Malformed, Unsupported, InvalidIdentity}
 Envelope :: struct {reference: events.EventRef, recorded_time: u64, previous_head: [32]u8}
 
 @(private)
-write_envelope :: proc(bytes: []u8, value: Envelope, kind, producer: u16) {
+write_envelope :: proc(bytes: []u8, value: Envelope, kind, producer: u16, version: u16 = 1) {
 	value := value
 	copy(bytes[:4], "WBEV")
-	assert(endian.put_u16(bytes[4:6], .Little, 1))
+	assert(endian.put_u16(bytes[4:6], .Little, version))
 	assert(endian.put_u16(bytes[6:8], .Little, kind))
 	copy(bytes[8:24], value.reference.store[:])
 	assert(endian.put_u64(bytes[24:32], .Little, u64(value.reference.epoch)))
@@ -27,7 +27,7 @@ write_envelope :: proc(bytes: []u8, value: Envelope, kind, producer: u16) {
 }
 
 @(private)
-read_envelope :: proc(bytes: []u8, expected_kind, expected_producer: u16, expected_payload_size: int) -> (Envelope, Error) {
+read_envelope :: proc(bytes: []u8, expected_kind, expected_producer: u16, expected_payload_size: int, expected_version: u16 = 1) -> (Envelope, Error) {
 	if len(bytes) != expected_payload_size+88 || string(bytes[:4]) != "WBEV" {
 		return {}, .Malformed
 	}
@@ -35,7 +35,7 @@ read_envelope :: proc(bytes: []u8, expected_kind, expected_producer: u16, expect
 	kind, _ := endian.get_u16(bytes[6:8], .Little)
 	producer, _ := endian.get_u16(bytes[48:50], .Little)
 	producer_version, _ := endian.get_u16(bytes[50:52], .Little)
-	if version != 1 || kind != expected_kind || producer != expected_producer || producer_version != 1 {
+	if version != expected_version || kind != expected_kind || producer != expected_producer || producer_version != 1 {
 		return {}, .Unsupported
 	}
 	payload_size, _ := endian.get_u32(bytes[52:56], .Little)
@@ -54,7 +54,7 @@ read_envelope :: proc(bytes: []u8, expected_kind, expected_producer: u16, expect
 }
 
 @(private)
-hash_event_data :: proc(domain: string, bytes: []u8) -> [32]u8 {
+hash_event_data :: proc(domain: string, bytes: []u8, suffix: []u8 = nil) -> [32]u8 {
 	prefix: [32]u8
 	assert(len(domain) <= len(prefix))
 	copy(prefix[:], domain)
@@ -62,6 +62,7 @@ hash_event_data :: proc(domain: string, bytes: []u8) -> [32]u8 {
 	sha2.init_256(&ctx)
 	sha2.update(&ctx, prefix[:len(domain)])
 	sha2.update(&ctx, bytes)
+	if len(suffix) > 0 { sha2.update(&ctx, suffix) }
 	result: [32]u8
 	sha2.final(&ctx, result[:])
 	return result
