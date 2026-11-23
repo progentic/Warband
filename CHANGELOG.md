@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.1.0 - 2026-11-22
+
+### Changed
+
+- Proto (Ian) adopted v0.1.0 at Phase 2 exit commit `a975149`. This release qualifies the no-op authority core, including exactly-once state acceptance and replay from custody-confirmed history, within the measured preproduction envelope. [Tagged exit record](https://github.com/progentic/Warband/blob/v0.1.0/docs/governance/phase2-exit.md)
+
 ## 0.0.56 - 2026-11-22
 
 ### Added
