@@ -1,10 +1,16 @@
 package custody_client
 
+import l "core:sys/linux"
 import c "../../custody"
 import e "../../domain/events"
 
 foreign import native "system:wb_runtime_client"
 foreign native {
+	wb_approval_roles :: proc(server: i32, expected_uid: ^u32) -> i32 ---
+	wb_approval_socket :: proc(server: i32, expected_uid: ^u32) -> i32 ---
+	wb_approval_accept :: proc(fd: i32, expected: u32, deadline: i64) -> i32 ---
+	wb_approval_peer :: proc(fd: i32, expected: u32, actual: ^u32) -> i32 ---
+	wb_approval_packet :: proc(fd: i32, data: rawptr, size,writing: i32, deadline: i64) -> i32 ---
 	wb_writer_gate :: proc(path: cstring) -> i32 ---
 	wb_release_gate :: proc(fd: i32) ---
 	wb_elapsed_ms :: proc() -> i64 ---
@@ -48,4 +54,22 @@ exchange :: proc(s: ^Session, req: c.Request, deadline: i64) -> (c.Reply, bool) 
 
 verify :: proc(s: ^Session, cursor: u64) -> (c.Reply, bool) {
 	return exchange(s,{.Verify,c.VerifyRequest{s.store,s.epoch,cursor}},s.deadline)
+}
+
+// Read one bounded payload to EOF, or fill the extra byte used to detect overflow.
+read_payload :: proc(buf: []u8) -> int {
+	size := 0
+	start := wb_elapsed_ms()
+	for size<len(buf) {
+		now := wb_elapsed_ms()
+		if start<0 || now<start || now-start>=30_000 { return -1 }
+		poll := [?]l.Poll_Fd{{fd=0,events={.IN}}}
+		ready,wait := l.poll(poll[:],i32(30_000-(now-start)))
+		if wait!=.NONE || ready!=1 { return -1 }
+		n,err := l.read(0,buf[size:])
+		if err!=.NONE { return -1 }
+		if n==0 { break }
+		size+=n
+	}
+	return size
 }

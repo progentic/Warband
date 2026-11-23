@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.1.4 - 2026-11-23
+
+### Added
+
+- Added Linux CLI approval for a confirmed marker proposal. An exact operator approval can issue one permit. Receipt lookup returns the original decision after a lost reply. [Procedure and qualification](docs/engineering/phase3-entry-review.md#review-a-marker-proposal)
+
 ## 0.1.3 - 2026-11-23
 
 ### Added

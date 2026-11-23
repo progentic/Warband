@@ -62,3 +62,11 @@ for edge in 1 2 3 4; do
     "${intake[@]}" "-define:WARBAND_INTAKE_STOP=$edge" "-out:$out/marker-intake-$edge"
 done
 sha256sum "$out/marker-intake" "$out"/marker-intake-[1234]
+
+review=(odin build cmd/marker-approval -target:linux_amd64 -vet -warnings-as-errors
+        "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out")
+"${review[@]}" "-out:$out/marker-approval"
+for edge in 12 13; do
+    "${review[@]}" "-define:WARBAND_DECISION_COMMIT_STOP=$edge" "-out:$out/marker-approval-$edge"
+done
+sha256sum "$out/marker-approval" "$out"/marker-approval-{12,13}

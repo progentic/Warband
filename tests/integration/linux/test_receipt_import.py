@@ -1444,6 +1444,8 @@ def marker_intake_case(size, stop=0):
 
 if __name__ == '__main__':
     assert os.getuid()==0 and limits('self')==(256*1024*1024,0)
+    from test_marker_approval import run as run_marker_approval
+    run_marker_approval()
     for size,stop in ((0,0),(4096,0),(4096,3),(4097,0),(3,1),(3,2),(3,4)):
         marker_intake_case(size,stop)
     for case in ('PendingConfirmation','ConfirmedResponsePending','PendingEventMissing','UnattestedTail','IntegrityFault'):

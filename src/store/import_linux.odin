@@ -192,6 +192,14 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil, ma
 		if !marker || history!=nil { return {},false }
 		v,err := a.decode_marker_proposal(b,ref.store,ref.epoch)
 		if err!=.None || v.reference!=ref { return {},false }
+	case 12:
+		if !marker || history!=nil { return {},false }
+		v,err := a.decode_marker_approval(b,ref.store,ref.epoch)
+		if err!=.None || v.reference!=ref { return {},false }
+	case 13:
+		if !marker || history!=nil { return {},false }
+		v,err := a.decode_marker_permit(b,ref.store,ref.epoch)
+		if err!=.None || v.reference!=ref { return {},false }
 	case: return {},false
 	}
 	// Hash the persisted body itself after the kind decoder has validated its representation.
@@ -346,7 +354,7 @@ veto_receipt_commit :: proc "c" (_: rawptr) -> i32 {
 }
 
 @(private)
-commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: Maybe(Import), bytes: []u8, acceptance: ^AcceptanceCheck = nil) -> bool {
+commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: Maybe(Import), bytes: []u8, acceptance: ^AcceptanceCheck = nil, marker := false) -> bool {
 	state := cast(^WriterState)w
 	cp := cp
 	db := state.db
@@ -366,7 +374,7 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 	count := read_scalar(state,"SELECT count(*) FROM events")
 	if count != i64(cp.sequence) || !mark_matches(state,cp.store,prior) { return false }
 	if cp.sequence > 0 {
-		last, ok := event_row(db,{cp.store,cp.epoch,cp.sequence})
+		last, ok := event_row(db,{cp.store,cp.epoch,cp.sequence},marker=marker)
 		if !ok || last.pledge.head != cp.head { return false }
 	}
 	if acceptance != nil && !eligible_in_transaction(w,cp,acceptance^) { return false }
