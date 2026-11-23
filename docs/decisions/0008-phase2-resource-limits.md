@@ -77,6 +77,12 @@ Proto, project owner, approved **stop at expiry**. Meta, the independent reviewe
 
 Successor qualification proceeds alongside Slice 6. Closure requires an approved and implemented custodian drain with enforceable history restrictions, numerical approval of disk, visit, elapsed-time and memory reserves for the same envelope, and evidence of warning delivery and the prescribed operator action. Review the saturation, sustained-denial, fsync-failure and interrupted-recovery runs against that envelope, including receipt continuity and exactly-once import. Until closure is granted on that evidence, Slice 6 exit traceability must carry WB-EXC-001 as an open Phase 2 exit blocker.
 
+### Owner ruling and independent disposition, 2026-11-22
+
+Proto approved ending Phase 2 on the bounded, verified no-op core. Meta concurred as the independent reviewer identified above. Meta credited the evidence for custody continuity, exactly-once receipt import and bounded recovery. The review excluded a sustained-denial storage guarantee beyond the measured workload.
+
+This ruling supersedes the November 21 requirement to withhold the Phase 2 exit record until successor qualification. On merge of the reviewed exit package, WB-EXC-001 expires at Phase 2 exit. Technical closure was denied and is no longer sought for Phase 2. The custodian drain remains unimplemented. The development limits and the measured one-task envelope stand. A future sustained-load envelope claim requires a new exception and separate qualification of admission, drain, reserves, warning delivery and fault recovery. Phase 3 entry requires separate explicit approval from Proto after the exit record.
+
 ## Provisional limits and outcomes
 
 Acceptance records these values as provisional development limits. Before Phase 2 exit, measured evidence must confirm or revise every value through a recorded amendment, including target identity and rationale. Changes before that gate also require an amendment. Pure decisions receive supplied time, counters and limits; effectful coordinators enforce them.
