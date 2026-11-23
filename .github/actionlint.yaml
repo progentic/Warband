@@ -1,0 +1,5 @@
+# actionlint 1.7.12 uses this configuration key for additional runner labels.
+# The compatibility job runs on a GitHub-hosted runner.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

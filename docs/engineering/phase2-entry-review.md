@@ -1,6 +1,6 @@
 # Phase 2 entry review
 
-- **Status:** Phase 2 remains open. The [Slice 5 isolated acceptance path](#slice-5-isolated-state-acceptance) has passed on x64-review. Its [capacity checkpoint](../verification/slice5-capacity.md) is measured on the isolated target.
+- **Status:** Historical entry and slice records. The [bounded Phase 2 exit](../governance/phase2-exit.md) records their final scope.
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
@@ -32,7 +32,7 @@ The read-only QMP queries, guest commands, toolchain observations and host launc
 
 The four-UID denial harness passed on the recorded `x64-review` storage stack and in the hosted Ubuntu 24.04 regression job. Independent review of `67195bf` found no blocking issues. Documentation checks, all 28 governance controls and all 52 Odin tests passed independently. All four hosted checks passed. [Custodian verification record](../verification/isolated-linux-custodian.md)
 
-Three items carry forward. Power-loss durability on the qcow2/APFS stack remains unproven. Revisit that claim if a deployment target requires it. WB-EXC-001 remains Open and expires at Phase 2 exit, before Phase 3 entry. The pre-existing `actionlint` warning for the `ubuntu-26.04` runner label awaits disposition. [Exception record](../decisions/0008-phase2-resource-limits.md)
+At Gate 0, three items carried forward. Power-loss durability on the qcow2/APFS stack remains unproven. Revisit that claim if a deployment target requires it. The exception and runner-label items received their dispositions in the [exit record](../governance/phase2-exit.md). [Exception record](../decisions/0008-phase2-resource-limits.md)
 
 Slice 4 entry needs a store profile for the project-local static build of SQLite 3.54.1 and verification of WAL mode and FULL synchronization on each writing connection. Exactly-once import of custody denial receipts into event history belongs to that slice.
 

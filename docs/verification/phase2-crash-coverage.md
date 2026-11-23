@@ -208,9 +208,22 @@ The target inspections ran on 2026-11-22 with harness `d16dab7`. Six inventory e
 
 After the decisions, the original inventory digests matched the run records again and every file passed SHA-256 verification (6/6 and 4/4). Both cases remain halted. The hosted receipt harness reproduces inspection and preservation on a new point 2 kill capture and a freshly crafted tail. The operator decision evidence comes from Proto’s x64-review session.
 
-## Separate remaining proofs
+## Slice 6 evidence inventory
 
-- **Replay evidence for remaining runs.** Apply the [qualified replay command](../decisions/0005-event-integrity-acceptance-and-recovery.md#slice-6-functional-replay-qualification) to each newly retained artifact. The functional proof covers the four live gate fixtures and one independent mixed history. Point 4 now also has replay evidence on its own retained state at all three observations.
-- **Capacity boundaries.** The receipt-workload scaling criterion is satisfied by the measurement and projection above. The [runtime session boundary](#runtime-session-debit-boundary) is qualified. The [cold-start proof](#custodian-cold-start-boundaries) covers the history-read, shared-arena and elapsed-time guards on x64-review.
-- **Operator rehearsal.** Complete for both operator-only states with the [recorded continued-halt decisions](#operator-reconciliation-rehearsal).
-- **Exit inventory.** Bind results to the tested source, target, toolchain, exact test inventory, raw outcomes and remaining gaps. Scope Phase 2 claims to WB-CON-001–009 and applicable INV/NEG paths. Positive approval is Phase 3 and learned promotion is Phase 4. Phase 2 exit also requires the WB-EXC-001 and runner-label dispositions.
+The tested runtime tree is main commit `2a8daa8c5865bf0121627f096425556c289c1924`, the merge of PR #94. Its tree matches reviewed `d052f03`. The rows above identify the original x64-review source and capture for each increment. The hosted merge run repeated the integration and recovery checks. [Foundation run](https://github.com/progentic/Warband/actions/runs/45098175408) · [Documentation run](https://github.com/progentic/Warband/actions/runs/45098175464)
+
+| Evidence | Target or exact inventory |
+|---|---|
+| Preproduction Linux | x64-review, Ubuntu 24.04 x86-64, kernel `6.8.0-142-generic`, ext4 on qcow2/APFS. The WAL sync helper used a disposable FUSE mount. |
+| Hosted Linux | Ubuntu 24.04 x86-64, kernel `7.0.0-1014-aws` in the WAL capture. Linux merge artifact ID `14784128837`, ZIP SHA-256 `8bb9fd30f508720643ea47a578426ad60ef0d6a86f407496b083c0c003e5a899`. |
+| Toolchain and store | Odin dev-2026-10, commit `8b35c86efb78e9ab5223673a07e02fc2a6884191`, LLVM 19, SQLite 3.54.1 source ID ending in `555e07ef33f69a0957d24d8e555b702464a131d6f1607f4c3c1e4551e8e6ca76`. macOS ARM64 supplies portable tests and writer-open evidence. Ubuntu 26.04 supplies compatibility evidence. |
+| Portable tests | `scripts/run_odin_tests.py` verified the 58 names in `tests/odin-packages.json`: foundation 2, negative 3, replay 2, timing 4, event_identity 6, custody 21, audit 20. |
+| Governance and foundation | `scripts/check_docs.py`, 28 tests under `tests/governance/`, native build/manifest and `scripts/verify_cli.py`. The SQLite build verifies the pinned library; `scripts/test_writer_open.sh` covers the writer and provisioning. |
+| Linux integration | Under `tests/integration/linux/`: `test_custody_denial.py`, `test_receipt_import.py` (including operator rehearsal diagnostics), `test_noop_gate.py` (including acceptance, race and replay), `test_volume_exhaustion.py`, `test_wal_sync.py`. The human decisions remain bound to the [operator session](#operator-reconciliation-rehearsal). |
+| Capacity | Under `tests/measurement/`: `build_capacity.py` builds the probes. `recovery_capacity.py` runs cold recovery, `runtime_debit_boundary.py` and `cold_start_boundaries.py`. Earlier runs used `capacity.py` and `report_capacity.py` for [Slice 4](slice4-capacity.md), and `task_capacity.py` for [Slice 5](slice5-capacity.md). |
+
+The Linux run exercised all ten process-death boundaries and the listed storage failures. The WAL sync failure recovered the exact pledged triple with one confirmation. At 10,000 frames only debits are projected; elapsed time and memory remain unmeasured. Production storage and power-loss durability require matching-target evidence. Empty-store inspection is qualified only for the isolated enrollment protocol and protected directory. ADR-0006 remains Proposed.
+
+**Runner-label disposition.** actionlint 1.7.12 reports one unknown label on the baseline workflow. Registering only `ubuntu-26.04` in `.github/actionlint.yaml` makes that workflow lint cleanly. The hosted compatibility job in the linked merge run executed on the label. ADR-0006 retains its later promotion decision.
+
+The [exit record](../governance/phase2-exit.md) binds this inventory to the [scoped traceability](traceability-matrix.md#phase-2-no-op-authority-core) and the dated ADR-0008 expiry.

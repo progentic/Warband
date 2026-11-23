@@ -43,11 +43,11 @@ ACCEPTED_DECISION_LINE = '- **Status:** Accepted'
 RESOURCE_DECISION = 'docs/decisions/0008-phase2-resource-limits.md'
 EXCEPTION_FIELDS = (
     ('Exception ID', r'WB-EXC-001'),
-    ('Exception status', r'Open|Closed'),
+    ('Exception status', r'Open|Closed|Expired'),
     ('Expires before phase', r'[3-6]'),
     ('Exception owner', r'Proto'),
     ('Independent reviewer', r'\S[^\n]*'),
-    ('Disposition record', r'Pending|(?:Stop at expiry — )?https://github\.com/progentic/Warband/commit/[0-9a-f]{40}'),
+    ('Disposition record', r'Pending|(?:(?:Stop at expiry|Expired at Phase 2 exit) — )?https://github\.com/progentic/Warband/commit/[0-9a-f]{40}'),
     ('Status', r'Proposed|Accepted'),
 )
 DECISION_STATUS_PREFIX = '- **Status:** '
@@ -210,6 +210,12 @@ def resource_exception_findings(inventory: Inventory) -> tuple[Finding, ...]:
     reviewed_disposition = (fields['Status'] == 'Accepted'
                             and fields['Independent reviewer'] not in ('Pending', fields['Exception owner'])
                             and fields['Disposition record'] != 'Pending')
+    expired_record = fields['Disposition record'].startswith('Expired at Phase 2 exit — ')
+    if expired_record != (fields['Exception status'] == 'Expired'):
+        return (Finding(FindingCode.EXCEPTION_RECORD, RESOURCE_DECISION, 'expiry disposition'),)
+    if expired_record and (not reviewed_disposition or expiry != 3
+                           or not any(d.path == 'docs/governance/phase2-exit.md' for d in inventory.documents)):
+        return (Finding(FindingCode.EXCEPTION_RECORD, RESOURCE_DECISION, 'bounded Phase 2 exit'),)
     if fields['Disposition record'].startswith('Stop at expiry — '):
         if not reviewed_disposition or fields['Exception status'] != 'Open' or expiry != 3:
             return (Finding(FindingCode.EXCEPTION_RECORD, RESOURCE_DECISION, 'stop at expiry'),)

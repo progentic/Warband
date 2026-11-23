@@ -12,22 +12,28 @@ The [custodian cold-start cases](phase2-crash-coverage.md#custodian-cold-start-b
 
 The [SQLite WAL sync proof](phase2-crash-coverage.md#sqlite-wal-commit-sync-failure) supplies scoped WB-CON-007/008/009 recovery evidence. On x64-review a failed COMMIT sync withheld acknowledgment. The retained receipt event and pledge supported one exact confirmation on restart.
 
-| Requirement | Contract | Planned implementation | Planned verification | User behavior | Status |
-|---|---|---|---|---|---|
-| WB-CON-001 | `docs/contracts/authoritative-state.md` | `src/state/transition.odin` | `tests/invariants/no_direct_state_mutation_test.odin` | The AI cannot directly mark work complete. | planned |
-| WB-CON-002 | `docs/contracts/model-proposals.md` | `src/gateway/` | `tests/negative/malformed_proposal_test.odin` | AI suggestions are checked before use. | planned |
-| WB-CON-003 | `docs/contracts/independent-evaluation.md` | `src/evaluation/` | `tests/invariants/no_unverified_completion_test.odin` | Completion requires proof. | planned |
-| WB-CON-004 | `docs/contracts/model-proposals.md` | `src/policy/` | `tests/invariants/policy_before_execution_test.odin` | Nothing runs without a policy decision. | planned |
-| WB-CON-005 | `docs/contracts/model-proposals.md` | `src/capability/` | `tests/negative/capability_escalation_test.odin` | AI access is narrow and temporary. | planned |
-| WB-CON-006 | `docs/contracts/authoritative-state.md` | `src/state/transition.odin` | `tests/invariants/evidence_backed_transition_test.odin` | State changes require recorded proof. | planned |
-| WB-CON-007 | `docs/contracts/event-integrity.md` | `src/audit/` | `tests/invariants/audit_completeness_test.odin` | Important actions appear in activity history. | planned |
-| WB-CON-008 | `docs/contracts/authoritative-state.md` | `src/replay/` | `tests/negative/duplicate_execution_test.odin` | Commands do not change state twice. | planned |
-| WB-CON-009 | `docs/contracts/authoritative-state.md` | `src/recovery/` | `tests/negative/missing_recovery_policy_test.odin` | Unsafe actions stop before execution. | planned |
-| WB-CON-010 | `docs/contracts/model-proposals.md` | `src/model/provider.odin` | `tests/integration/provider_independence_test.odin` | Safety does not depend on one AI provider. | planned |
+## Phase 2 no-op authority core
 
-Functional replay supplies scoped evidence for WB-CON-001/006/007/008, WB-INV-006/008/009 and WB-NEG-005/006/009/012. Confirmed no-op histories reproduce the independent projections, and all five tamper cases withhold the projection. Matrix-wide recovery and exit evidence remain pending. [Replay qualification](../decisions/0005-event-integrity-acceptance-and-recovery.md#slice-6-functional-replay-qualification).
+These statuses apply to the preproduction no-op path in the [tested inventory](phase2-crash-coverage.md#slice-6-evidence-inventory). The [verification plan](phase2-verification-plan.md#required-proof-groups) maps the cases to their contracts. Source inspection, pure tests, Linux process evidence and operator decisions carry the distinct scopes below.
 
-[Isolated custodian evidence](isolated-linux-custodian.md) exercises the custody portion of WB-CON-007/008/009 through kernel identity checks, receipt persistence, exact replay and startup reconciliation. Exactly-once event-store import and cross-store recovery remain open.
+| Requirement | Invariants and negative cases | Evidence and boundary |
+|---|---|---|
+| WB-CON-001 | WB-INV-001/009; WB-NEG-005/006 | Only the acceptor advances task state. Competing processes produced one accepted transition; an exact retry returned the recorded result. |
+| WB-CON-002 | WB-INV-001/002; WB-NEG-001 | The canonical no-op proposal codec rejects malformed payloads and the live gate requires a validated, checkpoint-covered proposal. Provider input is deferred. |
+| WB-CON-003 | WB-INV-005; WB-NEG-007 | The observer compares the primitive’s returned bytes. The independent evaluator reads persisted evidence and recomputes its digest; a lost return led to an indeterminate observation and rejected verdict. |
+| WB-CON-004 | WB-INV-002/007; WB-NEG-008/010 | The no-op path checks policy version, recovery choice and proposal fingerprint. Approval-required proposals are ineligible. Positive CLI approval and mutation after real approval belong to Phase 3. |
+| WB-CON-005 | WB-INV-003; WB-NEG-003/004 | Supplied-clock tests reject expiry at equality. The issuing process dispatched once; the fresh process refused the same durable claim. Separate Linux UID tests enforce custody/operator boundaries. |
+| WB-CON-006 | WB-INV-005/009; WB-NEG-006/007 | A verified evaluation bound to the consumed claim permits a single task/control advance. Revoked, rejected and stale evidence withheld acceptance. |
+| WB-CON-007 | WB-INV-006; WB-NEG-009/012 | Canonical codecs, authenticated custody and the importer bound each tested denial event to its receipt. Complete corruption withheld replay; validated torn final suffixes were trimmed. Sustained-load retention beyond the measured envelope is unqualified. |
+| WB-CON-008 | WB-INV-008/009; WB-NEG-005/006/009 | Replay matched the mixed-history oracle and the live single-task projections. Wrong-role references and altered history withheld the projection. Missed acknowledgments and competing acceptors preserved the original result. |
+| WB-CON-009 | WB-INV-004; WB-NEG-010 | The codec requires the registered recovery choice. Crash and storage-error cases selected recovery from the retained bytes; Proto rehearsed continued halt on missing and unattested events. |
+| WB-CON-010 | WB-INV-010 | The provider and learned-promotion paths remain outside this phase. |
+
+WB-NEG-002/011 require tool registration and output handling in later phases. WB-NEG-013–018 retain their foundation controls. Linux fault results belong to the tested store, custodian and kernels. The [exit record](../governance/phase2-exit.md) carries the unqualified envelopes and later gates.
+
+Functional replay supplies scoped evidence for WB-CON-001/006/007/008, WB-INV-006/008/009 and WB-NEG-005/006/009/012. Confirmed no-op histories reproduce the independent projections, and all five tamper cases withhold the projection. The [crash matrix](phase2-crash-coverage.md) identifies the recovery evidence for each boundary. [Replay qualification](../decisions/0005-event-integrity-acceptance-and-recovery.md#slice-6-functional-replay-qualification).
+
+[Isolated custodian evidence](isolated-linux-custodian.md) exercises the custody portion of WB-CON-007/008/009 through kernel identity checks, receipt persistence, exact replay and startup reconciliation. Later receipt and WAL cases qualify exactly-once import on the isolated store; cross-store recovery remains outside that claim.
 
 WB-CON-005/008 and WB-INV-003 require a [fresh-runtime dispatch denial](phase2-verification-plan.md#fresh-runtime-dispatch-denial). The paired Linux proof verified this boundary on x64-review. The issuer dispatched once and the fresh process withheld dispatch with a confirmed rejection while the original interval was still open.
 
@@ -35,7 +41,7 @@ For WB-CON-003/006/008 and WB-INV-005, the [isolated no-op observation and evalu
 
 ## Historical Phase 1 implementation evidence
 
-The constitutional rows above remain planned. Foundation tests do not establish runtime authority, model isolation, evidence acceptance, or replay.
+At Phase 1 closure the constitutional rows were planned. Foundation tests do not establish runtime authority, model isolation, evidence acceptance, or replay.
 
 | Foundation requirement | Implementation | Verification | Status |
 |---|---|---|---|
@@ -113,11 +119,11 @@ The initial evidence is historical. Local platform pins, manifests, transport li
 
 For WB-P1-001/WB-P1-006, `28cce613` adds explicit-profile rejection in `tests/governance/test_toolchain_versions.py`, a stable installer OS diagnostic and the native workflow no-APT rejection step. All 26 Python controls pass locally, including Check A. Check B and hosted verification of that source remain pending; no new Linux pass is inferred. Foundation acceptance closes no runtime row or structural debt and supplies no dependency-recovery proof.
 
-## Proposed closure and Phase 2 design
+## Historical proposals for closure and Phase 2 design
 
 `docs/governance/phase1-closure-plan.md` distinguishes the recorded publication/hosted/protection gates and explicit owner acceptance from remaining dependency recovery, runner and procedure-layering work. Completed technical checks do not themselves imply acceptance; the dated owner decision does.
 
-`docs/decisions/0005-event-integrity-acceptance-and-recovery.md` maps proposed mechanisms and required future verification to the existing WB-CON, WB-INV and WB-NEG identifiers. The runtime rows above remain planned/deferred. No event store, protected head, capability consumption, observation/evaluation boundary, recovery process or replay implementation is added by this design draft.
+`docs/decisions/0005-event-integrity-acceptance-and-recovery.md` maps proposed mechanisms and required future verification to the existing WB-CON, WB-INV and WB-NEG identifiers. At the time of this design draft the runtime rows were planned/deferred. No event store, protected head, capability consumption, observation/evaluation boundary, recovery process or replay implementation is added by this design draft.
 
 On 2026-10-18, Proto became ADR-0005 decision owner and selected SQLite with a separate same-VM checkpoint custodian as the design direction. ADR-0005 records the trust limits and revised prepare/confirm protocol, chained custody history and unified crash/fault recovery table; `docs/engineering/phase2-entry-review.md` tracks the remaining entry gates. This direction concerns WB-CON-007/008, WB-INV-006/008/009 and WB-NEG-009; their implementation and verification status remains planned. The owner selected operator-only reconciliation for a missing pledged event. [ADR-0005 acceptance](../decisions/0005-event-integrity-acceptance-and-recovery.md) and the [entry review](../engineering/phase2-entry-review.md) govern current design and implementation scope; runtime durability and recovery evidence remains pending.
 

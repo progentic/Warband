@@ -4,7 +4,7 @@ Use this guide to update, review, and release Warband.
 
 ## Check the scope
 
-Read the applicable `AGENTS.md` guidance. The [entry review](engineering/phase2-entry-review.md#slice-3b-gate-0) records completed pure custody work and the activated Linux custodian scope. Review [target evidence](verification/isolated-linux-custodian.md) against the recorded storage stack and UID and memory boundaries. WB-EXC-001 — **Open / Stop at expiry**.
+Read the applicable `AGENTS.md` guidance. The [entry review](engineering/phase2-entry-review.md#slice-3b-gate-0) records completed pure custody work and the activated Linux custodian scope. Review [target evidence](verification/isolated-linux-custodian.md) against the recorded storage stack and UID and memory boundaries. The [Phase 2 exit record](governance/phase2-exit.md) identifies the qualified envelope.
 
 Follow the [authority order](governance/README.md#authority-order) when descriptions conflict. Keep design acceptance, implementation permission, and verified behavior separate.
 
@@ -39,7 +39,7 @@ Source and test links open the current main branch. For a release review, check 
 
 - For a crash or storage fault, identify the exact operation, caller result and surviving files. Compare the capture inventory with its logged SHA-256 digest. Check the first authenticated checkpoint after startup before crediting an importer retry with recovery. For complete custody corruption, require refusal and byte preservation; only a validated torn suffix is eligible for trimming. [Crash and storage-error matrix](verification/phase2-crash-coverage.md)
 - For capacity results, check the unit, history size and process that owns the limit. The 100-frame runs were timed; the 10,000-frame receipt result projects debits only. Review exact runtime-session debit tests separately from custodian startup size, arena and deadline tests. [Measurement record](verification/phase2-crash-coverage.md#cold-recovery-feasibility) · [Boundary criteria](verification/phase2-verification-plan.md#cold-recovery-readiness-and-visit-ownership)
-- Before signing off Phase 2, check the operator rehearsal, the remaining SQLite sync-failure evidence and successor qualification against the exit inventory. Record the runner-label disposition and scoped traceability. Phase 3 entry requires the completed exit record and explicit owner approval. [Remaining proofs](verification/phase2-crash-coverage.md#separate-remaining-proofs) · [Accepted execution design](decisions/0009-controlled-local-marker-execution.md)
+- When assessing a new workload, compare it with the measured Phase 2 envelope. A future sustained-denial claim requires a new exception and qualification. Phase 3 entry requires Proto’s separate explicit approval. [Source and test inventory](verification/phase2-crash-coverage.md#slice-6-evidence-inventory) · [Execution design](decisions/0009-controlled-local-marker-execution.md)
 
 ## Update the matching records
 
