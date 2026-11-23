@@ -138,7 +138,24 @@ Reproduce after the normal Linux target build with `python3 tests/measurement/bu
 
 At `b740803`, count each frame examined by validation, including a final truncated frame, and each retained frame examined again by the torn-tail size walk. Healthy recovery performs one validation pass. The size walk runs only for TornFinalRecord. Under the 8,388,608-byte history ceiling, a valid prefix can contain at most one GENESIS (minimum 166 bytes); every other complete frame needs at least 203 bytes. The file-only upper bound is 41,323 complete frames. The shared arena can lower the loadable count. Even allowing one truncated suffix, validation and the size walk together examine at most 2 × 41,323 + 1 = 82,647 frames. The current custodian cannot reach 100,001 by this counting rule. This is a source-derived bound, with no startup-limit test result or new exit code claimed.
 
-The runtime client charges after a successful exchange. At a fixed tip of 10,000, four Verify debits total 80,004; a fifth would require 100,005 and is refused without advancing the counter. This arithmetic establishes a crossing, while exact 100,000 admission and attempted 100,001 refusal require their own witnesses. The measured 100-frame case and 151-frame pilot remain the evidence for the receipt cost model. The [owner amendment](phase2-verification-plan.md#cold-recovery-readiness-and-visit-ownership) assigns the exact debit proof to the runtime session.
+The runtime client charges after a successful exchange. At a fixed tip of 10,000, four Verify debits total 80,004; a fifth would require 100,005 and is refused without advancing the counter. The [exact boundary runs](#runtime-session-debit-boundary) below exercise equality and the next single debit. The measured 100-frame case and 151-frame pilot remain the evidence for the receipt cost model. The [owner amendment](phase2-verification-plan.md#cold-recovery-readiness-and-visit-ownership) assigns the exact debit proof to the runtime session.
+
+### Runtime session debit boundary
+
+The boundary harness generates real denial imports on the ordinary writer path. Each case restores the same starting files for the ordinary CLI and the measurement build. The ledger prices each custody reply from its post-operation tip and each local check from the number of rows, handoffs or read-backs required. The meter records the calling procedure, requested charge, counter before and after, latch and elapsed milliseconds. The custodian records its own work for each request.
+
+On the initial x64-review run against production source `6f33026`, D1 returned Ready at exactly 100,000. D2 reached the predicted one-debit refusal at 2,312 ms, with 107 SQLite events and bindings, the sequence-106 checkpoint and a pending pledge for 107. Both the ordinary CLI and the measured importer returned AttestationUncertain. The trace showed the budget latch set before confirmation read-back. That run exposed a reporting defect and failed the D2 outcome criterion.
+
+The shared reconciliation boundary now checks the exhausted latch explicitly when the history walk returns. Qualification on x64-review used reconciliation source blob `1bc5863b303fda7a890dc9c4c16c4c64931d0824`. Both binaries produced the stated CLI result on fresh copies of each starting inventory.
+
+| Case | Charged custody exchanges + local work | Actual examinations during reconciliation | Measured session result |
+|---|---|---:|---|
+| D1, 7 imports in epoch 1, 24 in epoch 2, 64 outstanding | 96,288 + 3,712 = 100,000 | 57,682 | Ready at 2,768 ms with latch clear. All 64 receipts confirmed. Tip 287, epoch 2 sequence 88. |
+| D2, 75 imports and 41 outstanding | 96,966 + 3,034 = 100,000 | 59,478 | RecoveryLimitExceeded. Prepare took the total from 99,232 to 99,893. The sequence-107 transaction used the remaining 107. At 2,277 ms, confirmation read-back requested one more and the counter held at 100,000. |
+
+D2 retained the event, binding and watermark in SQLite, with sequence 106 confirmed and the exact sequence-107 pledge at tip 330. The custodian received no Confirm for 107. In D1 the subsequent Verify reached custody and the client refused its 575-debit charge. Each latched session then sent zero requests on retry. A fresh session immediately verified the expected checkpoint and pledge on the same custodian. Diagnostic examinations were 290 for D1's over-budget Verify and 290 for its fresh Verify, and 333 for D2's fresh Verify. The independent lost-reply control still returned AttestationUncertain.
+
+Use the recovery measurement command above. The Linux artifact contains `D1-importer.json`, `D2-importer.json` and each corresponding `metered-importer.json` (prefixed with the case). It records generation and invocation times separately, the custody calls, debit trace, checkpoint and pending pledge.
 
 ## Operator reconciliation rehearsal
 
@@ -159,6 +176,6 @@ After the decisions, the original inventory digests matched the run records agai
 ## Separate remaining proofs
 
 - **Replay evidence for remaining runs.** Apply the [qualified replay command](../decisions/0005-event-integrity-acceptance-and-recovery.md#slice-6-functional-replay-qualification) to each newly retained artifact. The functional proof covers the four live gate fixtures and one independent mixed history. Point 4 now also has replay evidence on its own retained state at all three observations.
-- **Capacity boundaries.** The receipt-workload scaling criterion is satisfied by the measurement and projection above. Pending proofs cover exactly 100,000 runtime session debits and attempted debit 100,001, plus the custodian's history-read, arena and elapsed-time boundaries on cold startup.
+- **Capacity boundaries.** The receipt-workload scaling criterion is satisfied by the measurement and projection above. The [runtime session boundary](#runtime-session-debit-boundary) is qualified. Cold-start history-read, arena and elapsed-time boundaries remain open.
 - **Operator rehearsal.** Complete for both operator-only states with the [recorded continued-halt decisions](#operator-reconciliation-rehearsal).
 - **Exit inventory.** Bind results to the tested source, target, toolchain, exact test inventory, raw outcomes and remaining gaps. Scope Phase 2 claims to WB-CON-001–009 and applicable INV/NEG paths. Positive approval is Phase 3 and learned promotion is Phase 4. Phase 2 exit also requires the WB-EXC-001 and runner-label dispositions.
