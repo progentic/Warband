@@ -4,7 +4,7 @@ import a "../audit"
 import state "../state"
 
 @(private)
-IdClass :: enum {Command, Proposal, Capability, Attempt, Evidence, Transition}
+IdClass :: enum {Command, Proposal, Capability, Attempt, Evidence, Transition, Directory}
 @(private)
 ScopedId :: struct {kind: IdClass, bytes: [16]u8}
 @(private)
@@ -16,7 +16,18 @@ unique :: proc(ids: ^map[ScopedId]bool, kind: IdClass, id: [16]u8) -> bool {
 // State and IDs are scoped to the store/epoch already verified by project.
 // owners maps each event position to its task slot (one-based, zero for audit only).
 @(private)
-reduce :: proc(records: []Record,receipts: []Receipt) -> ([]Projection,int,Error) {
+reduce :: proc(records: []Record,receipts: []Receipt,$markers: bool) -> ([]Projection,int,Error) {
+	when markers {
+		ledger: MarkerLedger
+		defer { delete(ledger.roots); delete(ledger.chains); delete(ledger.latest) }
+		return reduce_records(records,receipts,true,&ledger)
+	} else {
+		return reduce_records(records,receipts,false)
+	}
+}
+
+@(private)
+reduce_records :: proc(records: []Record,receipts: []Receipt,$markers: bool,marker: ^MarkerLedger = nil) -> ([]Projection,int,Error) {
 	owners,alloc := make([]int,len(records),context.allocator)
 	if alloc!=nil { return nil,0,.ResourceLimit }
 	defer delete(owners)
@@ -31,8 +42,14 @@ reduce :: proc(records: []Record,receipts: []Receipt) -> ([]Projection,int,Error
 	used := 0
 	for rec,i in records {
 		slot := 0
+		when markers {
+			if handled,issue := apply_marker(marker,records,i,by_key,states[:],&ids); handled {
+				if issue!=.None { return nil,0,issue }
+				continue
+			}
+		}
 		// All reference codecs already enforce the full scope and strictly earlier sequence.
-		switch v in rec.event {
+		#partial switch v in rec.event {
 		case a.TaskCreated:
 			created := v
 			key := Key{v.task,v.run}
@@ -63,9 +80,15 @@ reduce :: proc(records: []Record,receipts: []Receipt) -> ([]Projection,int,Error
 			continue // optional Ref, when present, resolves by its verified scope and earlier position
 		}
 		if slot==0 { return nil,0,.InvalidReference }
+		when markers {
+			if root := marker.latest[slot]; root!=0 {
+				if marker.chains[root].view.complete { return nil,0,.InvalidHistory }
+				delete_key(&marker.latest,slot)
+			}
+		}
 		owners[i] = slot
 		h := &states[slot-1]
-		switch v in rec.event {
+		#partial switch v in rec.event {
 		case a.TaskCreated,a.RejectionRecorded:
 		case a.ProposalRecorded:
 			if h.proposal!=nil || h.transition!=nil || v.expected_task_version!=h.task_version ||
@@ -83,6 +106,9 @@ reduce :: proc(records: []Record,receipts: []Receipt) -> ([]Projection,int,Error
 		case a.DispatchClaimed:
 			auth,ok := h.permit.(a.AuthorizationRecorded)
 			if !ok || auth.reference!=v.authorization { return nil,0,.InvalidReference }
+			when markers {
+				if v.expected_task_version!=h.task_version || v.expected_control_revision!=h.control_revision { return nil,0,.InvalidHistory }
+			}
 			if h.claim!=nil || h.revoked || !unique(&ids,.Attempt,cast([16]u8)v.attempt) { return nil,0,.InvalidHistory }
 			h.claim = v
 			if !state.bound_claim(h^,auth.proposal) { return nil,0,.InvalidHistory }
@@ -137,6 +163,15 @@ reduce :: proc(records: []Record,receipts: []Receipt) -> ([]Projection,int,Error
 		if claim,ok := h.claim.(a.DispatchClaimed); ok { p.consumed=true; p.attempt=claim.attempt }
 		if obs,ok := h.observation.(a.ObservationRecorded); ok { p.observation=u8(obs.outcome) }
 		if ev,ok := h.evaluation.(a.EvaluationRecorded); ok { p.verdict=u8(ev.verdict) }
+		when markers {
+			if root := marker.latest[i+1]; root!=0 {
+				view := marker.chains[root].view
+				view.store,view.epoch,view.key = p.store,p.epoch,p.key
+				view.task_version,view.control_revision = h.task_version,h.control_revision
+				p^ = view
+				continue
+			}
+		}
 		if h.terminal { p.disposition,p.disposition_reason = u8(dispositions[i].disposition),dispositions[i].reason }
 	}
 	return result,used,.None
