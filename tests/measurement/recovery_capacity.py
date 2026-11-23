@@ -14,6 +14,7 @@ from test_custody_denial import STORE, denied, emit, limits, service, sha
 from test_noop_gate import confirmed_events, history_inventory
 from test_receipt_import import ENROLL, LE, OUT, fixture
 from capacity import predict
+from runtime_debit_boundary import boundary
 
 
 def sample(n, rep):
@@ -102,3 +103,5 @@ if __name__=='__main__':
             out.write(json.dumps(row,sort_keys=True)+'\n')
             out.flush()
             emit(frames=row['frames'],rep=rep,recovery_ns=row['recovery_ns'],replay_debits=row['replay']['debits'])
+    for case in ('D1','D2'):
+        boundary(case)

@@ -6,6 +6,8 @@ This matrix links constitutional rules to contracts, planned implementation, ver
 
 [WB-EXC-001 status and provisional limits](../decisions/0008-phase2-resource-limits.md) and the [fault/measurement plan](phase2-verification-plan.md#proposed-limits-and-measurement) provide the review records for WB-CON-007/008/009 and WB-INV-004/006/008/009, with applicable WB-NEG-005/006/009 cases. Evidence-backed statuses remain in the rows below.
 
+The [runtime debit boundary proof](phase2-crash-coverage.md#runtime-session-debit-boundary) checks WB-CON-007/008/009 recovery behavior. The harness in `tests/measurement/runtime_debit_boundary.py` verifies the confirmed checkpoint, pending pledge and SQLite receipt binding when the runtime refuses further work.
+
 | Requirement | Contract | Planned implementation | Planned verification | User behavior | Status |
 |---|---|---|---|---|---|
 | WB-CON-001 | `docs/contracts/authoritative-state.md` | `src/state/transition.odin` | `tests/invariants/no_direct_state_mutation_test.odin` | The AI cannot directly mark work complete. | planned |

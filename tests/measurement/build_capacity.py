@@ -37,16 +37,43 @@ with tempfile.TemporaryDirectory(dir=root/'.local') as temp:
     inject('src/custody/linux/service_linux.odin',[('if ordinal > cursor','m.selection += 1\n\t\tif ordinal > cursor')])
     inject('cmd/custodian/main_linux.odin',[('fd := svc.wb_accept','m.history, m.selection, m.embedded = 0, 0, 0\n\tfd := svc.wb_accept'),
            ('if reply_error == .None', 'fmt.eprintln("CAP",u8(op),m.history,m.selection,m.embedded)\n\tif reply_error == .None')],True)
-    inject('src/runtime/reconcile_linux.odin',[('frame := frame','m.consume += 1\n\tframe := frame')])
+    inject('src/runtime/reconcile_linux.odin',[('frame := frame','m.consume += 1\n\tframe := frame'),
+           ('req, decode_err :=','if client.BOUNDARY { fmt.eprintln("ARCHIVE") }\n\t\treq, decode_err :=')],True)
     inject('src/store/import_linux.odin',[('b := column(stmt,0)','m.rows[m.stage] += 1\n\tb := column(stmt,0)'),
            ('row, found := event_row','m.stage = 0\n\t\trow, found := event_row'),
            ('parent, resolved := event_row','m.stage = 3\n\t\t\tparent, resolved := event_row'),
            ('last, ok := event_row','m.stage = 1\n\t\tlast, ok := event_row')])
     inject('src/store/append_linux.odin',[('row, ok := event_row','m.stage = 2\n\trow, ok := event_row')])
-    inject('src/runtime/client/client_linux.odin',[('n := wb_exchange','if m.rendezvous { fmt.eprintln("EXCHANGE_BEGIN",start); m.rendezvous = false }\n\tn := wb_exchange'),
+    inject('src/runtime/client/client_linux.odin',[('n := wb_exchange','if m.rendezvous { fmt.eprintln("EXCHANGE_BEGIN",start); m.rendezvous = false }\n\twhen BOUNDARY { fmt.eprintln("SEND",u8(req.operation)) }\n\tn := wb_exchange'),
+           ('within_budget :: proc', 'BOUNDARY :: #config(WARBAND_DEBIT_TRACE,false)\nwithin_budget :: proc'),
+           ('visits: u64 = 0)', 'visits: u64 = 0, site := #caller_location)'),
+           ('now := wb_elapsed_ms()\n\tif now < s.deadline', '''now := wb_elapsed_ms()
+    before := s.visits
+    defer if BOUNDARY && visits>0 {
+        fmt.eprintln("DEBIT",site.procedure,before,visits,s.visits,s.exhausted,now-(s.deadline-60_000))
+    }
+    if now < s.deadline'''),
            ('s.visits += visits','s.visits += visits\n\tm.debits += visits'),('return reply, within_budget(s,2*reply.tip+1)',
            'before := s.visits\n\tok := within_budget(s,2*reply.tip+1)\n\tm.exchange += s.visits-before\n\treturn reply,ok')],True)
-    inject('cmd/reconcile-custody/main_linux.odin',[('if ref.sequence != 0','fmt.eprintln("CAP",m.embedded,m.consume,m.rows[0],m.rows[1],m.rows[2],m.exchange,session.visits)\n\tif ref.sequence != 0')])
+    inject('cmd/reconcile-custody/main_linux.odin',[('import "core:mem"', 'import "core:mem"\nimport wire "../../src/custody"'),
+           ('if ref.sequence != 0','''fmt.eprintln("CAP",m.embedded,m.consume,m.rows[0],m.rows[1],m.rows[2],m.exchange,session.visits)
+    if c.BOUNDARY {
+        fmt.eprintln("END",result,session.visits,session.exhausted,c.wb_elapsed_ms()-(session.deadline-60_000))
+        if !session.exhausted {
+            page,ok := c.verify(&session,0)
+            fmt.eprintln("OVER",ok,page.tip,session.visits,session.exhausted,m.embedded)
+        }
+        _,again := c.verify(&session,0)
+        fmt.eprintln("LATCH",again,session.visits,session.exhausted,m.embedded)
+        fresh := c.Session{path=session.path,uid=session.uid,store=session.store,epoch=session.epoch,deadline=c.wb_elapsed_ms()+60_000}
+        page,ready := c.verify(&fresh,0)
+        fmt.eprintln("FRESH",ready,page.tip,page.committed.sequence,string(hex.encode(page.committed.head[:])),page.pending!=nil,fresh.visits,m.embedded)
+        if pledge,present := page.pending.(e.Pledge); present {
+            bytes,err := wire.encode_pledge(pledge,fresh.store,fresh.epoch)
+            fmt.eprintln("PLEDGE",err,string(hex.encode(bytes[:])))
+        }
+    }
+    if ref.sequence != 0''')])
     inject('src/runtime/noop_gate_linux.odin',[('continue // reconcile the pre-dispatch','m.rendezvous = true\n\t\t\tcontinue // reconcile the pre-dispatch')])
     inject('src/runtime/noop_evaluator_linux.odin',[('raw := h.observation_bytes','m.evaluator += 1\n\traw := h.observation_bytes')])
     for cmd,marker in [('noop-gate','fmt.println("gate_result"'),('accept-noop','if result==.Accepted')]:
@@ -58,7 +85,7 @@ with tempfile.TemporaryDirectory(dir=root/'.local') as temp:
         marker = 'if !svc.recover_checkpoint(&s) { os.exit(4) }'
         assert text.count(marker)==1
         path.write_text(text.replace(marker,'cold := time.tick_now()\n\t'+marker+
-                        '\n\tfmt.eprintln("COLD",m.history,time.duration_nanoseconds(time.tick_since(cold)))'))
+                        '\n\tif #config(WARBAND_COLD_PROBE,false) { fmt.eprintln("COLD",m.history,time.duration_nanoseconds(time.tick_since(cold))) }'))
         inject('src/store/replay_linux.odin',[('bytes := column(stmt,0)','m.rows[0] += 1\n\t\tbytes := column(stmt,0)'),
                ('if valid && seg.journal==cp', 'if valid && seg.journal==cp && mark_matches(&state,cp.store,seg.last_import) && h.task==nil { m.empty_view = true }\n\t\t\tif valid && seg.journal==cp')])
         inject('src/replay/prefix.odin',[('event,valid := decode','m.rows[1] += 1\n\t\tevent,valid := decode')])
@@ -67,13 +94,21 @@ with tempfile.TemporaryDirectory(dir=root/'.local') as temp:
                ('fmt.println("Journal"','if m.empty_view { fmt.eprintln("LIVE_EMPTY") }\n\tfmt.eprintln("REPLAY",m.embedded,m.consume,m.rows[0],m.rows[1],m.rows[2],m.exchange,s.visits)\n\tfmt.println("Journal"')])
     odin = root/'.local/toolchains/odin-linux_amd64/odin'
     sqlite = root/'.local/dependencies/sqlite/555e07ef33f69a0957d24d8e555b702464a131d6f1607f4c3c1e4551e8e6ca76/linux_amd64'
-    targets = ('custodian','reconcile-custody','replay-noop','replay-live') if recovery else ('custodian','reconcile-custody','noop-gate','accept-noop')
+    targets = ('custodian-cold','custodian','reconcile-custody','debit-boundary','replay-noop','replay-live') if recovery else ('custodian','reconcile-custody','noop-gate','accept-noop')
     for cmd in targets:
+        binary = dest/cmd
+        cold = cmd=='custodian-cold'
+        if cold:
+            cmd='custodian'
         lib = 'custodian/normal' if cmd=='custodian' else 'reconcile'
         extra = [] if cmd=='custodian' else [f'-collection:warband_sqlite={sqlite}']
         if cmd=='noop-gate':
             extra.append('-define:WARBAND_TEST_CLAIM_BARRIER=true')
-        binary = dest/(cmd+'-cold' if recovery and cmd=='custodian' else cmd)
+        if cold:
+            extra.append('-define:WARBAND_COLD_PROBE=true')
+        if cmd=='debit-boundary':
+            cmd='reconcile-custody'
+            extra.append('-define:WARBAND_DEBIT_TRACE=true')
         if cmd=='replay-live':
             cmd='replay-noop'
             extra.append('-define:WARBAND_REPLAY_LIVE_COMPARE=true')

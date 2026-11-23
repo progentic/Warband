@@ -27,7 +27,7 @@ receipt :: proc(frame: c.RejectionFrameBytes) -> s.Import {
 // The epoch request is untrusted input. Its derived new head must be the starting
 // link of the next validated segment, all the way to the authenticated live head.
 run :: proc(path: cstring,session: ^client.Session,archives: []Archive,retry: Maybe(s.ReceiptId), compared: ^e.EventRef) -> (result: Outcome) {
-	defer if session.exhausted { result = .RecoveryLimitExceeded }
+	if session.exhausted { return .RecoveryLimitExceeded }
 	start := client.wb_elapsed_ms()
 	if start < 0 || u64(len(archives))+1 != u64(session.epoch) { return .EpochMismatch }
 	session.deadline = start+60_000
@@ -45,8 +45,14 @@ run :: proc(path: cstring,session: ^client.Session,archives: []Archive,retry: Ma
 }
 
 // Caller holds the store inode lock throughout reconciliation and the following gate.
-reconcile_locked :: proc(writer: s.VerifiedWriter,session: ^client.Session,archives: []Archive,retry: Maybe(s.ReceiptId), compared: ^e.EventRef) -> (result: Outcome) {
-	defer if session.exhausted { result = .RecoveryLimitExceeded }
+reconcile_locked :: proc(writer: s.VerifiedWriter,session: ^client.Session,archives: []Archive,retry: Maybe(s.ReceiptId), compared: ^e.EventRef) -> Outcome {
+	outcome := reconcile_history(writer,session,archives,retry,compared)
+	if session.exhausted { return .RecoveryLimitExceeded }
+	return outcome
+}
+
+@(private)
+reconcile_history :: proc(writer: s.VerifiedWriter,session: ^client.Session,archives: []Archive,retry: Maybe(s.ReceiptId), compared: ^e.EventRef) -> Outcome {
 	if u64(len(archives))+1 != u64(session.epoch) { return .EpochMismatch }
 	page, ok := client.verify(session,0)
 	if !ok { return .CustodyUnavailable }
