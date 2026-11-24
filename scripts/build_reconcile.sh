@@ -9,7 +9,14 @@ mkdir -p "$out"
 sqlite="$PWD/.local/dependencies/sqlite/555e07ef33f69a0957d24d8e555b702464a131d6f1607f4c3c1e4551e8e6ca76/linux_amd64"
 test -f "$sqlite/libsqlite3.a"
 clang-19 -std=c11 -O2 -Wall -Wextra -Werror -c src/runtime/client/socket.c -o "$out/socket.o"
-llvm-ar-19 rcsD "$out/libwb_runtime_client.a" "$out/socket.o"
+native=(clang-19 -std=c11 -O2 -Wall -Wextra -Werror)
+"${native[@]}" -c src/runtime/marker_broker.c -o "$out/marker-broker.o"
+llvm-ar-19 rcsD "$out/libwb_runtime_client.a" "$out/socket.o" "$out/marker-broker.o"
+"${native[@]}" cmd/marker-worker/worker.c -o "$out/marker-worker"
+"${native[@]}" cmd/marker-worker/supervisor.c -o "$out/marker-supervisor"
+"${native[@]}" -DWB_WORKER_PROBE cmd/marker-worker/worker.c -o "$out/worker-probe"
+"${native[@]}" -DWB_OCCUPANCY_TEST src/runtime/marker_broker.c -o "$out/occupancy-probe"
+sha256sum "$out"/{marker-worker,marker-supervisor,worker-probe,occupancy-probe}
 build=(odin build cmd/reconcile-custody -target:linux_amd64 -vet -warnings-as-errors
        "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out")
 "${build[@]}" "-out:$out/reconcile-custody"

@@ -64,6 +64,10 @@ jobs:
           bash scripts/build_reconcile.sh 2>&1 | tee out/linux_amd64/reconcile-build.log
           sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
             /usr/bin/python3 tests/integration/linux/test_receipt_import.py 2>&1 | tee out/linux_amd64/reconcile.log
+      - name: Qualify the confined marker worker on the hosted kernel
+        run: |
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_marker_worker.py --hosted 2>&1 | tee out/linux_amd64/marker-worker.log
       - name: Verify live no-op dispatch and fresh-runtime denial
         run: |
           sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \

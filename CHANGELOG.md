@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.1.6 - 2026-11-23
+
+### Added
+
+- Added a confined Linux marker worker and trusted exclusive-create broker. The matching-kernel harness verifies identity separation, cgroup and seccomp enforcement, bounded time, memory and output, exact creation, independent occupancy refusal and zero automatic retries after uncertain execution. [Worker qualification](docs/verification/traceability-matrix.md#confined-marker-worker)
+
 ## 0.1.5 - 2026-11-23
 
 ### Added
