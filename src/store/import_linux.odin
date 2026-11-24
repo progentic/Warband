@@ -411,7 +411,13 @@ veto_receipt_commit :: proc "c" (_: rawptr) -> i32 {
 }
 
 @(private)
-commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: Maybe(Import), bytes: []u8, acceptance: ^AcceptanceCheck = nil, marker := false, request: ^RequestAppend = nil) -> bool {
+request_commit_barrier :: proc "c" (_:rawptr) -> i32 {
+	context = runtime.default_context()
+	return 0 if linux.kill(linux.getpid(),.SIGSTOP)==.NONE else 1
+}
+
+@(private)
+commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: Maybe(Import), bytes: []u8, acceptance: ^AcceptanceCheck = nil, marker := false, request: ^RequestAppend = nil,model: ^ModelWrite = nil) -> bool {
 	state := cast(^WriterState)w
 	cp := cp
 	db := state.db
@@ -431,13 +437,25 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 	count := read_scalar(state,"SELECT count(*) FROM events")
 	if count != i64(cp.sequence) || !mark_matches(state,cp.store,prior) { return false }
 	if cp.sequence > 0 {
-		last, ok := event_row(db,{cp.store,cp.epoch,cp.sequence},marker=marker,requests=request!=nil)
+		last, ok := event_row(db,{cp.store,cp.epoch,cp.sequence},marker=marker,requests=request!=nil || model!=nil)
 		if !ok || last.pledge.head != cp.head { return false }
 	}
+	if model!=nil && !model_write_eligible(w,model,bytes) { return false }
 	if request!=nil && !request_inventory(w,request.before) { return false }
+	when RequestProof {
+		if model!=nil && bytes[6]==11 {
+			if request_proof_selected(11,"fail-event-insert") &&
+			   !change(db,"CREATE TEMP TRIGGER stop_event BEFORE INSERT ON events BEGIN SELECT RAISE(ABORT,'proof'); END") { return false }
+			if request_proof_selected(11,"fail-pair-insert") &&
+			   !change(db,"CREATE TEMP TRIGGER stop_pair BEFORE INSERT ON consumed_requests BEGIN SELECT RAISE(ABORT,'proof'); END") { return false }
+			if request_proof_selected(11,"inside-commit") { _=sqlite3_commit_hook(db,request_commit_barrier,nil) }
+			if request_proof_selected(11,"veto-commit") { _=sqlite3_commit_hook(db,veto_receipt_commit,nil) }
+		}
+	}
 	if acceptance != nil && !eligible_in_transaction(w,cp,acceptance^) { return false }
 	epoch, seq := word(u64(cp.epoch)), word(u64(cp.sequence)+1)
 	if !transaction_change(db,receipt!=nil,"event","INSERT INTO events(store_id,epoch,sequence,canonical_event) VALUES(?,?,?,?)",cp.store[:],epoch[:],seq[:],bytes) { return false }
+	if request!=nil || model!=nil { request_probe(bytes[6],"event-inserted") }
 	when #config(WARBAND_TEST_STOP_AFTER_EVENT_INSERT, false) {
 		if proof_transaction(bytes,receipt,acceptance) && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return false }
 	}
@@ -446,6 +464,7 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 		if !transaction_change(db,receipt!=nil,"binding","INSERT INTO denial_imports(store_id,custody_ordinal,record_hash,epoch,sequence) VALUES(?,?,?,?,?)",cp.store[:],ord[:],entry.id.hash[:],epoch[:],seq[:]) ||
 		   !transaction_change(db,receipt!=nil,"watermark","INSERT INTO import_watermarks(store_id,last_imported_ordinal) VALUES(?,?) ON CONFLICT(store_id) DO UPDATE SET last_imported_ordinal=excluded.last_imported_ordinal",cp.store[:],ord[:]) { return false }
 	}
+	if model!=nil && bytes[6]==11 && !consumption_row(w,model.issued,bytes,true) { return false }
 	if request!=nil && !request_fact(db,bytes,true) { return false }
 	if acceptance != nil && !insert_accepted(db,acceptance.binding) { return false }
 	when #config(WARBAND_TEST_STOP_IN_WAL_COMMIT, false) {
@@ -459,6 +478,8 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 	when SQLITE_FAULT == 3 {
 		if receipt != nil { _ = sqlite3_commit_hook(db,veto_receipt_commit,nil) }
 	}
+	if model!=nil && !in_request_window(model.issued,client.wb_elapsed_ms()) { return false }
+	if request!=nil || model!=nil { request_probe(bytes[6],"commit-entry") }
 	committed = transaction_change(db,receipt!=nil,"commit","COMMIT")
 	return committed
 }

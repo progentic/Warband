@@ -42,24 +42,39 @@ append_verified_event :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpo
 }
 
 @(private)
-append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,prior: u64,entry: Maybe(Import),bytes: []u8,digest: [32]u8,start,cutoff: i64, acceptance: ^AcceptanceCheck = nil, marker := false, request: ^RequestAppend = nil) -> (e.Checkpoint,bool) {
+append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,prior: u64,entry: Maybe(Import),bytes: []u8,digest: [32]u8,start,cutoff: i64, acceptance: ^AcceptanceCheck = nil, marker := false, request: ^RequestAppend = nil,model: ^ModelWrite = nil) -> (e.Checkpoint,bool) {
+	deadline := min(start+30_000,s.deadline,cutoff)
+	p,committed := commit_pledged(w,s,cp,prior,entry,bytes,digest,start,deadline,acceptance,marker,request,model)
+	if !committed { return {},false }
+	mark := prior
+	if imported, present := entry.(Import); present { mark = imported.id.ordinal }
+	if request!=nil && !request_inventory(w,request.after) { return {},false }
+	if !watermark_matches(w,cp.store,mark) || !confirm_stored(w,s,p,entry,deadline,marker,request!=nil || model!=nil) { return {},false }
+	if request!=nil || model!=nil { request_probe(bytes[6],"confirmed") }
+	return {p.store,p.epoch,p.sequence,p.head},true
+}
+
+@(private)
+commit_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,prior: u64,entry: Maybe(Import),bytes: []u8,digest: [32]u8,start,deadline: i64, acceptance: ^AcceptanceCheck = nil, marker := false, request: ^RequestAppend = nil,model: ^ModelWrite = nil) -> (e.Pledge,bool) {
 	if start < 0 || cp.sequence == max(e.Sequence) { return {},false }
 	p := e.Pledge{store=cp.store,epoch=cp.epoch,previous_sequence=cp.sequence,previous_head=cp.head,sequence=cp.sequence+1,digest=digest}
 	p.head = c.derive_head(p)
-	deadline := min(start+30_000,s.deadline,cutoff)
 	when #config(WARBAND_TEST_STOP_BEFORE_PREPARE, false) {
 		if entry != nil && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return {},false }
 	}
+	if request!=nil || model!=nil { request_probe(bytes[6],"before-prepare") }
 	reply, prepared := client.exchange(s,{.Prepare,p},deadline)
 	if !prepared || reply.committed != cp || reply.pending != p || reply.receipt == ([32]u8{}) { return {},false }
 	when #config(WARBAND_TEST_STOP_AFTER_PREPARE, false) {
 		if entry != nil && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return {},false }
 	}
+	if request!=nil || model!=nil { request_probe(bytes[6],"prepared") }
 	when #config(WARBAND_INTAKE_STOP, 0)==1 {
 		if marker && linux.kill(linux.getpid(),TEST_STOP_SIGNAL)!=.NONE { return {},false }
 	}
 	now := client.wb_elapsed_ms()
-	if now < start || now >= deadline || !client.within_budget(s,u64(cp.sequence)+1) || !commit_event(w,cp,prior,entry,bytes,acceptance,marker,request) { return {},false }
+	if now < start || now >= deadline || !client.within_budget(s,u64(cp.sequence)+1) || !commit_event(w,cp,prior,entry,bytes,acceptance,marker,request,model) { return {},false }
+	if request!=nil || model!=nil { request_probe(bytes[6],"committed") }
 	edge :: #config(WARBAND_DECISION_COMMIT_STOP,0)
 	when edge!=0 {
 		#assert(edge==12 || edge==13)
@@ -80,11 +95,7 @@ append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,pri
 		target := marker if #config(WARBAND_INTAKE_STOP, 0)==2 else bytes[6]==1
 		if target && linux.kill(linux.getpid(),TEST_STOP_SIGNAL)!=.NONE { return {},false }
 	}
-	mark := prior
-	if imported, present := entry.(Import); present { mark = imported.id.ordinal }
-	if request!=nil && !request_inventory(w,request.after) { return {},false }
-	if !watermark_matches(w,cp.store,mark) || !confirm_stored(w,s,p,entry,deadline,marker,request!=nil) { return {},false }
-	return {p.store,p.epoch,p.sequence,p.head},true
+	return p,true
 }
 
 // The coordinator supplies only event types qualified for this isolated path.
@@ -136,7 +147,7 @@ append_noop :: proc(w: VerifiedWriter, session: ^client.Session, cp: e.Checkpoin
 
 // Only the live marker path opts into marker read-back. All v1 callers keep their reader.
 append_intake :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,mark: u64,
-                      event: union {a.TaskCreated,a.MarkerProposal,a.MarkerApproval,a.MarkerPermit,a.MarkerClaim,a.MarkerObservation,a.MarkerEvaluation,a.RejectionRecorded}, deadline: i64) -> (e.Checkpoint,bool) {
+                      event: union {a.TaskCreated,a.MarkerProposal,a.MarkerApproval,a.MarkerPermit,a.MarkerClaim,a.MarkerObservation,a.MarkerEvaluation,a.RejectionRecorded}, deadline: i64,model: ^ModelWrite = nil) -> (e.Checkpoint,bool) {
 	start := client.wb_elapsed_ms()
 	if start<0 || cp.sequence==max(e.Sequence) { return {},false }
 	next := e.EventRef{cp.store,cp.epoch,cp.sequence+1}
@@ -146,7 +157,7 @@ append_intake :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,mark
 		wire,err := a.encode_task_created(v,cp.store,cp.epoch)
 		digest,de := a.digest_task_created(v,cp.store,cp.epoch)
 		if err!=.None || de!=.None { return {},false }
-		return append_pledged(w,s,cp,mark,nil,wire[:],digest,start,deadline)
+		return append_pledged(w,s,cp,mark,nil,wire[:],digest,start,deadline,marker=model!=nil,model=model)
 	case a.MarkerProposal:
 		if v.reference!=next || v.previous_head!=cp.head { return {},false }
 		wire,err := a.encode_marker_proposal(v,cp.store,cp.epoch)

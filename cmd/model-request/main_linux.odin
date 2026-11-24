@@ -1,6 +1,7 @@
 package main
 
 import r "../../src/runtime"
+import client "../../src/runtime/client"
 import "core:encoding/hex"
 import "core:fmt"
 import "core:mem"
@@ -26,6 +27,17 @@ run :: proc() -> int {
 			if status==.Ready { return 0 }
 			if op!=.Recover || (status!=.Recorded && status!=.Expired) { return 1 }
 		}
+	case "retry":
+		input:[32+8192+1]u8
+		n:=client.read_payload(input[:])
+		if n<32 || n>=len(input) { return 2 }
+		bytes,valid:=hex.decode(input[:32])
+		if !valid || len(bytes)!=16 { return 2 }
+		id:[16]u8
+		copy(id[:],bytes)
+		status,_:=r.request_round(session,.Admit,id=id,candidate=input[32:n])
+		fmt.println(status)
+		return 0 if status==.Admitted else 1
 	case "issue-empty","issue-abc":
 		status,id:=r.request_round(session,.Issue,1 if os.args[1]=="issue-empty" else 2)
 		if status!=.Issued { fmt.println(status); return 1 }
@@ -41,7 +53,28 @@ run :: proc() -> int {
 		}
 		b:[1]u8
 		n,err:=l.read(0,b[:])
-		if err!=.NONE || n!=1 || b[0]!='c' { return 1 }
+		if err!=.NONE || n!=1 { return 1 }
+		if b[0]=='a' || (b[0]=='r' && #config(WARBAND_REQUEST_PROOF,false)) {
+			input:[8193]u8
+			count:=client.read_payload(input[:])
+			if count<0 || count==len(input) { return 1 }
+			when #config(WARBAND_REQUEST_PROOF,false) {
+				if b[0]=='r' {
+					child,failed:=l.fork()
+					if failed!=.NONE { return 1 }
+					status,_=r.request_round(session,.Admit,id=id,candidate=input[:count])
+					fmt.println(status)
+					if child==0 { l.exit_group(0) }
+					code:u32
+					_,we:=l.wait4(child,&code,{},nil)
+					return 0 if we==.NONE && code==0 else 1
+				}
+			}
+			status,_=r.request_round(session,.Admit,id=id,candidate=input[:count])
+			fmt.println(status)
+			return 0 if status==.Admitted else 1
+		}
+		if b[0]!='c' { return 1 }
 		status,_=r.request_round(session,.Cancel,id=id)
 		fmt.println(status)
 		return 0 if status==.Expired else 1

@@ -5,6 +5,8 @@ import e "../domain/events"
 import r "../replay"
 import client "../runtime/client"
 import "core:crypto/sha2"
+@(require) import "core:os"
+@(require) import l "core:sys/linux"
 
 @(private)
 REQUEST_DDL :: `CREATE TABLE request_facts (
@@ -31,7 +33,10 @@ provision_requests :: proc(w: VerifiedWriter,history: ^r.RequestHistory) -> bool
 	if !request_schema(state.db) {
 		if history.count!=0 || !change(state.db,REQUEST_DDL) { return false }
 	}
-	ok = request_inventory(w,history) && change(state.db,"COMMIT")
+	if consumption_count(w)<0 {
+		if history.count!=0 || !change(state.db,CONSUMPTION_DDL) { return false }
+	}
+	ok = consumption_count(w)==0 && request_inventory(w,history) && change(state.db,"COMMIT")
 	return ok
 }
 
@@ -91,4 +96,100 @@ append_request_fact :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoin
 	sha2.final(&h,digest[:])
 	_,confirmed := append_pledged(w,s,cp,mark,nil,wire,digest,client.wb_elapsed_ms(),s.deadline,marker=true,request=ctx)
 	return confirmed
+}
+
+@(private)
+CONSUMPTION_DDL :: `CREATE TABLE consumed_requests (
+ store_id BLOB NOT NULL CHECK(length(store_id)=16), request_id BLOB NOT NULL CHECK(length(request_id)=16),
+ epoch BLOB NOT NULL CHECK(length(epoch)=8), sequence BLOB NOT NULL CHECK(length(sequence)=8),
+ catalog_id BLOB NOT NULL CHECK(length(catalog_id)=4), payload_digest BLOB NOT NULL CHECK(length(payload_digest)=32),
+ event_digest BLOB NOT NULL CHECK(length(event_digest)=32), fingerprint BLOB NOT NULL CHECK(length(fingerprint)=32),
+ PRIMARY KEY(store_id,request_id), UNIQUE(store_id,epoch,sequence),
+ FOREIGN KEY(store_id,epoch,sequence) REFERENCES events(store_id,epoch,sequence)
+) STRICT, WITHOUT ROWID`
+
+consumption_count :: proc(w: VerifiedWriter) -> i64 {
+	state:=cast(^WriterState)w
+	stmt,ok:=bound(state.db,"SELECT sql FROM sqlite_schema WHERE tbl_name='consumed_requests' AND sql IS NOT NULL")
+	if !ok { return -1 }
+	defer sqlite3_finalize(stmt)
+	if sqlite3_step(stmt)!=ROW || string(sqlite3_column_text(stmt,0))!=CONSUMPTION_DDL || sqlite3_step(stmt)!=DONE { return -1 }
+	n,found:=read_scalar(state,"SELECT count(*) FROM consumed_requests").(i64)
+	return n if found else -1
+}
+
+ModelWrite :: struct {issued: a.RequestIssued, history: ^r.RequestHistory}
+
+in_request_window :: proc(issued: a.RequestIssued,now: i64) -> bool {
+	return now>=0 && u64(now)>=issued.start_ms && u64(now)<issued.deadline_ms
+}
+
+@(private)
+model_write_eligible :: proc(w: VerifiedWriter,model: ^ModelWrite,wire: []u8) -> bool {
+	entry:=r.find_request(model.history,model.issued.id)
+	return (wire[6]==1 || wire[6]==11) && entry!=nil && entry.issued==model.issued && entry.expiry==nil &&
+	       in_request_window(model.issued,client.wb_elapsed_ms()) && request_inventory(w,model.history) && consumption_count(w)==0
+}
+
+// Regenerate every binding from the witnessed issuance and the canonical proposal.
+consumption_row :: proc(w: VerifiedWriter, issued: a.RequestIssued,wire: []u8,insert: bool) -> bool {
+	ref:=issued.reference
+	proposal,decoded:=a.decode_marker_proposal(wire,ref.store,ref.epoch)
+	if decoded!=.None || proposal.reference.sequence<=ref.sequence { return false }
+	f,payload,fe:=a.marker_proposal_hashes(proposal,ref.store,ref.epoch)
+	digest,de:=a.digest_marker_proposal(proposal,ref.store,ref.epoch)
+	if fe!=.None || de!=.None || payload!=issued.payload_digest { return false }
+	v:=issued
+	catalog:=word(u64(v.catalog_id))
+	db:=cast(^WriterState)w
+	if insert {
+		return change(db.db,"INSERT INTO consumed_requests VALUES(?,?,?,?,?,?,?,?)",wire[8:24],v.id[:],
+		              wire[24:32],wire[32:40],catalog[:4],payload[:],digest[:],f[:])
+	}
+	stmt,ok:=bound(db.db,"SELECT 1 FROM consumed_requests WHERE store_id=? AND request_id=? AND epoch=? AND sequence=? AND catalog_id=? AND payload_digest=? AND event_digest=? AND fingerprint=?",
+	               wire[8:24],v.id[:],wire[24:32],wire[32:40],catalog[:4],payload[:],digest[:],f[:])
+	if !ok { return false }
+	defer sqlite3_finalize(stmt)
+	return sqlite3_step(stmt)==ROW && sqlite3_step(stmt)==DONE
+}
+
+// Return an unconfirmed pledge and an upper bound on the physical commit time.
+// A committed pair remains spent even when the clock proof is unavailable.
+commit_model_pair :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,mark: u64,
+                          model: ^ModelWrite,v: a.MarkerProposal) -> (e.Pledge,i64,bool) {
+	if v.reference!=(e.EventRef{cp.store,cp.epoch,cp.sequence+1}) || v.previous_head!=cp.head { return {},0,false }
+	b,err:=a.encode_marker_proposal(v,cp.store,cp.epoch)
+	digest,de:=a.digest_marker_proposal(v,cp.store,cp.epoch)
+	start:=client.wb_elapsed_ms()
+	if err!=.None || de!=.None || !in_request_window(model.issued,start) ||
+	   !client.within_budget(s,4*u64(model.history.count)+2) { return {},0,false }
+	cutoff:=min(i64(model.issued.deadline_ms),s.deadline)
+	p,committed:=commit_pledged(w,s,cp,mark,nil,b.data[:b.length],digest,start,cutoff,marker=true,model=model)
+	end:=client.wb_elapsed_ms()
+	if !committed || end<start || !in_request_window(model.issued,end) { return {},0,false }
+	return p,end,true
+}
+
+// The production binary has no selector or signal path. The proof binary
+// stops at real boundaries so the external harness controls process death.
+RequestProof :: #config(WARBAND_REQUEST_PROOF,false)
+request_proof_selected :: proc(kind:u8,stage:string) -> bool {
+	when RequestProof {
+		buf:[64]u8
+		label:=os.get_env(buf[:],"WB_REQUEST_EDGE")
+		expected:=""
+		switch kind {
+		case 1: expected="01."
+		case 11: expected="11."
+		case 18: expected="18."
+		case 19: expected="19."
+		case: return false
+		}
+		return len(label)>3 && label[:3]==expected && label[3:]==stage
+	} else { return false }
+}
+request_probe :: proc(kind:u8,stage:string) {
+	when RequestProof {
+		if request_proof_selected(kind,stage) { assert(l.kill(l.getpid(),.SIGSTOP)==.NONE) }
+	}
 }
