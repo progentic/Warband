@@ -92,7 +92,7 @@ transaction_change :: proc(db: Database, receipt: bool, label: string, sql: cstr
 }
 
 @(private)
-event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil, marker := false) -> (Row, bool) {
+event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil, marker := false, requests := false) -> (Row, bool) {
 	ref := ref
 	epoch, sequence := word(u64(ref.epoch)), word(u64(ref.sequence))
 	query :: "SELECT canonical_event,custody_ordinal,record_hash FROM events LEFT JOIN denial_imports USING(store_id,epoch,sequence) WHERE store_id=? AND epoch=? AND sequence=?"
@@ -234,6 +234,14 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil, ma
 		v,err := a.decode_marker_accepted(b,ref.store,ref.epoch)
 		if err!=.None || v.reference!=ref { return {},false }
 		marker_accepted=v
+	case 18:
+		if !requests || history!=nil { return {},false }
+		v,err := a.decode_request_issued(b,ref.store,ref.epoch)
+		if err!=.None || v.reference!=ref { return {},false }
+	case 19:
+		if !requests || history!=nil { return {},false }
+		v,err := a.decode_request_expired(b,ref.store,ref.epoch)
+		if err!=.None || v.reference!=ref { return {},false }
 	case: return {},false
 	}
 	// Hash the persisted body itself after the kind decoder has validated its representation.
@@ -278,7 +286,7 @@ mark_matches :: proc(state: ^WriterState, id: e.StoreId, expected: u64) -> bool 
 // Check every row in the installed epoch segment, including the checkpoint-covered prefix.
 // Numbered primary-key lookups preserve numeric order with little-endian BLOB keys.
 @(private)
-inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([32]u8), imports: ^[dynamic]Import, s: ^client.Session, history: ^NoopHistory = nil, bindings: ^[dynamic]AcceptedBinding = nil, marker := false) -> (Segment,bool) {
+inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([32]u8), imports: ^[dynamic]Import, s: ^client.Session, history: ^NoopHistory = nil, bindings: ^[dynamic]AcceptedBinding = nil, marker := false, requests := false) -> (Segment,bool) {
 	total, ok := read_scalar(state,"SELECT count(*) FROM events").(i64)
 	if !ok || total < 0 || !client.within_budget(s,u64(total)) { return {},false }
 	result := Segment{journal={store=cp.store,epoch=cp.epoch}}
@@ -286,7 +294,7 @@ inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([3
 	} else if cp.sequence == 0 { result.journal.head = cp.head }
 	start_count := len(imports)
 	for n in 1..=total {
-		row, found := event_row(state.db,{cp.store,cp.epoch,e.Sequence(n)},history,marker)
+		row, found := event_row(state.db,{cp.store,cp.epoch,e.Sequence(n)},history,marker,requests)
 		if !found || !client.within_budget(s) { return {},false }
 		p := row.pledge
 		if n == 1 && genesis == nil && cp.sequence != 0 { result.journal.head = p.previous_head }
@@ -340,8 +348,8 @@ limit_writer_cache :: proc(w: VerifiedWriter) -> bool {
 	return configure_cache(cast(^WriterState)w)
 }
 
-inspect_writer :: proc(w: VerifiedWriter, cp: e.Checkpoint, genesis: Maybe([32]u8), imports: ^[dynamic]Import, session: ^client.Session, marker := false) -> (Segment,bool) {
-	return inspect_segment(cast(^WriterState)w,cp,genesis,imports,session,marker=marker)
+inspect_writer :: proc(w: VerifiedWriter, cp: e.Checkpoint, genesis: Maybe([32]u8), imports: ^[dynamic]Import, session: ^client.Session, marker := false, requests := false) -> (Segment,bool) {
+	return inspect_segment(cast(^WriterState)w,cp,genesis,imports,session,marker=marker,requests=requests)
 }
 
 watermark_matches :: proc(w: VerifiedWriter, id: e.StoreId, ordinal: u64) -> bool {
@@ -403,7 +411,7 @@ veto_receipt_commit :: proc "c" (_: rawptr) -> i32 {
 }
 
 @(private)
-commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: Maybe(Import), bytes: []u8, acceptance: ^AcceptanceCheck = nil, marker := false) -> bool {
+commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: Maybe(Import), bytes: []u8, acceptance: ^AcceptanceCheck = nil, marker := false, request: ^RequestAppend = nil) -> bool {
 	state := cast(^WriterState)w
 	cp := cp
 	db := state.db
@@ -423,9 +431,10 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 	count := read_scalar(state,"SELECT count(*) FROM events")
 	if count != i64(cp.sequence) || !mark_matches(state,cp.store,prior) { return false }
 	if cp.sequence > 0 {
-		last, ok := event_row(db,{cp.store,cp.epoch,cp.sequence},marker=marker)
+		last, ok := event_row(db,{cp.store,cp.epoch,cp.sequence},marker=marker,requests=request!=nil)
 		if !ok || last.pledge.head != cp.head { return false }
 	}
+	if request!=nil && !request_inventory(w,request.before) { return false }
 	if acceptance != nil && !eligible_in_transaction(w,cp,acceptance^) { return false }
 	epoch, seq := word(u64(cp.epoch)), word(u64(cp.sequence)+1)
 	if !transaction_change(db,receipt!=nil,"event","INSERT INTO events(store_id,epoch,sequence,canonical_event) VALUES(?,?,?,?)",cp.store[:],epoch[:],seq[:],bytes) { return false }
@@ -437,6 +446,7 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 		if !transaction_change(db,receipt!=nil,"binding","INSERT INTO denial_imports(store_id,custody_ordinal,record_hash,epoch,sequence) VALUES(?,?,?,?,?)",cp.store[:],ord[:],entry.id.hash[:],epoch[:],seq[:]) ||
 		   !transaction_change(db,receipt!=nil,"watermark","INSERT INTO import_watermarks(store_id,last_imported_ordinal) VALUES(?,?) ON CONFLICT(store_id) DO UPDATE SET last_imported_ordinal=excluded.last_imported_ordinal",cp.store[:],ord[:]) { return false }
 	}
+	if request!=nil && !request_fact(db,bytes,true) { return false }
 	if acceptance != nil && !insert_accepted(db,acceptance.binding) { return false }
 	when #config(WARBAND_TEST_STOP_IN_WAL_COMMIT, false) {
 		if proof_transaction(bytes,receipt,acceptance) {
