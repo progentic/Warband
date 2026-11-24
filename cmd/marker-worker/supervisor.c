@@ -191,7 +191,7 @@ stop:
     int more;
     do { more=drain(out[0],&count); } while (more==2);
     int empty=event_value(cg,"cgroup.events","populated",0) && equals(cg,"cgroup.procs","");
-    if (more!=0 || reaped!=pid || !empty) result=WB_FAILURE;
+    if (more!=0 || reaped!=pid || !empty) result=0; // no stop proof leaves the runtime channel silent
     else if (count>4096) result=WB_OUTPUT;
     else if (event_value(cg,"memory.events.local","oom_kill",1)) result=WB_MEMORY;
     else if (result==WB_CLEAN && (!WIFEXITED(status) || WEXITSTATUS(status))) result=WB_FAILURE;
@@ -219,7 +219,12 @@ int main(int argc,char **argv) {
     int64_t end; struct pollfd p={rt,POLLIN,0};
     if (poll(&p,1,180000)!=1 || recv(rt,&end,sizeof(end),MSG_TRUNC)!=sizeof(end)) return 4;
     uint8_t result=supervise(rt,runtime,ids[0],worker,cg,argv[1],end);
-    // A refused launch uses an ordinary packet without a channel descriptor.
-    int sent=send(rt,&result,1,MSG_NOSIGNAL)==1;
+    int suppress=0;
+#ifdef WB_COMPLETION_PROOF
+    char mode=0;
+    suppress=roles("completion.probe",&mode,1) && mode=='u';
+#endif
+    // Receipt of this byte proves reaping and an empty worker cgroup; silence withholds that proof.
+    int sent=result && !suppress && send(rt,&result,1,MSG_NOSIGNAL)==1;
     return result==WB_CLEAN && sent ? 0 : 1;
 }

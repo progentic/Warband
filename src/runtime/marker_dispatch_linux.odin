@@ -14,7 +14,12 @@ import l "core:sys/linux"
 
 Threshold :: enum {Unavailable, Claimed, Eligible, NoLiveGrant, ChainMismatch, PayloadMismatch, FingerprintMismatch,
                    PolicyMismatch, TaskMismatch, ControlMismatch, DirectoryLost, DirectoryMismatch, Occupied,
-                   Expired, OperationDeadline, ReconciliationRequired, RefusalUnconfirmed, WorkerStopped, ExecutionUncertain}
+                   Expired, OperationDeadline, ReconciliationRequired, RefusalUnconfirmed, WorkerStopped, ExecutionUncertain,
+                   Completed, Recorded, CompletionIncomplete, CompletionReconciliation, CompletionUnconfirmed,
+                   AcceptanceUnavailable, AcceptanceHistorySegmentInvalid,
+                   AcceptanceHistoryRowsInvalid, AcceptanceHistoryReceiptCountInvalid, AcceptanceHistoryReceiptBindingInvalid,
+                   AcceptanceHistoryProjectionInvalid, AcceptanceIndexInvalid, AcceptanceVerdictInvalid,
+                   AcceptanceVersionsInvalid, AcceptanceReferenceInvalid, AcceptanceCommitUnconfirmed}
 // The confirmed handoff moves the original open directory into one bounded order.
 @(private)
 WorkerRequest :: struct {
@@ -23,9 +28,23 @@ WorkerRequest :: struct {
 }
 #assert(offset_of(WorkerRequest,payload)==176)
 @(private)
-WorkerOrder :: struct {fd: l.Fd, request: WorkerRequest}
-foreign import marker_native "system:wb_runtime_client"
-foreign marker_native { wb_execute_marker :: proc(fd: i32, q: ^WorkerRequest) -> i32 --- }
+WorkerOutcome :: struct {delivery,stopped,writer_closed,effect: u8}
+@(private)
+WorkerOrder :: struct {fd: l.Fd, claim: e.EventRef, request: WorkerRequest}
+COMPLETION_PROOF :: #config(WARBAND_COMPLETION_PROOF,false)
+when COMPLETION_PROOF {
+	foreign import marker_proof "system:wb_runtime_client_proof"
+	foreign marker_proof { wb_execute_marker_proof :: proc(fd: i32, q: ^WorkerRequest, outcome: ^WorkerOutcome) -> i32 --- }
+} else {
+	foreign import marker_native "system:wb_runtime_client"
+	foreign marker_native { wb_execute_marker :: proc(fd: i32, q: ^WorkerRequest, outcome: ^WorkerOutcome) -> i32 --- }
+}
+
+@(private)
+execute_marker :: proc(fd: i32,q: ^WorkerRequest,outcome: ^WorkerOutcome) -> i32 {
+	when COMPLETION_PROOF { return wb_execute_marker_proof(fd,q,outcome) }
+	else { return wb_execute_marker(fd,q,outcome) }
+}
 
 @(private)
 MarkerOffer :: struct {
@@ -165,7 +184,7 @@ gate_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoin
 			req.attempt,req.capability,req.directory=cast([16]u8)grant.attempt,cast([16]u8)grant.capability,cast([16]u8)p.directory
 			req.binding,req.digest=digest,q.payload_digest
 			copy(req.payload[:p.length],p.payload[:p.length])
-			order.fd,prepared.directory_fd=prepared.directory_fd,-1
+			order.fd,order.claim,prepared.directory_fd=prepared.directory_fd,related,-1
 		}
 		fmt.println("BrokerHandoff",string(hex.encode(related.store[:])),related.epoch,related.sequence,
 		            string(hex.encode(grant.attempt[:])),string(hex.encode(digest[:])))
@@ -233,7 +252,7 @@ gate_round :: proc(prepared: ^PreparedProposal,slot: ^Maybe(LiveGrant),q: ^Marke
 	return result
 }
 
-marker_threshold :: proc(prepared: ^PreparedProposal,slot: ^Maybe(LiveGrant),operator: u32,admission: i64,arena: ^mem.Arena,execute:=false) -> Threshold {
+marker_threshold :: proc(prepared: ^PreparedProposal,slot: ^Maybe(LiveGrant),operator: u32,admission: i64,arena: ^mem.Arena,execute:=false,complete:=false) -> Threshold {
 	defer slot^=nil
 	if prepared==nil || slot^==nil { return .NoLiveGrant }
 	p := &prepared.proposal
@@ -269,8 +288,12 @@ marker_threshold :: proc(prepared: ^PreparedProposal,slot: ^Maybe(LiveGrant),ope
 	}
 	order := WorkerOrder{fd=-1}
 	defer if order.fd>=0 { l.close(order.fd) }
-	result := gate_round(prepared,slot,&q,supplied_policy,operator,admission,true,arena,&order if execute else nil)
-	if !execute || result!=.Eligible { return result }
-	if order.fd<0 || wb_execute_marker(i32(order.fd),&order.request)!=1 { return .ExecutionUncertain }
+	result := gate_round(prepared,slot,&q,supplied_policy,operator,admission,true,arena,&order if execute || complete else nil)
+	if (!execute && !complete) || result!=.Eligible { return result }
+	if order.fd<0 { return .ExecutionUncertain }
+	outcome: WorkerOutcome
+	executed := execute_marker(i32(order.fd),&order.request,&outcome)==1
+	if complete { return marker_completion(&order,p^,outcome,arena) }
+	if !executed { return .ExecutionUncertain }
 	return .WorkerStopped
 }
