@@ -48,13 +48,13 @@ def issued(f):
         line = proc.stdout.readline().split()
         assert len(line) == 2 and line[0] == b'Issued', line
         request_id = bytes.fromhex(line[1].decode())
-        wire, = f.query('SELECT wire FROM request_facts')[0]
+        wire, = f.query("SELECT wire FROM request_facts WHERE request_id=? AND kind=x'12'", (request_id,))[0]
         assert wire[6:8] == b'\x12\x00' and wire[56:72] == request_id
         assert wire[104:112] == struct.pack('<II', 1, 2)
         assert wire[112:144] == hashlib.sha256(b'abc').digest()
         start, deadline = struct.unpack_from('<QQ', wire, 144)
         assert deadline - start == 30000
-        assert f.rows()[0][0][3] == wire and f.verify()[2][24:32] == LE(1)
+        assert f.rows()[0][-1][3] == wire and f.verify()[2][24:32] == wire[32:40]
         yield proc, request_id
     finally:
         if proc.poll() is None:

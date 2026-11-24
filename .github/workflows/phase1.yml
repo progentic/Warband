@@ -64,6 +64,12 @@ jobs:
           bash scripts/build_reconcile.sh 2>&1 | tee out/linux_amd64/reconcile-build.log
           sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
             /usr/bin/python3 tests/integration/linux/test_receipt_import.py 2>&1 | tee out/linux_amd64/reconcile.log
+      - name: Verify model request issuance, atomic intake and recovery
+        run: |
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_model_request.py 2>&1 | tee out/linux_amd64/model-request.log
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_request_recovery.py 2>&1 | tee out/linux_amd64/request-recovery.log
       - name: Qualify the confined marker worker on the hosted kernel
         run: |
           sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
