@@ -6,9 +6,9 @@ This matrix links constitutional rules to contracts, planned implementation, ver
 
 **Specified at entry. Live evidence pending.** The [adapter decision](../decisions/0010-provider-adapter-boundary.md) and [proposal contract](../contracts/model-proposals.md#phase-4-boundary-specification) define the boundary. The following checks are due on the Phase 4 path.
 
-The [increment 1 scope and fixture oracles](../engineering/phase4-entry-review.md#increment-1-scope-for-pure-candidate-validation) specify pure validation in `src/model/candidate.odin` and planned cases in `tests/odin/model/candidate_test.odin`. Durable request-ID consumption has a separate review.
+The [increment 1 scope and fixture oracles](../engineering/phase4-entry-review.md#increment-1-scope-for-pure-candidate-validation) map the pure validator to `src/model/candidate.odin` and its passing named fixtures in `tests/odin/model/candidate_test.odin`.
 
-For WB-CON-002/007/008 and WB-NEG-005/006/009, [ADR-0011](../decisions/0011-atomic-model-request-consumption.md) selects atomic request consumption. Verify the issuance, race and restart dispositions against the actual SQLite and custody boundaries, using the [binding and provenance fixtures](../decisions/0011-atomic-model-request-consumption.md#increment-2-fixtures-owed). Every mismatch requires reconciliation and zero new admissions. Increment 2 evidence is pending.
+For WB-CON-002/007/008 and WB-NEG-005/006/009, [ADR-0011](../decisions/0011-atomic-model-request-consumption.md) selects atomic request consumption. The [increment 2 target record](phase4-request-recovery.md) covers custody-confirmed issuance and expiry, atomic kind-11 intake and conservative recovery on x64-review. The [binding and provenance fixtures](../decisions/0011-atomic-model-request-consumption.md#increment-2-fixtures-owed) produced reconciliation and zero new admissions. The later adapter and operator-workflow paths still owe live evidence.
 
 | Requirement | Verification owed |
 |---|---|

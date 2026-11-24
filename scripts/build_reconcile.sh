@@ -97,3 +97,8 @@ sha256sum "$out/marker-approval-completion-proof" "$out/marker-approval-accept-b
 
 odin build cmd/model-request -target:linux_amd64 -vet -warnings-as-errors \
     "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out" "-out:$out/model-request"
+odin build cmd/model-request -target:linux_amd64 -vet -warnings-as-errors -define:WARBAND_REQUEST_PROOF=true \
+    "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out" "-out:$out/model-request-proof"
+sha256sum "$out/model-request" "$out/model-request-proof"
+odin test tests/integration/linux/request_window.odin -file -target:linux_amd64 -vet -warnings-as-errors \
+    "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out" "-out:$out/request-window-test"
