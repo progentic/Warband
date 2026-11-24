@@ -6,6 +6,8 @@ This matrix links constitutional rules to contracts, planned implementation, ver
 
 **Specified at entry. Live evidence pending.** The [adapter decision](../decisions/0010-provider-adapter-boundary.md) and [proposal contract](../contracts/model-proposals.md#phase-4-boundary-specification) define the boundary. The following checks are due on the Phase 4 path.
 
+The [increment 1 scope and fixture oracles](../engineering/phase4-entry-review.md#increment-1-scope-for-pure-candidate-validation) specify pure validation in `src/model/candidate.odin` and planned cases in `tests/odin/model/candidate_test.odin`. Durable request-ID consumption has a separate review.
+
 | Requirement | Verification owed |
 |---|---|
 | WB-CON-002/008 · WB-NEG-001/002/005/006/012 | Feed live and fixture candidates through the same parser. Reject malformed, oversized, unknown, stale and duplicate inputs. Replay a consumed request ID after restart and verify it cannot reach intake again. |

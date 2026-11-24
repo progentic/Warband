@@ -20,6 +20,43 @@
 
 This increment records the [adapter decision](../decisions/0010-provider-adapter-boundary.md), the [proposal contract](../contracts/model-proposals.md#phase-4-boundary-specification) and the [verification obligations](../verification/traceability-matrix.md#phase-4-provider-and-operator-workflow). The project phase declaration stays at 3 until separately authorized runtime activation.
 
+## Increment 1 scope for pure candidate validation
+
+**Baseline.** Phase 4 entry commit `d9dcf84f85c1e3f834bda92461a629960e997e13`, tree `4ccb1ea24813ec5b84d4e3a18fd65ca0cc114306`. The implementation budget proposed for owner review is **three files and 450 added non-generated lines total**, including fixtures, tests and the manifest entry. This scope PR records the design for review.
+
+| Proposed implementation file | Purpose |
+|---|---|
+| `src/model/candidate.odin` | One provider-independent, pure validator and its result types. |
+| `tests/odin/model/candidate_test.odin` | In-memory fixtures exercising the validator's public entry point. |
+| `tests/odin-packages.json` | Register the test package and named tests with the existing inventory. |
+
+**Inputs and result.** Supply candidate bytes, the expected issued request ID, and the selected catalog example (identity and canonical bytes). Success returns exactly the matched catalog identity, the proven request-ID echo, and the decoded byte length. The validator compares the complete decoded payload with the example. Future intake obtains its bytes from that trusted catalog entry. Neither a candidate buffer nor a slice into decoded model bytes travels in the success value. Failure returns only a typed rejection.
+
+**Reader.** Check byte length before inspecting UTF-8 or JSON. Read the object member sequence and compare decoded key names while duplicates are still observable. A map that has already collapsed duplicate members cannot establish uniqueness. Accept any member order and JSON whitespace. Require exactly one complete object and inspect the remaining bytes for trailing content. Use the pinned Odin toolchain and its standard library.
+
+**Fixture acceptance criteria.** Each negative fixture isolates one fault and asserts the exact rejection. Existing marker codec fixtures begin with runtime-owned records and cannot exercise this untrusted JSON boundary. These cases cover WB-CON-002 and the parser portions of WB-NEG-001/002/012.
+
+| Expected result | Fixture |
+|---|---|
+| Success | Valid empty example and exact 4,096-byte example. Check all three result fields. A valid object padded with JSON whitespace to exactly 8,192 bytes also succeeds. |
+| `CandidateTooLarge` | 8,193 bytes with an invalid first byte, proving size takes precedence over decoding. |
+| `InvalidUtf8` | Within the size limit, supply an invalid UTF-8 sequence. |
+| `InvalidJson` | Malformed JSON or a top-level value other than an object. |
+| `TrailingContent` | Append a second value or a non-whitespace byte after a complete valid object. |
+| `MissingKey` | Omit a required member. |
+| `UnknownKey` | Add an unrecognized member to an otherwise valid object. |
+| `DuplicateKey` | Repeat a known key with identical values, then with conflicting values. Include an escape-equivalent spelling such as `action` and `\u0061ction`. |
+| `WrongFieldType` | Supply an incorrect JSON type for each field, including a boolean for the integer version. |
+| `UnsupportedSchemaVersion` | Supply integer version 2. |
+| `WrongAction` | Supply an unregistered action string. |
+| `WrongExpectedEffect` | Change only the expected effect string. |
+| `RequestIdMismatch` | Change one digit, or uppercase a hex letter of the issued lowercase ID. |
+| `NonCanonicalBase64` | Exercise missing required padding, embedded whitespace, a character outside the alphabet, and nonzero unused pad bits. |
+| `DecodedPayloadTooLarge` | Supply canonical Base64 encoding 4,097 bytes within the candidate cap. |
+| `PayloadMismatch` | Mutate one byte of the exact 4,096-byte example, preserve its length and re-encode canonically. |
+
+**Verification and handoff.** Run the new Odin package with vet and warnings as errors, then verify its named inventory and run documentation governance checks. The pure validator observes only supplied values. Repeat validation against identical inputs gives the same result. Durable ID consumption and crash disposition belong to increment 2. Provider envelope handling, project-settings verification and egress belong to increment 3. Marker intake and runtime activation retain their separate gates.
+
 ## Exit obligations retained
 
 Phase 4 exit still owes live provider and egress evidence, deterministic fixture reproduction, approval-binding regressions, WB-NEG-001 through WB-NEG-012 coverage on the real path, and explicit rejection of learned promotion under WB-CON-010 and WB-INV-010. The ADR-0006 disposition and the production-target rerun remain due at their recorded gates and are not Phase 4 entry blockers.
