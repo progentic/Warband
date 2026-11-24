@@ -2,6 +2,17 @@
 
 This matrix links constitutional rules to contracts, planned implementation, verification, and user-visible behavior.
 
+## Phase 4 provider and operator workflow
+
+**Specified at entry. Live evidence pending.** The [adapter decision](../decisions/0010-provider-adapter-boundary.md) and [proposal contract](../contracts/model-proposals.md#phase-4-boundary-specification) define the boundary. The following checks are due on the Phase 4 path.
+
+| Requirement | Verification owed |
+|---|---|
+| WB-CON-002/008 · WB-NEG-001/002/005/006/012 | Feed live and fixture candidates through the same parser. Reject malformed, oversized, unknown, stale and duplicate inputs. Replay a consumed request ID after restart and verify it cannot reach intake again. |
+| WB-CON-005/007 · WB-INV-003/006 · WB-NEG-003/011 | Exercise adapter egress and its denial paths, including an unapproved destination. Check redaction and the recorded disposition. Verify credential isolation and network denial inside the marker worker. |
+| WB-CON-004/009 · WB-INV-002/004/007 · WB-NEG-004/008/010 | Follow a valid normalized candidate through real CLI approval. Exercise binding mutations, expiry and missing recovery policy and verify dispatch is withheld. |
+| WB-CON-001/003/006/007/008/010 · WB-INV-001/005/008/009/010 · WB-NEG-007/009 | Check independent observation, evaluation and acceptance. Reject fabricated success, tampered history and learned promotion. Reproduce authority and state results with provider-free fixtures. |
+
 ## Resource-limit review
 
 [WB-EXC-001 status and provisional limits](../decisions/0008-phase2-resource-limits.md) and the [fault/measurement plan](phase2-verification-plan.md#proposed-limits-and-measurement) provide the review records for WB-CON-007/008/009 and WB-INV-004/006/008/009, with applicable WB-NEG-005/006/009 cases. Evidence-backed statuses remain in the rows below.
