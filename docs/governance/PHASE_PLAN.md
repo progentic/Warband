@@ -2,7 +2,7 @@
 
 - **Status:** Proposed release roadmap
 - **Planning baseline:** `main` at `3cbfd55b9157058cbd72dfcc6e14a59080925681`, published through `v0.0.2`; subsequent decision/tooling/contract/verification PRs remain candidates
-- **Current implementation:** Phase 1 accepted; [bounded Phase 2 exit](phase2-exit.md). Phase 3 entry requires a separate owner decision.
+- **Current implementation:** Phase 1 accepted; [bounded Phase 2 exit](phase2-exit.md). The [Phase 3 exit record](phase3-exit.md) identifies the qualified marker implementation and the merge and adoption gates.
 - **Target:** A narrow, evidence-backed production release tagged `v1.0.0`
 - **Authority:** This document sequences work. It does not accept an ADR, select a production architecture, authorize a phase implementation, or declare a control verified.
 
