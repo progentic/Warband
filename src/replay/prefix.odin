@@ -24,16 +24,24 @@ Result :: struct {error: Error, readiness: e.RecoveryDecision, tasks: [dynamic]P
 @(private)
 Event :: union {a.TaskCreated,a.ProposalRecorded,a.AuthorizationRecorded,a.DispatchClaimed,a.ObservationRecorded,
                 a.EvaluationRecorded,a.TransitionAccepted,a.RejectionRecorded,a.CapabilityRevoked,a.AttemptDisposition,
-                MarkerProposalSummary,MarkerApprovalSummary,a.MarkerPermit,a.MarkerClaim,a.MarkerObservation,a.MarkerEvaluation,a.MarkerAccepted}
+                a.RequestIssued,a.RequestExpired,MarkerProposalSummary,MarkerApprovalSummary,a.MarkerPermit,a.MarkerClaim,a.MarkerObservation,a.MarkerEvaluation,a.MarkerAccepted}
 @(private)
 Record :: struct {event: Event, digest: [32]u8}
 // Qualified Phase 2 sizes on both 64-bit targets. Never store a marker payload per row.
 when size_of(int)==8 { #assert(size_of(Record)==232 && size_of(Projection)==104) }
 
 @(private)
-decode :: proc(b: []u8,ref: e.EventRef, $markers: bool) -> (Event,bool) {
+decode :: proc(b: []u8,ref: e.EventRef, $markers: bool, requests: bool) -> (Event,bool) {
 	kind,_ := endian.get_u16(b[6:8],.Little)
 	when markers {
+		if requests && kind==18 {
+			v,err := a.decode_request_issued(b,ref.store,ref.epoch)
+			return v,err==.None && v.reference==ref
+		}
+		if requests && kind==19 {
+			v,err := a.decode_request_expired(b,ref.store,ref.epoch)
+			return v,err==.None && v.reference==ref
+		}
 		if kind >= 11 { return decode_marker(b,ref,kind) }
 	}
 	switch kind {
@@ -98,8 +106,16 @@ project_markers :: proc(genesis,cp: e.Checkpoint,pending: ^e.Pledge,segments: []
 	return project_profile(cp,pending,segments,receipts,true,genesis)
 }
 
+// The older entry points deliberately reject request kinds, even in a pending tail.
+project_requests :: proc(genesis,cp: e.Checkpoint,pending: ^e.Pledge,segments: []Segment,receipts: []Receipt) -> (Result,RequestHistory) {
+	history: RequestHistory
+	result := project_profile(cp,pending,segments,receipts,true,genesis,&history)
+	if result.error!=.None { return result,{} }
+	return result,history
+}
+
 @(private)
-project_profile :: proc(cp: e.Checkpoint,pending: ^e.Pledge,segments: []Segment,receipts: []Receipt,$markers: bool,genesis: e.Checkpoint = {}) -> Result {
+project_profile :: proc(cp: e.Checkpoint,pending: ^e.Pledge,segments: []Segment,receipts: []Receipt,$markers: bool,genesis: e.Checkpoint = {},requests: ^RequestHistory = nil) -> Result {
 	bad := Result{error=.IntegrityFault,readiness=.IntegrityFault}
 	if cp.store==(e.StoreId{}) || cp.epoch==0 || u64(len(segments))!=u64(cp.epoch) { return bad }
 	valid,err := make([]Validated,len(segments),context.allocator)
@@ -108,7 +124,7 @@ project_profile :: proc(cp: e.Checkpoint,pending: ^e.Pledge,segments: []Segment,
 	head := cp
 	pledge := pending
 	for i:=len(segments)-1; i>=0; i-=1 {
-		variant,issue := validate(head,pledge,segments[i].rows,markers)
+		variant,issue := validate(head,pledge,segments[i].rows,markers,requests!=nil)
 		valid[i] = variant
 		if issue!=.None { return {error=issue,readiness=variant.readiness} }
 		if i==0 { break }
@@ -124,7 +140,7 @@ project_profile :: proc(cp: e.Checkpoint,pending: ^e.Pledge,segments: []Segment,
 	used := 0
 	tasks: [dynamic]Projection
 	for v in valid {
-		items,count,issue := reduce(v.records,receipts[used:],markers)
+		items,count,issue := reduce(v.records,receipts[used:],markers,requests)
 		if issue!=.None { delete(tasks); return {error=issue,readiness=.IntegrityFault} }
 		_,append_err := append(&tasks,..items)
 		delete(items)
@@ -135,7 +151,7 @@ project_profile :: proc(cp: e.Checkpoint,pending: ^e.Pledge,segments: []Segment,
 }
 
 @(private)
-validate :: proc(cp: e.Checkpoint,pending: ^e.Pledge,rows: []Row,$markers: bool) -> (Validated,Error) {
+validate :: proc(cp: e.Checkpoint,pending: ^e.Pledge,rows: []Row,$markers: bool,requests: bool) -> (Validated,Error) {
 	bad := Validated{readiness=.IntegrityFault}
 	if u64(cp.sequence)>u64(len(rows)) { return bad,.IntegrityFault }
 	records,alloc := make([]Record,int(cp.sequence),context.allocator)
@@ -150,7 +166,7 @@ validate :: proc(cp: e.Checkpoint,pending: ^e.Pledge,rows: []Row,$markers: bool)
 		ref := e.EventRef{cp.store,cp.epoch,e.Sequence(i+1)}
 		b := row.bytes
 		if row.ref!=ref || len(b)<88 { return bad,.IntegrityFault }
-		event,valid := decode(b,ref,markers)
+		event,valid := decode(b,ref,markers,requests)
 		if !valid { return bad,.IntegrityFault }
 		last = {store=ref.store,epoch=ref.epoch,sequence=ref.sequence,previous_sequence=journal.sequence,
 		        digest=hash(a.EventDomain,b[:len(b)-32])}

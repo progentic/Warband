@@ -53,3 +53,22 @@ Run the real writer and recovery path. Each discrepancy below requires operator 
 | Restore only SQLite to a pre-consumption snapshot | Compare the older store with the retained custody tip and directory inventory. |
 
 Also race duplicate deliveries, interrupt issuance and both sides of the pair commit, and lose a confirmation reply. Inspect proposal count, consumption records, custody and audit dispositions. Require at most one committed pair, zero ID reuse and zero recovery-initiated proposals. These are verification obligations for implementation. [Phase 4 traceability](../verification/traceability-matrix.md#phase-4-provider-and-operator-workflow)
+
+## Package 2a request event profile
+
+WBEV version 2 uses the existing 56-byte header, 32-byte previous head, event digest and custody link algorithms. Producer 9 version 1 is the authenticated runtime request issuer. The producer code alone grants no access. All numbers are little-endian unsigned integers. IDs on wire occupy 16 raw nonzero bytes. The API request ID is their 32-character lowercase hexadecimal encoding.
+
+| Kind | Payload fields in wire order | Total event bytes |
+|---|---|---:|
+| 18 RequestIssued | Request ID, Linux boot ID, runtime-session ID, catalog revision u32, catalog ID u32, SHA-256 of complete catalog bytes (32 bytes), issue and exclusive deadline BOOTTIME ticks (u64 milliseconds each) | 192 |
+| 19 RequestExpired | Full 32-byte issuance Ref, echoed request ID, reason u8 (1 deadline, 2 cancellation, 3 session loss) | 137 |
+
+The issuer samples the current boot and session. Both catalog numbers are nonzero. Revision 1 fixes ID 1 to empty bytes and ID 2 to ASCII `abc`. Preserve this revision for recovery. Validate one to 32 catalog entries, unique IDs, payloads and SHA-256 digests. Raw payloads remain bounded by the marker limit. Unknown revisions or IDs withhold admission. The codec records the claimed digest. The runtime must compare that witness with the retained catalog before any intake effects.
+
+The deadline is positive, at most signed 64-bit maximum and at most 30,000 milliseconds after the supplied start. Admission requires the issuing session and boot, and fresh BOOTTIME strictly before expiry. A reason code in history records the issuer's disposition. Replay verifies its reference and uniqueness and does not consult the current clock.
+
+Request-aware replay returns only custody-confirmed issuance and expiry facts. A request ID is unique across the projected store, including across epochs. Expiry must refer to the exact earlier issuance in the same epoch and can appear once. Request facts leave task/control versions unchanged. They cannot establish consumption in isolation. Both existing replay entry points reject histories containing these kinds. A failure returns no partial request projection.
+
+**Bounded fixture profile.** At most 32 issuances per retained store history, including expired IDs. Reserve capacity before Prepare. One issue/expiry pair adds 329 canonical event bytes and four 251-byte custody frames. At the cap this is 10,528 canonical bytes and 32,128 logical custody bytes. A full read of these 64 events adds 64 row fetches, integrity checks and reducer visits apiece, plus at most 32 ID comparisons per request fact. Charge repeated scans and refuse work at ADR-0008 budgets. SQLite page and peak WAL growth, projection memory and elapsed recovery time require measurement in 2d before accepting a live envelope.
+
+**Independent packing vectors.** The replay fixture includes both complete literal records, packed separately with Python little-endian struct encoding and hashlib SHA-256. Use store, request, boot and session filled with 01, 02, 03 and 04 hex respectively. Use epoch 1, sequences 1/2, recorded times 10/11, genesis head filled with 55 hex, revision 1, ID 2, elapsed interval [1,000, 31,000) and expiry reason 1. The issuance digest is `28258c98886cea35ebe0ac23874348fcc4610cfcea3e3eaf79e93aa521accca4`, its head `bbd96add826fe7131d4e285561b0c1ecb9e1561237f99a3b817c8143846d5605`. The linked expiry digest is `2079c553335bf58069b0d0a9292ae7366d21f7cc676288f6783f588c61c9e840`, its head `5dcf7362ed36e3ceed328bfb6117a5a99366e1358fb87fcab1be33a264113f16`.

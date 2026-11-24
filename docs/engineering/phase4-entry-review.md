@@ -61,6 +61,8 @@ This increment records the [adapter decision](../decisions/0010-provider-adapter
 
 Proto selected atomic SQLite consumption with the kind-11 proposal insert. [ADR-0011](../decisions/0011-atomic-model-request-consumption.md) records durable issuance before egress, explicit provisioning, crash dispositions and the evidence owed before integration.
 
+The [approved increment 2 implementation scope](phase4-increment2-scope.md) compares catalog and issuance witnesses, records implementation budgets, and defines the real-path acceptance tests.
+
 ## Exit obligations retained
 
 Phase 4 exit still owes live provider and egress evidence, deterministic fixture reproduction, approval-binding regressions, WB-NEG-001 through WB-NEG-012 coverage on the real path, and explicit rejection of learned promotion under WB-CON-010 and WB-INV-010. The ADR-0006 disposition and the production-target rerun remain due at their recorded gates and are not Phase 4 entry blockers.
