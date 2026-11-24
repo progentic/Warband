@@ -13,21 +13,32 @@ unique :: proc(ids: ^map[ScopedId]bool, kind: IdClass, id: [16]u8) -> bool {
 	return ptr!=nil && !existed
 }
 
+// The cap includes expired and earlier-epoch issuances; slots are never recycled.
+RequestWitness :: struct {issued: a.RequestIssued, expiry: Maybe(a.RequestExpired)}
+RequestHistory :: struct {entries: [32]RequestWitness, count: int}
+
+find_request :: proc(h: ^RequestHistory,id: [16]u8) -> ^RequestWitness {
+	for &entry in h.entries[:h.count] {
+		if entry.issued.id==id { return &entry }
+	}
+	return nil
+}
+
 // State and IDs are scoped to the store/epoch already verified by project.
 // owners maps each event position to its task slot (one-based, zero for audit only).
 @(private)
-reduce :: proc(records: []Record,receipts: []Receipt,$markers: bool) -> ([]Projection,int,Error) {
+reduce :: proc(records: []Record,receipts: []Receipt,$markers: bool,requests: ^RequestHistory) -> ([]Projection,int,Error) {
 	when markers {
 		ledger: MarkerLedger
 		defer { delete(ledger.roots); delete(ledger.chains); delete(ledger.latest) }
-		return reduce_records(records,receipts,true,&ledger)
+		return reduce_records(records,receipts,true,&ledger,requests)
 	} else {
 		return reduce_records(records,receipts,false)
 	}
 }
 
 @(private)
-reduce_records :: proc(records: []Record,receipts: []Receipt,$markers: bool,marker: ^MarkerLedger = nil) -> ([]Projection,int,Error) {
+reduce_records :: proc(records: []Record,receipts: []Receipt,$markers: bool,marker: ^MarkerLedger = nil, requests: ^RequestHistory = nil) -> ([]Projection,int,Error) {
 	owners,alloc := make([]int,len(records),context.allocator)
 	if alloc!=nil { return nil,0,.ResourceLimit }
 	defer delete(owners)
@@ -50,6 +61,19 @@ reduce_records :: proc(records: []Record,receipts: []Receipt,$markers: bool,mark
 		}
 		// All reference codecs already enforce the full scope and strictly earlier sequence.
 		#partial switch v in rec.event {
+		case a.RequestIssued:
+			if requests==nil || find_request(requests,v.id)!=nil { return nil,0,.InvalidHistory }
+			if requests.count==len(requests.entries) { return nil,0,.ResourceLimit }
+			requests.entries[requests.count].issued = v
+			requests.count += 1
+			continue
+		case a.RequestExpired:
+			if requests==nil { return nil,0,.InvalidHistory }
+			entry := find_request(requests,v.id)
+			if entry==nil || entry.issued.reference!=v.issuance { return nil,0,.InvalidReference }
+			if entry.expiry!=nil { return nil,0,.InvalidHistory }
+			entry.expiry = v
+			continue
 		case a.TaskCreated:
 			created := v
 			key := Key{v.task,v.run}
