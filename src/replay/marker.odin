@@ -69,11 +69,10 @@ MarkerLedger :: struct {
 	latest: map[int]e.Sequence, // task slot to its most recently projected marker chain
 }
 
-@(private)
-observed_verdict :: proc(obs: a.MarkerObservation, approval: MarkerApprovalSummary) -> a.MarkerVerdict {
+marker_verdict :: proc(obs: a.MarkerObservation, length: u32, digest: [32]u8) -> a.MarkerVerdict {
 	if obs.worker_stopped && obs.directory_control {
 		if obs.entry==.Absent { return .Incomplete }
-		if obs.entry==.Regular && obs.observed_length==u64(approval.length) && obs.observed_hash==approval.display_digest {
+		if obs.entry==.Regular && obs.observed_length==u64(length) && obs.observed_hash==digest {
 			return .Verified
 		}
 	}
@@ -149,7 +148,7 @@ apply_marker :: proc(m: ^MarkerLedger,records: []Record,i: int,by_key: map[Key]i
 		if prior!=chain.observation || v.claim.sequence!=chain.claim { return true,.InvalidReference }
 		observation := records[prior-1]
 		approval := records[chain.approval-1].event.(MarkerApprovalSummary)
-		expected := observed_verdict(observation.event.(a.MarkerObservation),approval)
+		expected := marker_verdict(observation.event.(a.MarkerObservation),approval.length,approval.display_digest)
 		if chain.evaluation!=0 || v.observation_digest!=observation.digest || v.verdict!=expected ||
 		   !unique(ids,.Evidence,cast([16]u8)v.evidence) { return true,.InvalidHistory }
 		chain.evaluation,p.verdict = seq,u8(v.verdict)

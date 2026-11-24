@@ -68,6 +68,8 @@ jobs:
         run: |
           sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
             /usr/bin/python3 tests/integration/linux/test_marker_worker.py --hosted 2>&1 | tee out/linux_amd64/marker-worker.log
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_marker_completion.py --hosted 2>&1 | tee out/linux_amd64/marker-completion.log
       - name: Verify live no-op dispatch and fresh-runtime denial
         run: |
           sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \

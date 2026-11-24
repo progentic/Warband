@@ -12,11 +12,14 @@ clang-19 -std=c11 -O2 -Wall -Wextra -Werror -c src/runtime/client/socket.c -o "$
 native=(clang-19 -std=c11 -O2 -Wall -Wextra -Werror)
 "${native[@]}" -c src/runtime/marker_broker.c -o "$out/marker-broker.o"
 llvm-ar-19 rcsD "$out/libwb_runtime_client.a" "$out/socket.o" "$out/marker-broker.o"
+"${native[@]}" -DWB_COMPLETION_PROOF -c src/runtime/marker_broker.c -o "$out/marker-broker-proof.o"
+llvm-ar-19 rcsD "$out/libwb_runtime_client_proof.a" "$out/socket.o" "$out/marker-broker-proof.o"
 "${native[@]}" cmd/marker-worker/worker.c -o "$out/marker-worker"
 "${native[@]}" cmd/marker-worker/supervisor.c -o "$out/marker-supervisor"
+"${native[@]}" -DWB_COMPLETION_PROOF cmd/marker-worker/supervisor.c -o "$out/marker-supervisor-proof"
 "${native[@]}" -DWB_WORKER_PROBE cmd/marker-worker/worker.c -o "$out/worker-probe"
 "${native[@]}" -DWB_OCCUPANCY_TEST src/runtime/marker_broker.c -o "$out/occupancy-probe"
-sha256sum "$out"/{marker-worker,marker-supervisor,worker-probe,occupancy-probe}
+sha256sum "$out"/{marker-worker,marker-supervisor,marker-supervisor-proof,worker-probe,occupancy-probe}
 build=(odin build cmd/reconcile-custody -target:linux_amd64 -vet -warnings-as-errors
        "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out")
 "${build[@]}" "-out:$out/reconcile-custody"
@@ -79,3 +82,15 @@ done
 sha256sum "$out/marker-approval" "$out"/marker-approval-{12,13}
 "${review[@]}" -define:WARBAND_MARKER_GATE_PROOF=true "-out:$out/marker-approval-gate-proof"
 sha256sum "$out/marker-approval-gate-proof"
+"${review[@]}" -define:WARBAND_COMPLETION_PROOF=true "-out:$out/marker-approval-completion-proof"
+"${review[@]}" -define:WARBAND_COMPLETION_ACCEPT_BARRIER=true "-out:$out/marker-approval-accept-barrier"
+for edge in 15 16 17; do
+    "${review[@]}" "-define:WARBAND_COMPLETION_COMMIT_STOP=$edge" "-out:$out/marker-approval-completion-$edge"
+done
+for stage in insert wal; do
+    flag=-define:WARBAND_TEST_STOP_AFTER_EVENT_INSERT=true
+    if [[ "$stage" == wal ]]; then flag=-define:WARBAND_TEST_STOP_IN_WAL_COMMIT=true; fi
+    "${review[@]}" -define:WARBAND_TEST_TRANSACTION_KIND=7 "$flag" "-out:$out/marker-approval-accept-$stage"
+done
+sha256sum "$out/marker-approval-completion-proof" "$out/marker-approval-accept-barrier" \
+          "$out"/marker-approval-completion-{15,16,17} "$out"/marker-approval-accept-{insert,wal}

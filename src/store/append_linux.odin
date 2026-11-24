@@ -13,10 +13,14 @@ confirm_stored :: proc(w: VerifiedWriter, s: ^client.Session, p: e.Pledge, expec
 	if !client.within_budget(s,1) { return false }
 	row, ok := event_row((cast(^WriterState)w).db, {p.store,p.epoch,p.sequence},marker=marker)
 	if !ok || row.pledge != p || row.receipt != expected { return false }
-	if row.acceptance != nil {
+	if row.acceptance != nil || row.marker_acceptance != nil {
 		checkpoint := e.Checkpoint{p.store,p.epoch,p.sequence,p.head}
-		_, checked := acceptance_snapshot(w,checkpoint,s)
-		if !checked { return false }
+		if row.marker_acceptance!=nil {
+			if !marker_index_snapshot(w,checkpoint,s) { return false }
+		} else {
+			_, checked := acceptance_snapshot(w,checkpoint,s)
+			if !checked { return false }
+		}
 	}
 	reply, confirmed := client.exchange(s,{.Confirm,p},deadline)
 	head := e.Checkpoint{p.store,p.epoch,p.sequence,p.head}
@@ -63,6 +67,11 @@ append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,pri
 	}
 	when #config(WARBAND_MARKER_GATE_PROOF,false) {
 		if marker && (bytes[6]==14 || bytes[6]==8 && bytes[56]==3) && linux.kill(linux.getpid(),TEST_STOP_SIGNAL)!=.NONE { return {},false }
+	}
+	completion_edge :: #config(WARBAND_COMPLETION_COMMIT_STOP,0)
+	when completion_edge!=0 {
+		#assert(completion_edge==15 || completion_edge==16 || completion_edge==17)
+		if marker && bytes[6]==completion_edge && linux.kill(linux.getpid(),TEST_STOP_SIGNAL)!=.NONE { return {},false }
 	}
 	when STOP_AFTER_COMMIT {
 		if entry != nil && linux.kill(linux.getpid(), TEST_STOP_SIGNAL) != .NONE { return {},false }
@@ -126,7 +135,7 @@ append_noop :: proc(w: VerifiedWriter, session: ^client.Session, cp: e.Checkpoin
 
 // Only the live marker path opts into marker read-back. All v1 callers keep their reader.
 append_intake :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,mark: u64,
-                      event: union {a.TaskCreated,a.MarkerProposal,a.MarkerApproval,a.MarkerPermit,a.MarkerClaim,a.RejectionRecorded}, deadline: i64) -> (e.Checkpoint,bool) {
+                      event: union {a.TaskCreated,a.MarkerProposal,a.MarkerApproval,a.MarkerPermit,a.MarkerClaim,a.MarkerObservation,a.MarkerEvaluation,a.RejectionRecorded}, deadline: i64) -> (e.Checkpoint,bool) {
 	start := client.wb_elapsed_ms()
 	if start<0 || cp.sequence==max(e.Sequence) { return {},false }
 	next := e.EventRef{cp.store,cp.epoch,cp.sequence+1}
@@ -159,6 +168,18 @@ append_intake :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,mark
 		if v.reference!=next || v.previous_head!=cp.head { return {},false }
 		wire,err := a.encode_marker_claim(v,cp.store,cp.epoch)
 		digest,de := a.digest_marker_claim(v,cp.store,cp.epoch)
+		if err!=.None || de!=.None { return {},false }
+		return append_pledged(w,s,cp,mark,nil,wire[:],digest,start,deadline,marker=true)
+	case a.MarkerObservation:
+		if v.reference!=next || v.previous_head!=cp.head { return {},false }
+		wire,err := a.encode_marker_observation(v,cp.store,cp.epoch)
+		digest,de := a.digest_marker_observation(v,cp.store,cp.epoch)
+		if err!=.None || de!=.None { return {},false }
+		return append_pledged(w,s,cp,mark,nil,wire[:],digest,start,deadline,marker=true)
+	case a.MarkerEvaluation:
+		if v.reference!=next || v.previous_head!=cp.head { return {},false }
+		wire,err := a.encode_marker_evaluation(v,cp.store,cp.epoch)
+		digest,de := a.digest_marker_evaluation(v,cp.store,cp.epoch)
 		if err!=.None || de!=.None { return {},false }
 		return append_pledged(w,s,cp,mark,nil,wire[:],digest,start,deadline,marker=true)
 	case a.RejectionRecorded:

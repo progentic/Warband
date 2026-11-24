@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.1.7 - 2026-11-23
+
+### Added
+
+- Added live marker observation, independent evaluation and atomic acceptance. Exact normal and lost-reply effects advance once from **1/2** to **2/3**; absent, conflicting and unassessed outcomes remain incomplete without automatic redispatch. [Completion qualification](docs/verification/traceability-matrix.md#live-marker-completion)
+
 ## 0.1.6 - 2026-11-23
 
 ### Added

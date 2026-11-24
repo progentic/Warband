@@ -22,8 +22,18 @@ foreign sqlite_import {
 
 ReceiptId :: struct {ordinal: u64, hash: [32]u8}
 Import :: struct {id: ReceiptId, digest: [32]u8, ref: e.EventRef}
-Row :: struct {pledge: e.Pledge, receipt: Maybe(Import), acceptance: Maybe(a.TransitionAccepted), attempt: e.AttemptId,
-              observation: Maybe(a.ObservationRecorded), evaluation: Maybe(a.EvaluationRecorded)}
+Row :: struct {
+	pledge: e.Pledge,
+	receipt: Maybe(Import),
+	acceptance: Maybe(a.TransitionAccepted),
+	marker_acceptance: Maybe(a.MarkerAccepted),
+	attempt: e.AttemptId,
+	marker_claim: Maybe(a.MarkerClaim),
+	observation: Maybe(a.ObservationRecorded),
+	evaluation: Maybe(a.EvaluationRecorded),
+	marker_observation: Maybe(a.MarkerObservation),
+	marker_evaluation: Maybe(a.MarkerEvaluation),
+}
 Segment :: struct {journal: e.Checkpoint, tail: Maybe(e.Pledge), tail_import: Maybe(Import), last_import: u64}
 
 @(private)
@@ -95,9 +105,13 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil, ma
 	kind, _ := endian.get_u16(b[6:8],.Little)
 	imported := false
 	accepted: Maybe(a.TransitionAccepted)
+	marker_accepted: Maybe(a.MarkerAccepted)
 	attempt: e.AttemptId
+	marker_claim: Maybe(a.MarkerClaim)
 	observation: Maybe(a.ObservationRecorded)
 	evaluation: Maybe(a.EvaluationRecorded)
+	marker_observation: Maybe(a.MarkerObservation)
+	marker_evaluation: Maybe(a.MarkerEvaluation)
 	if history != nil && !history.acceptance_scan && kind != 1 && kind != 2 && kind != 3 && kind != 4 && kind != 5 && kind != 6 && kind != 8 { return {},false }
 	switch kind {
 	case 1:
@@ -204,6 +218,22 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil, ma
 		if !marker || history!=nil { return {},false }
 		v,err := a.decode_marker_claim(b,ref.store,ref.epoch)
 		if err!=.None || v.reference!=ref { return {},false }
+		marker_claim=v
+	case 15:
+		if !marker || history!=nil { return {},false }
+		v,err := a.decode_marker_observation(b,ref.store,ref.epoch)
+		if err!=.None || v.reference!=ref { return {},false }
+		marker_observation=v
+	case 16:
+		if !marker || history!=nil { return {},false }
+		v,err := a.decode_marker_evaluation(b,ref.store,ref.epoch)
+		if err!=.None || v.reference!=ref { return {},false }
+		marker_evaluation=v
+	case 17:
+		if !marker || history!=nil { return {},false }
+		v,err := a.decode_marker_accepted(b,ref.store,ref.epoch)
+		if err!=.None || v.reference!=ref { return {},false }
+		marker_accepted=v
 	case: return {},false
 	}
 	// Hash the persisted body itself after the kind decoder has validated its representation.
@@ -218,7 +248,8 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil, ma
 	p := e.Pledge{store=ref.store,epoch=ref.epoch,sequence=ref.sequence,previous_sequence=ref.sequence-1,digest=digest}
 	copy(p.previous_head[:],b[len(b)-32:])
 	p.head = c.derive_head(p)
-	row := Row{pledge=p,acceptance=accepted,attempt=attempt,observation=observation,evaluation=evaluation}
+	row := Row{pledge=p,acceptance=accepted,marker_acceptance=marker_accepted,attempt=attempt,marker_claim=marker_claim,
+	           observation=observation,evaluation=evaluation,marker_observation=marker_observation,marker_evaluation=marker_evaluation}
 	if imported {
 		ord, hash := column(stmt,1), column(stmt,2)
 		if len(ord)!=8 || len(hash)!=32 { return {},false }
@@ -278,7 +309,21 @@ inspect_segment :: proc(state: ^WriterState, cp: e.Checkpoint, genesis: Maybe([3
 			obs, observed := obs_row.observation.(a.ObservationRecorded)
 			if !read_obs || !observed || obs.claim != accepted.claim || obs.outcome != .Returned ||
 			   obs_row.pledge.digest != ev.observed_event_digest { return {},false }
-			if _, err := append(bindings,AcceptedBinding{parent.attempt,accepted}); err != nil { return {},false }
+			if _, err := append(bindings,AcceptedBinding{parent.attempt,accepted.transition,accepted.reference}); err != nil { return {},false }
+		}
+		if accepted, present := row.marker_acceptance.(a.MarkerAccepted); present && bindings != nil {
+			if !client.within_budget(s,3) { return {},false }
+			claim_row,read_claim := event_row(state.db,accepted.claim,marker=true)
+			claim,claimed := claim_row.marker_claim.(a.MarkerClaim)
+			eval_row,read_eval := event_row(state.db,accepted.evaluation,marker=true)
+			evaluation,evaluated := eval_row.marker_evaluation.(a.MarkerEvaluation)
+			obs_row,read_obs := event_row(state.db,evaluation.observation,marker=true)
+			observation,observed := obs_row.marker_observation.(a.MarkerObservation)
+			if !read_claim || !claimed || !read_eval || !evaluated || !read_obs || !observed ||
+			   claim.reference!=accepted.claim || evaluation.claim!=accepted.claim || evaluation.verdict!=.Verified ||
+			   observation.reference!=evaluation.observation || observation.claim!=accepted.claim ||
+			   obs_row.pledge.digest!=evaluation.observation_digest { return {},false }
+			if _,err := append(bindings,AcceptedBinding{claim.attempt,accepted.transition,accepted.reference}); err!=nil { return {},false }
 		}
 		if entry, present := row.receipt.(Import); present {
 			if entry.id.ordinal == 0 || (len(imports)>0 && entry.id.ordinal <= imports^[len(imports)-1].id.ordinal) { return {},false }
@@ -392,7 +437,7 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 		if !transaction_change(db,receipt!=nil,"binding","INSERT INTO denial_imports(store_id,custody_ordinal,record_hash,epoch,sequence) VALUES(?,?,?,?,?)",cp.store[:],ord[:],entry.id.hash[:],epoch[:],seq[:]) ||
 		   !transaction_change(db,receipt!=nil,"watermark","INSERT INTO import_watermarks(store_id,last_imported_ordinal) VALUES(?,?) ON CONFLICT(store_id) DO UPDATE SET last_imported_ordinal=excluded.last_imported_ordinal",cp.store[:],ord[:]) { return false }
 	}
-	if acceptance != nil && !insert_accepted(db,acceptance.attempt,acceptance.event) { return false }
+	if acceptance != nil && !insert_accepted(db,acceptance.binding) { return false }
 	when #config(WARBAND_TEST_STOP_IN_WAL_COMMIT, false) {
 		if proof_transaction(bytes,receipt,acceptance) {
 			threshold, ok := read_scalar(state,"PRAGMA wal_autocheckpoint").(i64)

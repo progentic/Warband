@@ -7,6 +7,21 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 
+struct wb_outcome { uint8_t delivery, stopped, writer_closed, effect; };
+#ifdef WB_COMPLETION_PROOF
+#define wb_execute_marker wb_execute_marker_proof
+static char proof_mode(void) {
+    struct stat st;
+    char mode=0,extra;
+    int fd=open("completion.probe",O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+    if (fd<0 || fstat(fd,&st) || !S_ISREG(st.st_mode) || st.st_uid || st.st_nlink!=1 || st.st_mode&022 || st.st_size!=1 ||
+        read(fd,&mode,1)!=1 || read(fd,&extra,1)!=0 || close(fd)) return 0;
+    return mode;
+}
+#else
+static char proof_mode(void) { return 0; }
+#endif
+
 static int readable(int fd,int64_t until) {
     int64_t now=wb_now();
     if (now<0 || now>=until) return 0;
@@ -57,6 +72,23 @@ static int exclusive_create(int directory,const uint8_t *bytes,size_t n,int64_t 
     if (!synced || !*closed || fsync(directory) || wb_now()>=until) return WB_STORAGE;
     return WB_CREATED;
 }
+#ifdef WB_COMPLETION_PROOF
+static int fault_create(int directory,const uint8_t *bytes,size_t n,int64_t until,int *closed,char mode) {
+    if (mode=='a') { *closed=1; return WB_STORAGE; }
+    if (mode!='p' && mode!='c') return exclusive_create(directory,bytes,n,until,closed);
+    int fd=openat(directory,"marker",O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0600);
+    if (fd<0) return errno==EEXIST ? WB_OCCUPIED : WB_STORAGE;
+    *closed=0;
+    uint8_t changed[WB_MAX];
+    size_t count=n;
+    if (mode=='p') count=n>1 ? n-1 : 0;
+    else { memcpy(changed,bytes,n); if (n) changed[0]^=1; else { changed[0]=1; count=1; } bytes=changed; }
+    int complete=(count==0 || write(fd,bytes,count)==(ssize_t)count) && !fsync(fd);
+    *closed=close(fd)==0;
+    if (complete && *closed) (void)fsync(directory);
+    return WB_STORAGE;
+}
+#endif
 #ifdef WB_OCCUPANCY_TEST
 int main(int argc,char **argv) {
     int fd=(argc==2 || argc==3) ? open(argv[1],O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC) : -1, closed=1;
@@ -78,7 +110,8 @@ static int worker_channel(int rt,struct wb_launch *worker) {
     memcpy(&fd,CMSG_DATA(h),sizeof(fd));
     return fd;
 }
-int wb_execute_marker(int directory,const struct wb_request *q) {
+int wb_execute_marker(int directory,const struct wb_request *q,struct wb_outcome *outcome) {
+    *outcome=(struct wb_outcome){.delivery=5,.writer_closed=1};
     if (geteuid()==0 || memcmp(q->tag,"WBM1",4) || q->length>WB_MAX || !directory_matches(directory,q) ||
         !payload_matches(q)) return 0;
     int64_t now=wb_now();
@@ -94,6 +127,7 @@ int wb_execute_marker(int directory,const struct wb_request *q) {
         w.until>q->deadline || wb_now()>=w.until) goto done;
     size_t size=WB_HEADER+q->length;
     if (send(fd,q,size,MSG_NOSIGNAL)!= (ssize_t)size) goto done;
+    char proof=proof_mode();
     unsigned attempts=0;
     int effect=0, closed=1, offered=-1, delivered=0;
     while (readable(fd,w.until)) {
@@ -105,12 +139,17 @@ int wb_execute_marker(int directory,const struct wb_request *q) {
             effect=WB_REFUSED;
             offered=n>=(int)WB_HEADER ? n-(int)WB_HEADER : -1;
             if (n==(int)size && received.q.length<=WB_MAX && !memcmp(received.bytes,q,size) &&
-                payload_matches(&received.q) && directory_matches(directory,q))
+                payload_matches(&received.q) && directory_matches(directory,q)) {
+#ifdef WB_COMPLETION_PROOF
+                effect=fault_create(directory,received.q.payload,received.q.length,w.until,&closed,proof);
+#else
                 effect=exclusive_create(directory,received.q.payload,received.q.length,w.until,&closed);
+#endif
+            }
             reply=(uint8_t)effect;
         }
         attempts++;
-        delivered=send(fd,&reply,1,MSG_NOSIGNAL)==1;
+        delivered=proof!='l' && send(fd,&reply,1,MSG_NOSIGNAL)==1;
         if (!delivered || attempts>=2) break;
     }
     close(fd); fd=-1;
@@ -118,6 +157,13 @@ int wb_execute_marker(int directory,const struct wb_request *q) {
     if (!readable(rt,w.until+2000) || recv(rt,&stop,1,MSG_TRUNC)!=1) stop=0;
     printf("BrokerStop worker=%d effect=%d writer_closed=%d requests=%u stop=%u offered_bytes=%d\n",w.pid,effect,closed,attempts,stop,offered);
     fflush(stdout);
+    outcome->effect=(uint8_t)effect;
+    outcome->writer_closed=(uint8_t)closed;
+    outcome->stopped=(uint8_t)(stop!=0);
+    if (delivered) outcome->delivery=1;
+    else if (effect==WB_CREATED) outcome->delivery=2;
+    else if (stop==WB_TIME) outcome->delivery=3;
+    else if (stop) outcome->delivery=4;
     ok=effect==WB_CREATED && delivered && closed && stop==WB_CLEAN;
 done:
     if (fd>=0) close(fd);
