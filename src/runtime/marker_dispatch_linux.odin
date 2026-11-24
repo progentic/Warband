@@ -14,7 +14,19 @@ import l "core:sys/linux"
 
 Threshold :: enum {Unavailable, Claimed, Eligible, NoLiveGrant, ChainMismatch, PayloadMismatch, FingerprintMismatch,
                    PolicyMismatch, TaskMismatch, ControlMismatch, DirectoryLost, DirectoryMismatch, Occupied,
-                   Expired, OperationDeadline, ReconciliationRequired, RefusalUnconfirmed}
+                   Expired, OperationDeadline, ReconciliationRequired, RefusalUnconfirmed, WorkerStopped, ExecutionUncertain}
+// The confirmed handoff moves the original open directory into one bounded order.
+@(private)
+WorkerRequest :: struct {
+	tag: [4]u8, length: u32, device, inode: u64, deadline: i64,
+	claim: [32]u8, attempt,capability,directory: [16]u8, binding,digest: [32]u8, payload: [4096]u8,
+}
+#assert(offset_of(WorkerRequest,payload)==176)
+@(private)
+WorkerOrder :: struct {fd: l.Fd, request: WorkerRequest}
+foreign import marker_native "system:wb_runtime_client"
+foreign marker_native { wb_execute_marker :: proc(fd: i32, q: ^WorkerRequest) -> i32 --- }
+
 @(private)
 MarkerOffer :: struct {
 	proposal: a.MarkerProposal,
@@ -123,7 +135,7 @@ record_gate_refusal :: proc(w: store.VerifiedWriter,s: ^client.Session,snap: ^In
 
 @(private)
 gate_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoint,prepared: ^PreparedProposal,
-                    slot: ^Maybe(LiveGrant),q: ^MarkerOffer,policy: u64,claimed: bool,deadline: i64) -> Threshold {
+                    slot: ^Maybe(LiveGrant),q: ^MarkerOffer,policy: u64,claimed: bool,deadline: i64,order: ^WorkerOrder) -> Threshold {
 	snap,state := intake_snapshot(w,s,root)
 	if state!=.Ready { return .ReconciliationRequired }
 	h,valid := review_history(snap)
@@ -138,7 +150,23 @@ gate_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoin
 	if claimed {
 		result := take_dispatch(&h,view,slot,prepared,q,policy,deadline)
 		if result!=.Eligible { return record_gate_refusal(w,s,&snap,related,digest,result,deadline) }
-		// Sole broker handoff site. This increment terminates here with the slot consumed.
+		// Freeze the request here; the external wait begins only after gate_round closes the writer.
+		if order!=nil {
+			window := check_window(&grant,client.wb_elapsed_ms())
+			if window.result!=.Eligible { return record_gate_refusal(w,s,&snap,related,digest,.Expired,deadline) }
+			p := &q.proposal
+			req := &order.request
+			req.tag={'W','B','M','1'}
+			req.length,req.device,req.inode=p.length,p.device,p.inode
+			req.deadline=min(deadline,window.cutoff)
+			copy(req.claim[:16],related.store[:])
+			endian.put_u64(req.claim[16:24],.Little,u64(related.epoch))
+			endian.put_u64(req.claim[24:],.Little,u64(related.sequence))
+			req.attempt,req.capability,req.directory=cast([16]u8)grant.attempt,cast([16]u8)grant.capability,cast([16]u8)p.directory
+			req.binding,req.digest=digest,q.payload_digest
+			copy(req.payload[:p.length],p.payload[:p.length])
+			order.fd,prepared.directory_fd=prepared.directory_fd,-1
+		}
 		fmt.println("BrokerHandoff",string(hex.encode(related.store[:])),related.epoch,related.sequence,
 		            string(hex.encode(grant.attempt[:])),string(hex.encode(digest[:])))
 		when #config(WARBAND_MARKER_GATE_PROOF,false) {
@@ -176,7 +204,7 @@ gate_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoin
 
 @(private)
 gate_round :: proc(prepared: ^PreparedProposal,slot: ^Maybe(LiveGrant),q: ^MarkerOffer,supplied_policy: Maybe(u64),
-                   operator: u32,admission: i64,claimed: bool,arena: ^mem.Arena) -> Threshold {
+                   operator: u32,admission: i64,claimed: bool,arena: ^mem.Arena,order: ^WorkerOrder=nil) -> Threshold {
 	temp := mem.begin_arena_temp_memory(arena)
 	defer mem.end_arena_temp_memory(temp)
 	context.allocator=mem.arena_allocator(arena)
@@ -199,13 +227,13 @@ gate_round :: proc(prepared: ^PreparedProposal,slot: ^Maybe(LiveGrant),q: ^Marke
 		when #config(WARBAND_MARKER_GATE_PROOF,false) {
 			if observation,supplied := supplied_policy.(u64); supplied && claimed { policy=observation }
 		}
-		result=gate_locked(w,&s,root,prepared,slot,q,policy,claimed,min(start+30_000,admission+180_000))
+		result=gate_locked(w,&s,root,prepared,slot,q,policy,claimed,min(start+30_000,admission+180_000),order)
 	}
 	if !store.close_writer(&w) || s.exhausted { return .ReconciliationRequired }
 	return result
 }
 
-marker_threshold :: proc(prepared: ^PreparedProposal,slot: ^Maybe(LiveGrant),operator: u32,admission: i64,arena: ^mem.Arena) -> Threshold {
+marker_threshold :: proc(prepared: ^PreparedProposal,slot: ^Maybe(LiveGrant),operator: u32,admission: i64,arena: ^mem.Arena,execute:=false) -> Threshold {
 	defer slot^=nil
 	if prepared==nil || slot^==nil { return .NoLiveGrant }
 	p := &prepared.proposal
@@ -239,5 +267,10 @@ marker_threshold :: proc(prepared: ^PreparedProposal,slot: ^Maybe(LiveGrant),ope
 		case: return .Unavailable
 		}
 	}
-	return gate_round(prepared,slot,&q,supplied_policy,operator,admission,true,arena)
+	order := WorkerOrder{fd=-1}
+	defer if order.fd>=0 { l.close(order.fd) }
+	result := gate_round(prepared,slot,&q,supplied_policy,operator,admission,true,arena,&order if execute else nil)
+	if !execute || result!=.Eligible { return result }
+	if order.fd<0 || wb_execute_marker(i32(order.fd),&order.request)!=1 { return .ExecutionUncertain }
+	return .WorkerStopped
 }

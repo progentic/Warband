@@ -67,7 +67,7 @@ operator_cli :: proc(fd: i32,runtime: u32,deadline: i64) -> int {
 run :: proc(arena: ^mem.Arena) -> int {
 	if len(os.args)!=2 { return 2 }
 	mode := os.args[1]
-	if mode!="decide" && mode!="serve" && mode!="receipts" && mode!="gate" { return 2 }
+	if mode!="decide" && mode!="serve" && mode!="receipts" && mode!="gate" && mode!="execute" { return 2 }
 	start := c.wb_elapsed_ms()
 	if start<0 { return 1 }
 	peer: u32
@@ -77,7 +77,7 @@ run :: proc(arena: ^mem.Arena) -> int {
 	if mode=="decide" { return operator_cli(sock,peer,start+180_000) }
 	prepared: r.PreparedProposal
 	live: ^r.PreparedProposal
-	if mode=="serve" || mode=="gate" {
+	if mode=="serve" || mode=="gate" || mode=="execute" {
 		buf: [a.MarkerPayloadLimit+1]u8
 		n := c.read_payload(buf[:])
 		if n<0 || n>a.MarkerPayloadLimit { return 1 }
@@ -99,12 +99,12 @@ run :: proc(arena: ^mem.Arena) -> int {
 	defer l.close(l.Fd(fd))
 	result := r.marker_review(fd,peer,live,start,arena)
 	fmt.println(result.status,"LiveGrant",result.grant!=nil)
-	if mode=="gate" && result.status==.Permitted {
+	if (mode=="gate" || mode=="execute") && result.status==.Permitted {
 		l.close(l.Fd(sock))
 		sock=-1
-		outcome := r.marker_threshold(live,&result.grant,peer,start,arena)
+		outcome := r.marker_threshold(live,&result.grant,peer,start,arena,execute=mode=="execute")
 		fmt.println("Threshold",outcome)
-		return 0 if outcome==.Eligible else 1
+		return 0 if outcome==.Eligible || outcome==.WorkerStopped else 1
 	}
 	return 0 if result.status==.Permitted || result.status==.Rejected || result.status==.Recorded else 1
 }
