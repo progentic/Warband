@@ -44,18 +44,6 @@ append_verified_event :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpo
 @(private)
 append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,prior: u64,entry: Maybe(Import),bytes: []u8,digest: [32]u8,start,cutoff: i64, acceptance: ^AcceptanceCheck = nil, marker := false, request: ^RequestAppend = nil,model: ^ModelWrite = nil) -> (e.Checkpoint,bool) {
 	deadline := min(start+30_000,s.deadline,cutoff)
-	p,committed := commit_pledged(w,s,cp,prior,entry,bytes,digest,start,deadline,acceptance,marker,request,model)
-	if !committed { return {},false }
-	mark := prior
-	if imported, present := entry.(Import); present { mark = imported.id.ordinal }
-	if request!=nil && !request_inventory(w,request.after) { return {},false }
-	if !watermark_matches(w,cp.store,mark) || !confirm_stored(w,s,p,entry,deadline,marker,request!=nil || model!=nil) { return {},false }
-	if request!=nil || model!=nil { request_probe(bytes[6],"confirmed") }
-	return {p.store,p.epoch,p.sequence,p.head},true
-}
-
-@(private)
-commit_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,prior: u64,entry: Maybe(Import),bytes: []u8,digest: [32]u8,start,deadline: i64, acceptance: ^AcceptanceCheck = nil, marker := false, request: ^RequestAppend = nil,model: ^ModelWrite = nil) -> (e.Pledge,bool) {
 	if start < 0 || cp.sequence == max(e.Sequence) { return {},false }
 	p := e.Pledge{store=cp.store,epoch=cp.epoch,previous_sequence=cp.sequence,previous_head=cp.head,sequence=cp.sequence+1,digest=digest}
 	p.head = c.derive_head(p)
@@ -95,7 +83,21 @@ commit_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,pri
 		target := marker if #config(WARBAND_INTAKE_STOP, 0)==2 else bytes[6]==1
 		if target && linux.kill(linux.getpid(),TEST_STOP_SIGNAL)!=.NONE { return {},false }
 	}
-	return p,true
+	// The model proposal has a stricter commit deadline than its subsequent
+	// historical read-back. Record that evidence before allowing Confirm.
+	if model!=nil && bytes[6]==11 {
+		end:=client.wb_elapsed_ms()
+		if end<start || !in_request_window(model.issued,end) || model.witness==nil ||
+		   !model.witness(w,s,model,p,end) { return {},false }
+	}
+	mark := prior
+	if imported, present := entry.(Import); present { mark = imported.id.ordinal }
+	if request!=nil && !request_inventory(w,request.after) { return {},false }
+	confirm_deadline:=deadline
+	if model!=nil && bytes[6]==11 { confirm_deadline=s.deadline }
+	if !watermark_matches(w,cp.store,mark) || !confirm_stored(w,s,p,entry,confirm_deadline,marker,request!=nil || model!=nil) { return {},false }
+	if request!=nil || model!=nil { request_probe(bytes[6],"confirmed") }
+	return {p.store,p.epoch,p.sequence,p.head},true
 }
 
 // The coordinator supplies only event types qualified for this isolated path.

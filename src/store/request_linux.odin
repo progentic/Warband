@@ -118,7 +118,13 @@ consumption_count :: proc(w: VerifiedWriter) -> i64 {
 	return n if found else -1
 }
 
-ModelWrite :: struct {issued: a.RequestIssued, history: ^r.RequestHistory}
+ModelWrite :: struct {
+	issued: a.RequestIssued,
+	history: ^r.RequestHistory,
+	root: e.Checkpoint,
+	fd: l.Fd,
+	witness: proc(w:VerifiedWriter,s:^client.Session,model:^ModelWrite,p:e.Pledge,end:i64) -> bool,
+}
 
 in_request_window :: proc(issued: a.RequestIssued,now: i64) -> bool {
 	return now>=0 && u64(now)>=issued.start_ms && u64(now)<issued.deadline_ms
@@ -153,21 +159,17 @@ consumption_row :: proc(w: VerifiedWriter, issued: a.RequestIssued,wire: []u8,in
 	return sqlite3_step(stmt)==ROW && sqlite3_step(stmt)==DONE
 }
 
-// Return an unconfirmed pledge and an upper bound on the physical commit time.
-// A committed pair remains spent even when the clock proof is unavailable.
-commit_model_pair :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,mark: u64,
-                          model: ^ModelWrite,v: a.MarkerProposal) -> (e.Pledge,i64,bool) {
-	if v.reference!=(e.EventRef{cp.store,cp.epoch,cp.sequence+1}) || v.previous_head!=cp.head { return {},0,false }
+// The caller supplies the runtime-owned directory witness. A true result always
+// means the stored deadline proof and pair were verified and custody confirmed.
+append_model_pair :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,mark: u64,
+                          model: ^ModelWrite,v: a.MarkerProposal) -> (e.Checkpoint,bool) {
+	if v.reference!=(e.EventRef{cp.store,cp.epoch,cp.sequence+1}) || v.previous_head!=cp.head { return {},false }
 	b,err:=a.encode_marker_proposal(v,cp.store,cp.epoch)
 	digest,de:=a.digest_marker_proposal(v,cp.store,cp.epoch)
 	start:=client.wb_elapsed_ms()
 	if err!=.None || de!=.None || !in_request_window(model.issued,start) ||
-	   !client.within_budget(s,4*u64(model.history.count)+2) { return {},0,false }
-	cutoff:=min(i64(model.issued.deadline_ms),s.deadline)
-	p,committed:=commit_pledged(w,s,cp,mark,nil,b.data[:b.length],digest,start,cutoff,marker=true,model=model)
-	end:=client.wb_elapsed_ms()
-	if !committed || end<start || !in_request_window(model.issued,end) { return {},0,false }
-	return p,end,true
+	   !client.within_budget(s,4*u64(model.history.count)+2) { return {},false }
+	return append_pledged(w,s,cp,mark,nil,b.data[:b.length],digest,start,i64(model.issued.deadline_ms),marker=true,model=model)
 }
 
 // The production binary has no selector or signal path. The proof binary

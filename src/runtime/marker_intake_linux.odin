@@ -241,7 +241,8 @@ intake_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpo
 	if stamp<0 { return {},.Unavailable }
 	proposal.reference,proposal.previous_head,proposal.recorded_time = {s.store,1,cp.sequence+1},cp.head,u64(stamp)
 	if model!=nil {
-		cp,confirmed = finish_model_pair(w,s,root,cp,snap.mark,model,proposal,fd)
+		model.root,model.fd,model.witness=root,fd,witness_model_commit
+		cp,confirmed = store.append_model_pair(w,s,cp,snap.mark,model,proposal)
 		if !confirmed { return {},.AttestationUncertain }
 	} else {
 		cp,confirmed = store.append_intake(w,s,cp,snap.mark,proposal,deadline)

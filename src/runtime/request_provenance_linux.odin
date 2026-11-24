@@ -85,7 +85,7 @@ check_pair :: proc(w:store.VerifiedWriter,snap:IntakeSnapshot,h:^r.RequestHistor
 }
 
 @(private)
-confirm_model_pair :: proc(w:store.VerifiedWriter,s:^client.Session,root:e.Checkpoint,snap:IntakeSnapshot,p:e.Pledge) -> bool {
+verify_pending_pair :: proc(w:store.VerifiedWriter,s:^client.Session,root:e.Checkpoint,snap:IntakeSnapshot,p:e.Pledge) -> bool {
 	segments:=[?]r.Segment{{rows=snap.rows}}
 	if !client.within_budget(s,36*u64(len(snap.rows))+2) { return false }
 	view,h:=r.project_requests(root,{s.store,s.epoch,p.sequence,p.head},nil,segments[:],snap.receipts[:])
@@ -93,21 +93,16 @@ confirm_model_pair :: proc(w:store.VerifiedWriter,s:^client.Session,root:e.Check
 	   view.tasks[0].task_version!=1 || view.tasks[0].control_revision!=0 ||
 	   !catalog_matches(&h) || !store.request_inventory(w,&h) { return false }
 	id,ok:=check_pair(w,snap,&h)
-	return ok && id!=nil && store.confirm_stored(w,s,p,nil,s.deadline,marker=true,requests=true)
+	return ok && id!=nil
 }
 
 @(private)
-finish_model_pair :: proc(w:store.VerifiedWriter,s:^client.Session,root:e.Checkpoint,cp:e.Checkpoint,mark:u64,
-                          model:^store.ModelWrite,proposal:a.MarkerProposal,fd:l.Fd) -> (e.Checkpoint,bool) {
-	p,end,ok:=store.commit_model_pair(w,s,cp,mark,model,proposal)
-	if !ok { return {},false }
+witness_model_commit :: proc(w:store.VerifiedWriter,s:^client.Session,model:^store.ModelWrite,p:e.Pledge,end:i64) -> bool {
 	proof:=commit_mark(model.issued.id,p.digest,u64(end))
-	if !create_mark(fd,CommitMark,proof[:]) { return {},false }
+	if !create_mark(model.fd,CommitMark,proof[:]) { return false }
 	h:r.RequestHistory
-	snap,status:=intake_snapshot(w,s,root,&h)
-	if status!=.PendingConfirmation || snap.pending!=p { return {},false }
+	snap,status:=intake_snapshot(w,s,model.root,&h)
+	if status!=.PendingConfirmation || snap.pending!=p { return false }
 	store.request_probe(11,"time-synced")
-	if !confirm_model_pair(w,s,root,snap,p) { return {},false }
-	store.request_probe(11,"confirmed")
-	return {s.store,s.epoch,p.sequence,p.head},true
+	return verify_pending_pair(w,s,model.root,snap,p)
 }

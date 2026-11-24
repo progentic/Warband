@@ -68,7 +68,7 @@ pending_requests :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Chec
 	if !present || len(snap.rows)==0 { return .Reconciliation }
 	tail:=snap.rows[len(snap.rows)-1]
 	if tail.bytes[6]==11 {
-		if confirm_model_pair(w,s,root,snap,p) { return .Recorded }
+		if verify_pending_pair(w,s,root,snap,p) && store.confirm_stored(w,s,p,nil,s.deadline,marker=true,requests=true) { return .Recorded }
 		return .Reconciliation
 	}
 	if tail.bytes[6]!=18 && tail.bytes[6]!=19 { return .Reconciliation }
@@ -171,7 +171,7 @@ request_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkp
 		if pe!=.NONE { return .Reconciliation,{} }
 		defer l.close(parent)
 		if _,private:=private_dir(parent); !private { return .Reconciliation,{} }
-		model:=store.ModelWrite{entry.issued,&h}
+		model:=store.ModelWrite{issued=entry.issued,history=&h}
 		accepted,outcome:=intake_locked(w,s,root,parent,payload,i64(entry.issued.deadline_ms),&model)
 		if outcome!=.ConfirmedProposal { return .Reconciliation,{} }
 		l.close(accepted.directory_fd)
