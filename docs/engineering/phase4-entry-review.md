@@ -57,6 +57,10 @@ This increment records the [adapter decision](../decisions/0010-provider-adapter
 
 **Verification and handoff.** Run the new Odin package with vet and warnings as errors, then verify its named inventory and run documentation governance checks. The pure validator observes only supplied values. Repeat validation against identical inputs gives the same result. Durable ID consumption and crash disposition belong to increment 2. Provider envelope handling, project-settings verification and egress belong to increment 3. Marker intake and runtime activation retain their separate gates.
 
+## Increment 2 design decision
+
+Proto selected atomic SQLite consumption with the kind-11 proposal insert. [ADR-0011](../decisions/0011-atomic-model-request-consumption.md) records durable issuance before egress, explicit provisioning, crash dispositions and the evidence owed before integration.
+
 ## Exit obligations retained
 
 Phase 4 exit still owes live provider and egress evidence, deterministic fixture reproduction, approval-binding regressions, WB-NEG-001 through WB-NEG-012 coverage on the real path, and explicit rejection of learned promotion under WB-CON-010 and WB-INV-010. The ADR-0006 disposition and the production-target rerun remain due at their recorded gates and are not Phase 4 entry blockers.

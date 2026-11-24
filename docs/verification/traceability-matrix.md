@@ -8,6 +8,8 @@ This matrix links constitutional rules to contracts, planned implementation, ver
 
 The [increment 1 scope and fixture oracles](../engineering/phase4-entry-review.md#increment-1-scope-for-pure-candidate-validation) specify pure validation in `src/model/candidate.odin` and planned cases in `tests/odin/model/candidate_test.odin`. Durable request-ID consumption has a separate review.
 
+For WB-CON-002/007/008 and WB-NEG-005/006/009, [ADR-0011](../decisions/0011-atomic-model-request-consumption.md) selects atomic request consumption. Verify the issuance, race and restart dispositions against the actual SQLite and custody boundaries, using the [binding and provenance fixtures](../decisions/0011-atomic-model-request-consumption.md#increment-2-fixtures-owed). Every mismatch requires reconciliation and zero new admissions. Increment 2 evidence is pending.
+
 | Requirement | Verification owed |
 |---|---|
 | WB-CON-002/008 · WB-NEG-001/002/005/006/012 | Feed live and fixture candidates through the same parser. Reject malformed, oversized, unknown, stale and duplicate inputs. Replay a consumed request ID after restart and verify it cannot reach intake again. |
