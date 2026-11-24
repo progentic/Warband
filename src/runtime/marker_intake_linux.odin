@@ -179,9 +179,12 @@ recover_intake :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkp
 }
 
 @(private)
-intake_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoint,parent: l.Fd,payload: []u8,deadline: i64) -> (PreparedProposal,IntakeOutcome) {
+intake_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoint,parent: l.Fd,payload: []u8,deadline: i64,model: ^store.ModelWrite = nil) -> (PreparedProposal,IntakeOutcome) {
 	entry,listed := attempt_entry(parent)
-	snap,status := intake_snapshot(w,s,root)
+	history: ^r.RequestHistory
+	if model!=nil { history=model.history }
+	snap,status := intake_snapshot(w,s,root,history)
+	if model!=nil && status!=.Ready { return {},status }
 	if status==.PendingConfirmation { return {},recover_intake(w,s,root,snap,parent,entry,listed,deadline) }
 	if status!=.Ready { return {},status }
 	if len(snap.replay.tasks)>0 {
@@ -197,7 +200,7 @@ intake_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpo
 	if !listed || entry!="" { return {},.DirectoryHold }
 	if snap.replay.receipts_used<len(snap.receipts) {
 		ref: e.EventRef
-		if reconcile_locked(w,s,nil,nil,&ref)!=.Ready { return {},.Unavailable }
+		if model!=nil || reconcile_locked(w,s,nil,nil,&ref)!=.Ready { return {},.Unavailable }
 		snap,status = intake_snapshot(w,s,root)
 		if status!=.Ready || len(snap.replay.tasks)!=0 || snap.replay.receipts_used!=len(snap.receipts) { return {},.Unavailable }
 	}
@@ -227,14 +230,25 @@ intake_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpo
 	if !opened { return {},.DirectoryHold }
 	transfer := false
 	defer if !transfer { l.close(fd) }
-	cp,confirmed := store.append_intake(w,s,snap.cp,snap.mark,task,deadline)
+	if model!=nil {
+		store.request_probe(11,"directory")
+		if !create_mark(fd,RequestMark,model.issued.id[:]) { return {},.DirectoryHold }
+		store.request_probe(11,"provenance-synced")
+	}
+	cp,confirmed := store.append_intake(w,s,snap.cp,snap.mark,task,deadline,model)
 	if !confirmed { return {},.AttestationUncertain }
 	stamp = client.wb_recorded_us()
 	if stamp<0 { return {},.Unavailable }
 	proposal.reference,proposal.previous_head,proposal.recorded_time = {s.store,1,cp.sequence+1},cp.head,u64(stamp)
-	cp,confirmed = store.append_intake(w,s,cp,snap.mark,proposal,deadline)
-	if !confirmed { return {},.AttestationUncertain }
-	last,outcome := intake_snapshot(w,s,root)
+	if model!=nil {
+		model.root,model.fd,model.witness=root,fd,witness_model_commit
+		cp,confirmed = store.append_model_pair(w,s,cp,snap.mark,model,proposal)
+		if !confirmed { return {},.AttestationUncertain }
+	} else {
+		cp,confirmed = store.append_intake(w,s,cp,snap.mark,proposal,deadline)
+		if !confirmed { return {},.AttestationUncertain }
+	}
+	last,outcome := intake_snapshot(w,s,root,history)
 	if outcome!=.Ready { return {},outcome }
 	if last.cp!=cp || len(last.replay.tasks)!=1 { return {},.IntegrityFault }
 	view := last.replay.tasks[0]
@@ -246,7 +260,7 @@ intake_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpo
 	if l.fstatat(parent,name,&current,{.SYMLINK_NOFOLLOW})!=.NONE || !l.S_ISDIR(current.mode) ||
 	   u64(current.dev)!=persisted.device || u64(current.ino)!=persisted.inode { return {},.DirectoryHold }
 	now = client.wb_elapsed_ms()
-	if now<deadline-30_000 || now>=deadline { return {},.OperationDeadlineExceeded }
+	if model==nil && (now<deadline-30_000 || now>=deadline) { return {},.OperationDeadlineExceeded }
 	transfer = true
 	return {persisted,fd,view},.ConfirmedProposal
 }

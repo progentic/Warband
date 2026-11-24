@@ -1,6 +1,7 @@
 """Exercise the runtime request writer with a real SQLite store and enrolled custodian."""
 import contextlib
 import hashlib
+import json
 import os
 import select
 import shutil
@@ -98,5 +99,57 @@ def issuance_and_expiry():
         print('request_fixture', case, flush=True)
 
 
+def candidate(request_id):
+    return json.dumps(dict(schema_version=1, request_id=request_id.hex(), action='create_marker',
+                           expected_effect='marker_contains_payload', payload_b64='YWJj')).encode()
+
+
+def finish_admission(proc, rid):
+    output, stderr = proc.communicate(b'a' + candidate(rid), timeout=30)
+    assert (proc.returncode, output) == (0, b'Admitted\n'), (output, stderr)
+
+
+def atomic_intake():
+    for case in ('control', 'deleted', 'altered', 'no_provenance', 'lost_time'):
+        with request_store() as f:
+            command(f, 'provision', ['Ready'])
+            with issued(f) as (proc, rid):
+                finish_admission(proc, rid)
+            rows = f.rows()[0]
+            assert [row[3][6] for row in rows] == [18, 1, 11]
+            wire = rows[2][3]
+            assert wire[187:-32] == b'abc' and struct.unpack_from('<QQ', wire, 152) == (1, 0)
+            directory, = (f.root / 'attempts').iterdir()
+            assert list(directory.iterdir()) == []
+            assert os.getxattr(directory, 'user.warband.request.v1') == rid
+            digest = hashlib.sha256(b'warband.event.v1\0' + wire[:-32]).digest()
+            fingerprint = hashlib.sha256(b'warband.marker.proposal.v1\0' + wire[8:40] + wire[56:-32]).digest()
+            assert f.query('SELECT request_id,sequence,catalog_id,event_digest,fingerprint FROM consumed_requests') == [
+                (rid, LE(3), struct.pack('<I', 2), digest, fingerprint)]
+            proof = os.getxattr(directory, 'user.warband.commit.v1')
+            assert len(proof) == 56 and proof[:48] == rid + digest
+            start, deadline = struct.unpack_from('<QQ', rows[0][3], 144)
+            assert start <= int.from_bytes(proof[48:], 'little') < deadline
+            before = f.verify()
+            if case == 'control':
+                command(f, 'recover', ['Ready'])
+                retry = subprocess.run(['./model-request', 'retry'], input=rid.hex().encode() + candidate(rid),
+                                       **actor(f), capture_output=True, timeout=15)
+                assert (retry.returncode, retry.stdout) == (1, b'Consumed\n')
+            else:
+                if case == 'deleted':
+                    f.query('DELETE FROM consumed_requests')
+                elif case == 'altered':
+                    f.query('UPDATE consumed_requests SET catalog_id=?', (struct.pack('<I',1),))
+                elif case == 'no_provenance':
+                    os.removexattr(directory, 'user.warband.request.v1')
+                else:
+                    os.removexattr(directory, 'user.warband.commit.v1')
+                command(f, 'recover', ['Reconciliation'], 1)
+            assert f.verify() == before and rows == f.rows()[0]
+            print('model_intake', case, 'projection=1/0', 'new_admissions_after_restart=0', flush=True)
+
+
 if __name__ == '__main__':
     issuance_and_expiry()
+    atomic_intake()
