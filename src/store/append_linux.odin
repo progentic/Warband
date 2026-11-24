@@ -9,9 +9,9 @@ import "core:sys/linux"
 TEST_STOP_SIGNAL :: linux.Signal.SIGSTOP
 STOP_AFTER_COMMIT :: #config(WARBAND_TEST_STOP_AFTER_COMMIT, false)
 
-confirm_stored :: proc(w: VerifiedWriter, s: ^client.Session, p: e.Pledge, expected: Maybe(Import), deadline: i64, marker := false) -> bool {
+confirm_stored :: proc(w: VerifiedWriter, s: ^client.Session, p: e.Pledge, expected: Maybe(Import), deadline: i64, marker := false, requests := false) -> bool {
 	if !client.within_budget(s,1) { return false }
-	row, ok := event_row((cast(^WriterState)w).db, {p.store,p.epoch,p.sequence},marker=marker)
+	row, ok := event_row((cast(^WriterState)w).db, {p.store,p.epoch,p.sequence},marker=marker,requests=requests)
 	if !ok || row.pledge != p || row.receipt != expected { return false }
 	if row.acceptance != nil || row.marker_acceptance != nil {
 		checkpoint := e.Checkpoint{p.store,p.epoch,p.sequence,p.head}
@@ -42,7 +42,7 @@ append_verified_event :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpo
 }
 
 @(private)
-append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,prior: u64,entry: Maybe(Import),bytes: []u8,digest: [32]u8,start,cutoff: i64, acceptance: ^AcceptanceCheck = nil, marker := false) -> (e.Checkpoint,bool) {
+append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,prior: u64,entry: Maybe(Import),bytes: []u8,digest: [32]u8,start,cutoff: i64, acceptance: ^AcceptanceCheck = nil, marker := false, request: ^RequestAppend = nil) -> (e.Checkpoint,bool) {
 	if start < 0 || cp.sequence == max(e.Sequence) { return {},false }
 	p := e.Pledge{store=cp.store,epoch=cp.epoch,previous_sequence=cp.sequence,previous_head=cp.head,sequence=cp.sequence+1,digest=digest}
 	p.head = c.derive_head(p)
@@ -59,7 +59,7 @@ append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,pri
 		if marker && linux.kill(linux.getpid(),TEST_STOP_SIGNAL)!=.NONE { return {},false }
 	}
 	now := client.wb_elapsed_ms()
-	if now < start || now >= deadline || !client.within_budget(s,u64(cp.sequence)+1) || !commit_event(w,cp,prior,entry,bytes,acceptance,marker) { return {},false }
+	if now < start || now >= deadline || !client.within_budget(s,u64(cp.sequence)+1) || !commit_event(w,cp,prior,entry,bytes,acceptance,marker,request) { return {},false }
 	edge :: #config(WARBAND_DECISION_COMMIT_STOP,0)
 	when edge!=0 {
 		#assert(edge==12 || edge==13)
@@ -82,7 +82,8 @@ append_pledged :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,pri
 	}
 	mark := prior
 	if imported, present := entry.(Import); present { mark = imported.id.ordinal }
-	if !watermark_matches(w,cp.store,mark) || !confirm_stored(w,s,p,entry,deadline,marker) { return {},false }
+	if request!=nil && !request_inventory(w,request.after) { return {},false }
+	if !watermark_matches(w,cp.store,mark) || !confirm_stored(w,s,p,entry,deadline,marker,request!=nil) { return {},false }
 	return {p.store,p.epoch,p.sequence,p.head},true
 }
 

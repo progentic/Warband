@@ -102,13 +102,13 @@ IntakeSnapshot :: struct {
 }
 
 @(private)
-intake_snapshot :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoint) -> (IntakeSnapshot,IntakeOutcome) {
+intake_snapshot :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoint,requests: ^r.RequestHistory = nil) -> (IntakeSnapshot,IntakeOutcome) {
 	page,ok := client.verify(s,0)
 	if !ok { return {},.Unavailable }
 	snap := IntakeSnapshot{cp=page.committed,pending=page.pending}
 	imports: [dynamic]store.Import
 	defer delete(imports)
-	seg,checked := store.inspect_writer(w,snap.cp,root.head,&imports,s,marker=true)
+	seg,checked := store.inspect_writer(w,snap.cp,root.head,&imports,s,marker=true,requests=requests!=nil)
 	if !checked || !store.watermark_matches(w,s.store,seg.last_import) { return {},.IntegrityFault }
 	snap.mark,snap.tail_import = seg.last_import,seg.tail_import
 	tip := page.tip
@@ -131,7 +131,14 @@ intake_snapshot :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Check
 	ptr: ^e.Pledge
 	if active { ptr=&p }
 	segments := [?]r.Segment{{rows=snap.rows}}
-	snap.replay = r.project_markers(root,snap.cp,ptr,segments[:],snap.receipts[:])
+	if requests!=nil {
+		if !client.within_budget(s,u64(len(requests.entries))*u64(len(snap.rows))) { return {},.RecoveryLimitExceeded }
+		view,history := r.project_requests(root,snap.cp,ptr,segments[:],snap.receipts[:])
+		snap.replay = view
+		requests^ = history
+	} else {
+		snap.replay = r.project_markers(root,snap.cp,ptr,segments[:],snap.receipts[:])
+	}
 	if !client.within_budget(s) { return {},.RecoveryLimitExceeded }
 	if snap.replay.readiness==.UnattestedTail { return snap,.UnattestedTail }
 	if snap.replay.error!=.None { return {},.IntegrityFault }

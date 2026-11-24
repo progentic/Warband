@@ -94,3 +94,6 @@ for stage in insert wal; do
 done
 sha256sum "$out/marker-approval-completion-proof" "$out/marker-approval-accept-barrier" \
           "$out"/marker-approval-completion-{15,16,17} "$out"/marker-approval-accept-{insert,wal}
+
+odin build cmd/model-request -target:linux_amd64 -vet -warnings-as-errors \
+    "-collection:warband_sqlite=$sqlite" "-extra-linker-flags:-L$out" "-out:$out/model-request"
