@@ -63,6 +63,10 @@ Proto selected atomic SQLite consumption with the kind-11 proposal insert. [ADR-
 
 The [approved increment 2 implementation scope](phase4-increment2-scope.md) compares catalog and issuance witnesses, records implementation budgets, and defines the real-path acceptance tests.
 
+## Increment 3 implementation scope
+
+The [adapter and egress scope](phase4-increment3-scope.md) records the approved one-shot transport, conditional libcurl qualification, package budgets, denial fixtures and the handoff from isolated qualification to separately authorized live evidence.
+
 ## Exit obligations retained
 
 Phase 4 exit still owes live provider and egress evidence, deterministic fixture reproduction, approval-binding regressions, WB-NEG-001 through WB-NEG-012 coverage on the real path, and explicit rejection of learned promotion under WB-CON-010 and WB-INV-010. The ADR-0006 disposition and the production-target rerun remain due at their recorded gates and are not Phase 4 entry blockers.
