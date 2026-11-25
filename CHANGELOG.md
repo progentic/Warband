@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.2.3 - 2026-11-24
+
+### Added
+
+- Added a one-shot external connector that checks two sets of A and AAAA results for the fixed provider hostname and hands the transport one verified IPv4 socket on port 443. The launcher confines the front end and transport with separate network namespaces and kernel syscall filters.
+
 ## 0.2.2 - 2026-11-24
 
 ### Added

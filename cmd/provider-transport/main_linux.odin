@@ -85,6 +85,14 @@ transfer :: proc(t:^Transfer,frame:Frame,input:m.ProjectionInput,secret:l.Fd) ->
 	if !send(t.control,transmute([]byte)string("R")) { return "Cancelled" }
 	for readable(t.control,t.setup_end) {
 		n,fd:=receive(t.control,packet[:])
+		if ExternalPolicy && fd<0 && n==1 {
+			if now_ms()>=t.setup_end { return "Deadline" }
+			switch packet[0] {
+			case 'D': return "DestinationDenied"
+			case 'U': return "ResolutionUnavailable"
+			case 'F': return "ConnectFailure"
+			}
+		}
 		if fd<0 && n==len(frame) && packet==frame { continue }
 		if fd<0 && (n==0 || n==1 && packet[0]=='C') { return "Cancelled" }
 		if fd<0 || n!=7 || packet[0]!='S' { return "InvalidHandoff" }

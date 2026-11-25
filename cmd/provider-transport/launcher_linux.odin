@@ -11,7 +11,7 @@ import m "../../src/model"
 // The fixture's trusted bootstrap starts as root with three inherited handles.
 // The issuer grants one spawn via an anonymous pipe containing exactly one tuple.
 // Reading that PIPE_BUF-sized tuple spends it before fork, including on errors.
-roles :: enum {Transport, Frontend}
+roles :: enum {Transport, Frontend, Connector}
 lock_fds :: proc(allowed:[]l.Fd) -> bool {
 	first:=l.Fd(3)
 	for {
@@ -27,13 +27,15 @@ lock_fds :: proc(allowed:[]l.Fd) -> bool {
 isolate :: proc(role:roles,parent:l.Pid,allowed:[]l.Fd) -> bool {
 	if !lock_fds(allowed) { return false }
 	uid:=l.Uid(60001)
-	if role==.Frontend {
-		uid=60002
+	if role==.Frontend { uid=60002 }
+	if role==.Connector { uid=60003 }
+	if role==.Frontend || (ExternalPolicy && role==.Transport) {
 		if l.syscall(l.SYS_unshare,0x40000000)!=0 { return false } // CLONE_NEWNET
 	}
 	return l.setgroups(nil)==.NONE && l.setresgid(l.Gid(uid),l.Gid(uid),uid)==.NONE &&
 	       l.setresuid(uid,uid,uid)==.NONE && l.prctl(4,0,0,0,0)==.NONE &&
-	       l.prctl(38,1,0,0,0)==.NONE && l.prctl(1,uint(l.Signal.SIGKILL),0,0,0)==.NONE && l.getppid()==parent
+	       l.prctl(38,1,0,0,0)==.NONE && l.prctl(1,uint(l.Signal.SIGKILL),0,0,0)==.NONE && l.getppid()==parent &&
+	       (!ExternalPolicy || role==.Connector || wb_network_profile()==0)
 }
 
 peer_is_parent :: proc(control:l.Fd,parent:l.Pid) -> bool {
@@ -149,17 +151,32 @@ launch :: proc() -> int {
 	for pair in ([?]^[2]l.Fd{&result,&ingress,&handoff}) {
 		if l.socketpair(.LOCAL,.SEQPACKET,l.Protocol(0),pair)!=.NONE { return 1 }
 	}
+	broker:=[2]l.Fd{-1,-1}
+	_ = broker // Only the connector profile uses the private broker channel.
+	work_control:=control
+	when ExternalPolicy {
+		if l.socketpair(.LOCAL,.SEQPACKET,l.Protocol(0),&broker)!=.NONE { return 1 }
+		work_control=broker[0]
+		// Drain a queued cancellation before giving the transport its tuple.
+		for readable(control,now_ms()+1) {
+			if now_ms()>=deadline { _=send(control,transmute([]byte)string("Deadline")); return 0 }
+			extra:Frame
+			count,fd:=receive(control,extra[:])
+			if count==1 && fd<0 && extra[0]=='C' { _=send(control,transmute([]byte)string("Cancelled")); return 0 }
+			if count!=len(frame) || fd>=0 || extra!=frame { _=send(control,transmute([]byte)string("InvalidHandoff")); return 0 }
+		}
+	}
 	me:=l.getpid()
 	worker,ce:=l.fork()
 	if ce!=.NONE { return 1 }
 	if worker==0 {
-		if !isolate(.Transport,me,([]l.Fd{control,secret,ingress[0],handoff[0]})) ||
+		if !isolate(.Transport,me,([]l.Fd{work_control,secret,ingress[0],handoff[0]})) ||
 		   !peer_is_parent(handoff[0],me) || !readable(handoff[0],deadline) { l.exit_group(1) }
 		got:Frame
 		count,fd:=receive(handoff[0],got[:])
 		l.close(handoff[0])
 		if count!=len(frame) || fd>=0 || got!=frame { l.exit_group(1) }
-		l.exit_group(0 if run_transport(control,secret,ingress[0],got,start,deadline) else 1)
+		l.exit_group(0 if run_transport(work_control,secret,ingress[0],got,start,deadline) else 1)
 	}
 	defer kill_and_reap(&worker)
 	l.close(secret) // Before fork of the front end; plaintext exists only in the transport.
@@ -172,13 +189,39 @@ launch :: proc() -> int {
 	}
 	defer kill_and_reap(&front)
 	l.close(result[1]); l.close(ingress[1])
+	connector:=l.Pid(-1)
+	defer kill_and_reap(&connector)
+	when ExternalPolicy {
+		l.close(broker[0])
+		pid,fork_error:=l.fork()
+		if fork_error!=.NONE { return 1 }
+		if pid==0 {
+			ok:=isolate(.Connector,me,([]l.Fd{broker[1]})) && peer_is_parent(broker[1],me)
+			l.exit_group(0 if ok && connect_once(broker[1],min(deadline,start+5000)) else 1)
+		}
+		connector=pid
+	}
 	if !send(handoff[1],frame[:]) { return 1 }
 	l.close(handoff[1])
 	packet:[160]byte
 	for {
 		f:=[2]l.Poll_Fd{{fd=result[0],events={.IN}},{fd=control,events={.RDHUP}}}
+		when ExternalPolicy { f[1].events += {.IN} }
 		ready,err:=l.poll(f[:],i32(clamp(deadline-now_ms(),0,100)))
 		if err!=.NONE || .HUP in f[1].revents || .RDHUP in f[1].revents { return 1 }
+		when ExternalPolicy {
+			if .IN in f[1].revents {
+				extra:Frame
+				count,fd:=receive(control,extra[:])
+				if fd>=0 { l.close(fd) }
+				if count==1 && extra[0]=='C' && fd<0 {
+					kill_and_reap(&connector)
+					_=send(broker[1],extra[:1])
+				} else if count!=len(frame) || fd>=0 || extra!=frame {
+					_=send(control,transmute([]byte)string("InvalidHandoff")); return 0
+				}
+			}
+		}
 		if ready>0 && .IN in f[0].revents {
 			count,fd:=receive(result[0],packet[:])
 			if fd>=0 || count<17 { return 1 }
