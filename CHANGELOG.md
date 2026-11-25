@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.2.1 - 2026-11-24
+
+### Added
+
+- Added `tests/integration/linux/test_provider_transport.py` to count HTTP requests independently of TCP connections and grade duplicate handoff, cancellation, stall, redirect, proxy and lost-reply cases against a synthetic TLS endpoint.
+
 ## 0.1.7 - 2026-11-23
 
 ### Added
