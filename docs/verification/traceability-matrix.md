@@ -10,6 +10,8 @@ The [increment 1 scope and fixture oracles](../engineering/phase4-entry-review.m
 
 For WB-CON-002/007/008 and WB-NEG-005/006/009, [ADR-0011](../decisions/0011-atomic-model-request-consumption.md) selects atomic request consumption. The [increment 2 target record](phase4-request-recovery.md) covers custody-confirmed issuance and expiry, atomic kind-11 intake and conservative recovery on x64-review. The [binding and provenance fixtures](../decisions/0011-atomic-model-request-consumption.md#increment-2-fixtures-owed) produced reconciliation and zero new admissions. The later adapter and operator-workflow paths still owe live evidence.
 
+For WB-CON-002/010 and the projection portions of WB-NEG-001/007/011/012, the [3a profile and fixtures](../decisions/0010-provider-adapter-boundary.md#package-3a-projection-and-envelope-profile) verify the closed request bytes, bounded envelope extraction and reuse of `validate_candidate`. Transport and live provider evidence remain due at their recorded gates.
+
 | Requirement | Verification owed |
 |---|---|
 | WB-CON-002/008 · WB-NEG-001/002/005/006/012 | Feed live and fixture candidates through the same parser. Reject malformed, oversized, unknown, stale and duplicate inputs. Replay a consumed request ID after restart and verify it cannot reach intake again. |
