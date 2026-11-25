@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.2.2 - 2026-11-24
+
+### Added
+
+- Added the one-shot Odin launcher, isolated front end and libcurl transport for fixture-driven provider calls. The Linux qualification script identifies the linked library, TLS backend and trust configuration and grades request counts, deadlines, cancellation, issuer loss and response limits on x64-review.
+
 ## 0.2.1 - 2026-11-24
 
 ### Added
