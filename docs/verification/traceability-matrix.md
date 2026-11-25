@@ -12,6 +12,8 @@ For WB-CON-002/007/008 and WB-NEG-005/006/009, [ADR-0011](../decisions/0011-atom
 
 For WB-CON-002/010 and the projection portions of WB-NEG-001/007/011/012, the [3a profile and fixtures](../decisions/0010-provider-adapter-boundary.md#package-3a-projection-and-envelope-profile) verify the closed request bytes, bounded envelope extraction and reuse of `validate_candidate`. Transport and live provider evidence remain due at their recorded gates.
 
+For WB-CON-002/005/007/010 and WB-NEG-003/011, [the accepted 3b transport decision and fixtures](../decisions/0012-one-shot-provider-transport.md) specify the one-shot handoff, fixed transfer, callback abort evidence and credential containment. Target qualification and live egress evidence remain pending.
+
 | Requirement | Verification owed |
 |---|---|
 | WB-CON-002/008 · WB-NEG-001/002/005/006/012 | Feed live and fixture candidates through the same parser. Reject malformed, oversized, unknown, stale and duplicate inputs. Replay a consumed request ID after restart and verify it cannot reach intake again. |
