@@ -66,23 +66,36 @@ hex_digit :: proc(c: byte) -> bool {
 // The pinned tokenizer also accepts an escaped apostrophe and letters beyond F
 // in Unicode escapes. Check those before passing a string to its unquoter.
 @(private)
-read_string :: proc(token: json.Token, allocator: mem.Allocator) -> (string, bool) {
-	raw := token.text
-	if token.kind != .String { return "", false }
+valid_escapes :: proc(raw: string, paired_surrogates: bool) -> bool {
+	awaiting_low := false
 	for i := 1; i < len(raw)-1; i += 1 {
+		if awaiting_low && raw[i] != '\\' { return false }
 		if raw[i] != '\\' { continue }
 		i += 1
+		if awaiting_low && raw[i] != 'u' { return false }
 		switch raw[i] {
 		case '"', '\\', '/', 'b', 'f', 'n', 'r', 't':
 		case 'u':
-			if i+4 >= len(raw)-1 { return "", false }
+			if i+4 >= len(raw)-1 { return false }
 			for j in 1..=4 {
-				if !hex_digit(raw[i+j]) { return "", false }
+				if !hex_digit(raw[i+j]) { return false }
+			}
+			if paired_surrogates {
+				first, second := raw[i+1] | 32, raw[i+2] | 32
+				low := first == 'd' && second >= 'c' && second <= 'f'
+				if low != awaiting_low { return false }
+				awaiting_low = first == 'd' && (second == '8' || second == '9' || second == 'a' || second == 'b')
 			}
 			i += 4
-		case: return "", false
+		case: return false
 		}
 	}
+	return !awaiting_low
+}
+
+@(private)
+read_string :: proc(token: json.Token, allocator: mem.Allocator, paired_surrogates := false) -> (string, bool) {
+	if token.kind != .String || !valid_escapes(token.text, paired_surrogates) { return "", false }
 	value, err := json.unquote_string(token, .JSON, allocator)
 	return value, err == .None
 }
