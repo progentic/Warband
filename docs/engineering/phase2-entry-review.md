@@ -1,11 +1,92 @@
 # Phase 2 entry review
 
-- **Status:** Phase 2 entry authorized; pure event-reference, epoch-advancement and prepare-classification slices only
+- **Status:** Historical entry and slice records. The [bounded Phase 2 exit](../governance/phase2-exit.md) records their final scope.
 - **Owner:** Proto, assigned to ADR-0005 on 2026-10-18
 - **Historical roadmap review baseline:** `ccba4b68a959bacbfed1cdff40dcb109b8acaa9d`, merged PR #8
 - **Implementation-preparation main baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`, later merged PR #9; descendant of the PR #8 baseline
 - **Design publication scope:** PRs #10–#14; these changes are later than either historical baseline and do not accept ADR-0005 or activate Phase 2
 - **Implementation phase:** `project.json` and the Odin manifest declare Phase 2
+
+## Slice 3b Gate 0
+
+Slice 3a closed at `67d55f6`. On 2026-11-18 the owner directed the [custodian-only §6 amendment](../decisions/0005-event-integrity-acceptance-and-recovery.md#gate-0-custodian-amendment-2026-11-18). Its eleven High procedures define the exact 3b implementation scope.
+
+Proto completed the WB-EXC-001 pre-implementation review on 2026-11-18 in [ADR-0008](../decisions/0008-phase2-resource-limits.md). After reviewing the observations below, Proto selected the project-local `x64-review` VM and explicitly authorized activation of isolated 3b on 2026-11-18. This entry activates exactly the three cmd/custodian and eight src/custody procedures and their listed call edges in the Gate 0 amendment, together with the Linux denial harness. Changes to the target or effect boundary require review of the affected evidence.
+
+### Linux development target observed 2026-11-18
+
+The existing project-local Lima `x64-review` guest was inspected on baseline `6700e09`. Its [recipe](../../vm/x64-review.yaml) and [image selection](../../vm/x64-review-selection.json) identify the original Phase 1 VM. The following observations identify the selected isolated 3b verification target.
+
+| Component | Observed configuration |
+| --- | --- |
+| Image and kernel | Ubuntu 24.04.5 LTS amd64 server image serial 20260926, verified base-image SHA-256 `6a81c37564db9b1ee84e141922625e1d7c5b389b99bb3c572e0243607d5bb4d2`; running x86_64 kernel `6.8.0-142-generic #142-Ubuntu` |
+| VM and disk | Lima 2.3.0, QEMU 11.1.3, q35/TCG, 4 vCPUs, 6144 MiB RAM. virtio-blk boot disk, 24 GiB qcow2 on host APFS. Project-local plain mode with no host mounts. |
+| Journal/custody test storage | Guest `/var/lib` resolves to local ext4 on `/dev/vda1` (24,694,996,480 bytes); options `rw,relatime,discard,errors=remount-ro,commit=30`. Use paths on this filesystem for the denial harness. |
+| Cache and flush | Guest block queue reports write back. QMP reports `writeback=true, direct=false, no-flush=false` at both qcow2 and host file nodes. Flush requests are enabled. Power-loss durability requires later matching fault evidence. |
+| Enforcement | Unified cgroup v2 with memory controller available; no guest swap active. Two transient systemd probes running as UID 65534 read back `memory.max` = 33554432 (custodian) and 268435456 (runtime) bytes, both with `memory.swap.max=0`. The 3b harness must apply and verify the limits on its actual process identities. Application arena limits remain implementation work. |
+| Toolchain | Locked Odin `8b35c86efb78e9ab5223673a07e02fc2a6884191`, local binary SHA-256 `21d959fe3b3b86423f5bb7404a8a34e48d688e1dd6858d9d7f9f86424765cc52`. LLVM/Clang 19.1.1, clang-19/llvm-19-dev/lld-19 revision `1:19.1.1-1ubuntu1~24.04.2`. |
+
+The read-only QMP queries, guest commands, toolchain observations and host launch details are retained under `.local/gate0-target/`. Evidence manifest SHA-256: `a48bf7b2d78777bff60f4e158050913958bbe510839ef3e42d824930a639451f`. SQLite's default Unix VFS with WAL/FULL is the selected later store profile; effective SQLite settings are due with slice 4. Hosted CI results have their own runner identities.
+
+### Slice 3b closure, 2026-11-18
+
+The four-UID denial harness passed on the recorded `x64-review` storage stack and in the hosted Ubuntu 24.04 regression job. Independent review of `67195bf` found no blocking issues. Documentation checks, all 28 governance controls and all 52 Odin tests passed independently. All four hosted checks passed. [Custodian verification record](../verification/isolated-linux-custodian.md)
+
+At Gate 0, three items carried forward. Power-loss durability on the qcow2/APFS stack remains unproven. Revisit that claim if a deployment target requires it. The exception and runner-label items received their dispositions in the [exit record](../governance/phase2-exit.md). [Exception record](../decisions/0008-phase2-resource-limits.md)
+
+Slice 4 entry needs a store profile for the project-local static build of SQLite 3.54.1 and verification of WAL mode and FULL synchronization on each writing connection. Exactly-once import of custody denial receipts into event history belongs to that slice.
+
+## Slice 4 build entry
+
+Proto approved the pinned SQLite 3.54.1 amalgamation as a build dependency and a native static-link probe on Ubuntu x64 and macOS ARM64. Both hosted jobs must pass on the same PR before merge. The [build record](../decisions/0005-event-integrity-acceptance-and-recovery.md#sqlite-static-build-evidence) identifies the inputs and local results. Both hosted probes passed and the independent Linux build reproduced the archive byte-for-byte. [PR #51](https://github.com/progentic/Warband/pull/51) The writer-open entry below qualifies database access for profile verification. Denial-receipt import requires separate authorization.
+
+### SQLite store profile
+
+Before admitting application writes, the binding must set WAL mode, FULL synchronization and foreign-key enforcement, then read back all four values below on **each writing connection**. The application schema version comes from the existing database header. Opening a writer must read that version without assigning it.
+
+| Read-back query | Required result |
+| --- | --- |
+| `PRAGMA journal_mode` | `wal` |
+| `PRAGMA synchronous` | `2` (FULL) |
+| `PRAGMA foreign_keys` | `1` |
+| `PRAGMA user_version` | `1` (Warband schema v1) |
+
+If any query fails, returns no value or reports a different value, the binding must withhold write access. Proto authorized the [writer-open qualification](../decisions/0005-event-integrity-acceptance-and-recovery.md#sqlite-writer-open-qualification) for nine files and 450 added lines. Local real-database verification passed on macOS ARM64 and Ubuntu x64. Each of two simultaneous writers reported all four values. An independent read-only connection confirmed that the rejected version-0 fixture retained its version and original delete journal mode.
+
+### Schema v1 record
+
+On 2026-11-20 Proto approved the [schema v1 and operator provisioning contract](../decisions/0005-event-integrity-acceptance-and-recovery.md#schema-v1-for-events-and-denial-imports). This documentation increment defines the atomic store transaction and the restart acceptance case. Proto authorized only [operator provisioning](../decisions/0005-event-integrity-acceptance-and-recovery.md#operator-store-provisioning-qualification) for nine files and 350 added lines on 2026-11-20. The following entry activates receipt import. The post-COMMIT harness authorization is recorded below.
+
+### Isolated receipt import and recovery
+
+On 2026-11-20 Proto approved thirteen files and 950 added lines, including retained-segment comparison. The [qualified reconciliation path](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-linux-receipt-reconciliation-qualification) imports one receipt at a time under the writer lock. The state-crafted integration harness passed locally on x64-review. Its Linux workflow step retains the native build log and reconciliation transcript.
+
+### Slice 4 implementation closure
+
+Slice 4 implementation closed at `004d29c` on 2026-11-20. The post-COMMIT recovery proof is complete on x64-review and hosted Ubuntu 24.04. After importer death the custody tip was 3. The first normal restart confirmed the pending event and advanced the tip to 4. The second returned Ready at tip 4. The event, receipt binding and watermark rows remained byte-identical across both restarts. [ADR-0005 proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#post-commit-process-kill-proof) · [PR #57](https://github.com/progentic/Warband/pull/57)
+
+**Capacity checkpoint measured.** At 50 receipts per physical store, import examined 338.52 records per confirmed event and charged 641.56 visits per event. Each denial added 203 custody bytes before import and 950.76 total logical bytes after confirmation. WB-EXC-001 remains Open pending capacity-warning delivery, operator action and reviewed disposition. [Method, workload limits and raw evidence](../verification/slice4-capacity.md) · [ADR-0008](../decisions/0008-phase2-resource-limits.md)
+
+Slice 5 covers the no-op authority path and competing-acceptor rejection. Slice 6 covers deterministic replay, remaining fault evidence, operator reconciliation rehearsal and Phase 2 exit traceability.
+
+Slice 6 functional replay qualifies read-only recovery inspection and the pure task/control reducer. Four single-task histories have same-snapshot live comparisons. A separate four-task history has an independent projection oracle. The fault walk, capacity boundaries, operator rehearsal and exit inventory remain open. [Qualification and evidence](../decisions/0005-event-integrity-acceptance-and-recovery.md#slice-6-functional-replay-qualification).
+
+
+## Slice 5 supplied-clock entry
+
+Proto approved six files and 180 added lines for the [pure timing decisions](../decisions/0008-phase2-resource-limits.md#slice-5-supplied-clock-decisions). The portable package takes supplied ticks and performs no I/O. Proto accepted the [Linux live capability clock and incarnation rule](../decisions/0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment) on 2026-11-21. The bounded live gate and its proof have a separate entry below.
+
+## Slice 5 isolated no-op dispatch
+
+Proto approved the Linux capability gate and the [paired issuer/restart proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-live-dispatch-qualification). The issuer confirmed the permit and claim and dispatched once. A fresh execution verified both durable events inside the original lifetime, withheld dispatch and confirmed its reason-9 rejection. These results are local x64-review evidence. Observation and evaluation have a separate entry below.
+
+## Slice 5 observation and evaluation
+
+Proto approved twelve files and 480 added lines for the [registered observer and independent evaluator](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-observation-and-evaluation-qualification). All three acceptance cases passed on the isolated Linux target. A confirmed verdict is available for a future state-boundary check. The state acceptance entry below follows this verdict.
+
+## Slice 5 isolated state acceptance
+
+Proto approved fourteen files and 600 added lines for [acceptance, the derived index and competing-acceptor proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-state-acceptance-qualification). Local x64-review evidence covers one winning transition, a refused contender and exact retry, plus stale, revoked and rejected inputs. Phase 2 stays open. The [Slice 5 checkpoint](../verification/slice5-capacity.md) records visits per confirmed task, fixed startup work and concurrent-denial overhead. WB-EXC-001 remains Open pending warning delivery, prescribed operator action and reviewed disposition.
 
 ## Phase 2 entry recorded 2026-11-10
 
@@ -20,6 +101,42 @@ The owner separately authorized a seven-file, under-100-added-line pure epoch-ad
 The owner separately approved the [pure prepare classifier](../decisions/0005-event-integrity-acceptance-and-recovery.md#pure-prepare-classification-follow-on-recorded-2026-11-10) and its six concrete cases, initially seven files under 100 added lines, then eight files up to 110 lines to include its requested changelog/publication record. Only supplied-value identity, order, predecessor and pending binding are classified; authentication, link verification, history validation, codecs and custody writes remain unimplemented.
 
 The three named Proto-owned debts use the permitted carry-forward disposition; their Phase 5 entry deadline and severity/independent-review conditions are unchanged. No finding, recovery obligation or production gate is closed. The earlier design-review narrative below is historical; this entry record and the updated disposition table govern the current scope.
+
+## Pure confirm classification authorized 2026-11-11
+
+Proto adopted ADR-0008 and approved up to eight files and 150 added lines for pure confirm classification, requesting simple code and focused tests. `classify_confirm` uses supplied committed/pending tuples and publication state. It distinguishes pending eligibility, latest committed replay, publication waiting and rejection without mutating inputs. Authentication, durability and receipt production remain future boundaries.
+
+One focused test covers exact pending confirmation, missing pledge, publication waiting, mismatched tuple/scope/predecessor, committed replay preserving a newer pledge, and inconsistent committed metadata. Existing tests cover prepare only; these cases verify the new confirm decisions at the cost of one test in the existing package.
+
+Verification on native macOS ARM64 passed the existing runner for all five tests in the event-identity package, documentation governance, all 28 Python governance controls and whitespace checks. The manifest now declares three packages/ten tests; this increment adds no Linux durability evidence.
+
+## Pure recovery classification authorized 2026-11-12
+
+Proto approved seven files and up to 150 added lines for a pure recovery classifier reusing `Checkpoint`, `Pledge` and prepare validation. It compares supplied committed and journal tips, optional pending pledge and the journal-final event when ahead. Callers must first validate custody/history and the checkpoint-covered prefix and handle external faults. The classifier returns a primary decision; callers retain observations and any additional diagnostics.
+
+One focused test covers the seven implemented outcomes and mismatch precedence. Store mismatch precedes epoch mismatch; both precede integrity and permissive recovery decisions. A changed pledge/predecessor or conflicting checkpoint rejects before missing-event/confirmation handling. Existing tests exercise prepare/confirm but cannot prove these recovery decisions. The test costs one case group in the existing package with no new dependency.
+
+Verification on native macOS ARM64 passed all six event-identity tests through the existing runner, all 28 Python governance controls, documentation governance and whitespace checks. The manifest declares three packages/eleven tests. Persisted recovery and Linux durability remain future evidence.
+
+## Pledge codec and link hash authorized 2026-11-12
+
+The owner approved approximately 8–10 files and 200–250 added lines for local Mac pledge encoding and SHA-256 link hashing, including focused known-value, round-trip, malformed-length and tampering checks. [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#pledge-encoding-and-link-hashing-recorded-2026-11-12) records the exact boundary, independent vector reproduction, dependencies and changed files. This adds no event/frame codec, storage, custody service or runtime authority; later slices require their own authorization.
+
+Review found automatic standard-library CPU initialization. The owner separately approved the [pinned CPU-query/cache qualification](../decisions/0005-event-integrity-acceptance-and-recovery.md#pinned-sha-256-library-startup-qualification--approved-2026-11-12); no other startup, persistence or runtime-effect permission is added.
+
+## TaskCreated canonical codec authorized 2026-11-13
+
+The owner approved eleven files and up to 300 additional lines, preserving the uncommitted pledge increment. The TaskCreated-only codec uses a fixed 184-byte representation, explicit expected store/epoch, distinct 16-byte IDs and the approved endian/SHA-256 dependencies. Two focused tests compare the independent event/digest/link vectors and round-trip, then exercise the supplied negative vectors and implemented header, length and identity rejection paths.
+
+The [ADR record](../decisions/0005-event-integrity-acceptance-and-recovery.md#taskcreated-canonical-codec-recorded-2026-11-13) contains reasoning, failure history and verification logs. Later event kinds, frames, custody authentication and persistence retain their separate gates.
+
+## Custody frame and head codecs authorized 2026-11-15
+
+The owner approved eleven files and up to 400 added lines for the two fixed pledge-frame kinds and head-file codec. The [ADR record](../decisions/0005-event-integrity-acceptance-and-recovery.md#custody-frame-and-head-codecs-recorded-2026-11-15) defines independent vectors, focused test necessity, error boundaries and retained evidence. Exact bytes and hash binding are the implemented guarantees; full history, recovery actions and custody authentication remain future boundaries.
+
+## Administrative and rejection payloads authorized 2026-11-15
+
+The owner approved fourteen files and up to 700 added lines for GENESIS/EPOCH/REJECTION payloads and hashes. The [ADR record](../decisions/0005-event-integrity-acceptance-and-recovery.md#genesis-epoch-and-rejection-payloads-recorded-2026-11-15) records the reviewed semantics, vector construction, focused test necessity and failures. Six tests cover these newly implemented byte/validation paths; existing tests cover only other representations. Frame integration for kinds 3–5 and all operational custody remain separately gated.
 
 ## Roles and source references
 
@@ -44,7 +161,7 @@ The amended [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery
 | State and evidence registries | PR #10 supplies separate versions, transition rules and producer identities; acceptance and implementation evidence remain pending | Freeze transition/evidence tables, observer and evaluator identities, criteria coverage and all capability/attempt bindings |
 | Runtime effect composition | ADR-0007 explicitly excludes runtime coordination, policy, capabilities, evaluation, state and recovery from Phase 1 E1 permission | Review an explicit runtime call/effect graph and authorize any necessary scoped rule qualification before effectful code |
 | Phase 1 structural findings | E1 implementation and ADR-0007 acceptance exist; formal finding closure remains separate | Close each finding with evidence or name its release-debt owner and blocking disposition, as the phase plan requires |
-| Implementation entry | ADR-0005 accepted; separate entry and follow-ons recorded above; runtime controls remain unimplemented | Implement only the approved pure identity, epoch and prepare-classification slices |
+| Implementation entry | ADR-0005 accepted; separate entry and follow-ons recorded above; runtime controls remain unimplemented | Implement only the recorded pure slices and fixed pledge codec/link hash |
 
 The owner selected Option 1: same VM, separate checkpoint custodian. [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md#owner-selected-storage-and-custody-direction) records the direction and its trust limits. The selection does not accept the complete ADR. A file beside the journal under the same writable identity does not establish independent custody; the amended interface and crash behavior are now concrete candidates awaiting operator review.
 
@@ -92,7 +209,7 @@ After design authorization, evidence must bind the accepted store and checkpoint
 | Resolve and accept ADR-0005 | PASS: explicit owner decision and protected-main provenance recorded above |
 | Close or explicitly assign structural release debt | PASS for entry's named-debt alternative only; all three remain open until their Phase 5 entry deadline and required closure review |
 | Align contracts and runtime effect boundaries | Accepted design alignment; initial scope is pure domain code with no new effects |
-| Begin runtime implementation | AUTHORIZED: pure identity, epoch and prepare-classification slices only; no integrated runtime or durability claim |
+| Begin runtime implementation | AUTHORIZED: recorded pure slices, fixed pledge codec/link hash, TaskCreated-only event codec and PENDING/COMMITTED frame/head codecs; no integrated runtime or durability claim |
 
 Foundation obligations whose blocking gate is Phase 5 remain tracked in the phase plan. They are not silently promoted to Phase 2 blockers or treated as complete here.
 

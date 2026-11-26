@@ -1,8 +1,6 @@
 # Warband phase plan to v1.0.0
 
 - **Status:** Proposed release roadmap
-- **Historical planning baseline:** `main` at `3cbfd55b9157058cbd72dfcc6e14a59080925681`, published through `v0.0.2`; this baseline predates the acceptance and entry records linked below
-- **Current implementation:** Phase 1 accepted; the [Phase 2 entry review](../engineering/phase2-entry-review.md) records the authorized pure event-reference, epoch-advancement and prepare-classification slices
 - **Target:** A narrow, evidence-backed production release tagged `v1.0.0`
 - **Authority:** This document sequences work. It does not accept an ADR, select a production architecture, authorize a phase implementation, or declare a control verified.
 

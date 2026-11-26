@@ -4,25 +4,17 @@ All notable changes to Warband are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Record changes under explicit dated version headings, newest first. Start at
-`0.0.0`; Git tags use the `v` prefix. Subsequent version links compare the previous
-and current tags. Only include categories that contain notable changes.
-Add a version entry when publication is authorized, using the actual publication
-date. Draft candidates are documented in their PR and evidence record until then.
+## 0.1.0 - 2026-11-10
+
+### Added
+
+- Pure prepare-request classification for eligible pledges, exact pending replay and explicit scope, sequence, predecessor and pending-conflict rejection, with one focused six-case test and aligned ADR, guidance, inventory and traceability records.
 
 ## 0.0.3 - 2026-11-11
 
 ### Fixed
 
 - Reconciled governance and phase status with recorded acceptance, authorized pure-code slices and Ubuntu rejection evidence.
-
-## 0.1.0-dev.1 - 2026-11-10
-
-### Added
-
-- Pure prepare-request classification for eligible pledges, exact pending replay and explicit scope, sequence, predecessor and pending-conflict rejection, with one focused six-case test and aligned ADR, guidance, inventory and traceability records.
-
-Development source entry only: no release or tag is created. Phase 2 remains incomplete; authentication, link/history validation, custody persistence and runtime replay are not implemented.
 
 ## [0.0.2] - 2026-10-18
 
@@ -67,14 +59,8 @@ Development source entry only: no release or tag is created. Phase 2 remains inc
 - Documentation reporting selected validation status; pure decisions now select the result before technical reporting and termination.
 - Manifest orchestration mixed JSON parsing, hashing and inspection with decisions; narrow technical helpers and explicit subflows preserve architecture validation before linkage and complete validation before publication.
 
-This initial development version records the foundation verified locally and on
-hosted runners. See [entrypoint evidence](docs/verification/phase1-entrypoint-evidence.md)
-and [publication evidence](docs/verification/phase1-publication-evidence.md).
-ADR-0004 and ADR-0007 remain Proposed with formal ownership and approval pending.
-Phase 1 acceptance, dependency recovery and runner compatibility remain separate
-governance gates. Phase 2 authority, execution, persistence and production
-services are not implemented.
-
+[0.1.0]: https://github.com/progentic/Warband/compare/v0.1.0...v0.0.3
+[0.0.3]: https://github.com/progentic/Warband/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/progentic/Warband/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/progentic/Warband/compare/v0.0.0...v0.0.1
 [0.0.0]: https://github.com/progentic/Warband/tree/v0.0.0

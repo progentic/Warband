@@ -36,6 +36,74 @@ class GovernanceTests(unittest.TestCase):
     def test_phase_zero_baseline_passes(self):
         self.assertEqual(self.codes(), set())
 
+    def test_resource_exception_rejects_missing_and_malformed_records(self):
+        self.declare_phase(2)
+        decision = self.root / 'docs/decisions/0008-phase2-resource-limits.md'
+        original = decision.read_text()
+        self.assertNotIn('invalid_resource_exception', self.codes())
+        for field, value in (('Exception ID', 'unknown'), ('Expires before phase', '3.0'),
+                             ('Exception status', 'Waived'), ('Exception owner', '')):
+            with self.subTest(field=field):
+                lines = [f'- **{field}:** {value}' if line.startswith(f'- **{field}:** ')
+                         else line for line in original.splitlines()]
+                decision.write_text('\n'.join(lines))
+                self.assertIn('invalid_resource_exception', self.codes())
+        decision.write_text(original + '\n- **Expires before phase:** 4\n')
+        self.assertIn('invalid_resource_exception', self.codes())
+        decision.unlink()
+        self.assertIn('invalid_resource_exception', self.codes())
+
+    def test_resource_exception_expiry_and_reviewed_disposition(self):
+        self.declare_phase(3)
+        decision = self.root / 'docs/decisions/0008-phase2-resource-limits.md'
+        # Exercise the historical open-stop rule independently of the current expiry record.
+        original = decision.read_text().replace('Exception status:** Expired', 'Exception status:** Open')
+        original = original.replace('Disposition record:** Expired at Phase 2 exit', 'Disposition record:** Stop at expiry')
+        decision.write_text(original)
+        self.assertIn('expired_resource_exception', self.codes())
+        for candidate in (original.replace('Exception status:** Open', 'Exception status:** Closed'),
+                          original.replace('Expires before phase:** 3', 'Expires before phase:** 4')):
+            decision.write_text(candidate)
+            self.assertIn('invalid_resource_exception', self.codes())
+            reviewed = candidate.replace('Status:** Proposed', 'Status:** Accepted')
+            reviewer = next(line for line in reviewed.splitlines() if line.startswith('- **Independent reviewer:** '))
+            reviewed = reviewed.replace(reviewer, '- **Independent reviewer:** Reviewer B')
+            disposition = next(line for line in candidate.splitlines() if line.startswith('- **Disposition record:** '))
+            decision.write_text(candidate.replace(disposition, '- **Disposition record:** Pending'))
+            self.assertIn('invalid_resource_exception', self.codes())
+            reviewed = reviewed.replace(disposition, '- **Disposition record:** https://github.com/progentic/Warband/commit/' + 'a' * 40)
+            decision.write_text(reviewed)
+            self.assertNotIn('invalid_resource_exception', self.codes())
+            self.assertNotIn('expired_resource_exception', self.codes())
+            self.assertNotIn('invalid_phase', self.codes())
+            decision.write_text(reviewed.replace('Independent reviewer:** Reviewer B', 'Independent reviewer:** Pending'))
+            self.assertIn('invalid_resource_exception', self.codes())
+            decision.write_text(reviewed.replace('Independent reviewer:** Reviewer B', 'Independent reviewer:** Proto'))
+            self.assertIn('invalid_resource_exception', self.codes())
+        decision.write_text(reviewed)
+        self.declare_phase(4)
+        self.assertIn('expired_resource_exception', self.codes())
+
+    def test_bounded_phase_two_exit_requires_review_and_keeps_entry_separate(self):
+        self.declare_phase(3)
+        decision = self.root / 'docs/decisions/0008-phase2-resource-limits.md'
+        original = decision.read_text()
+        (self.root / 'docs/engineering/phase3-entry-review.md').unlink()
+        self.assertIn('missing_acceptance_provenance', self.codes())
+        for old, new in (('Exception status:** Expired', 'Exception status:** Closed'),
+                         ('Exception status:** Expired', 'Exception status:** Open'),
+                         ('Expired at Phase 2 exit — ', ''), ('Expired at Phase 2 exit — ', 'Stop at expiry — '),
+                         ('Expires before phase:** 3', 'Expires before phase:** 4'),
+                         ('Independent reviewer:** Meta', 'Independent reviewer:** Pending'),
+                         ('Independent reviewer:** Meta', 'Independent reviewer:** Proto')):
+            with self.subTest(new=new):
+                self.assertIn(old, original)
+                decision.write_text(original.replace(old, new))
+                self.assertIn('invalid_resource_exception', self.codes())
+        decision.write_text(original)
+        (self.root / 'docs/governance/phase2-exit.md').unlink()
+        self.assertIn('invalid_resource_exception', self.codes())
+
     def test_phase_zero_rejects_source(self):
         (self.root / 'src').mkdir()
         self.assertIn('premature_runtime', self.codes())
@@ -47,7 +115,7 @@ class GovernanceTests(unittest.TestCase):
         self.assertEqual(self.codes(), set())
 
     def test_invalid_phase_values_fail_closed(self):
-        for value in (3, -1, True, 1.0, '1', None):
+        for value in (4, -1, True, 1.0, '1', None):
             with self.subTest(value=value):
                 self.declare_phase(value)
                 self.assertIn('invalid_phase', self.codes())
@@ -87,6 +155,23 @@ class GovernanceTests(unittest.TestCase):
         self.declare_phase(2)
         (self.root / 'docs/governance/PHASE_PLAN.md').unlink()
         self.assertIn('missing_required_file', self.codes())
+
+    def test_phase_three_requires_exit_adr_owner_and_phase_two_acceptance(self):
+        self.declare_phase(3)
+        self.assertEqual(self.codes(), set())
+        for path, text in [('docs/governance/phase2-exit.md', 'accepts the bounded'),
+                           ('docs/decisions/0009-controlled-local-marker-execution.md', '**Accepted by Proto on'),
+                           ('docs/engineering/phase3-entry-review.md', 'Execution-boundary owner: Proto (Ian)'),
+                           ('docs/engineering/phase3-entry-review.md', 'Proto authorized proposal intake'),
+                           ('docs/engineering/phase3-entry-review.md', 'a975149635948821fdd0aa421b26c393d9785f51'),
+                           ('docs/decisions/0005-event-integrity-acceptance-and-recovery.md', '- **Acceptance record:**')]:
+            record = self.root / path
+            original = record.read_text()
+            with self.subTest(path=path, text=text):
+                self.assertIn(text, original)
+                record.write_text(original.replace(text, 'Pending'))
+                self.assertIn('missing_acceptance_provenance', self.codes())
+            record.write_text(original)
 
     def test_missing_phase_fails(self):
         (self.root / 'project.json').unlink()

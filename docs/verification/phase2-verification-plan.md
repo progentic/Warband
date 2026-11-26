@@ -1,9 +1,9 @@
 # Phase 2 verification and finding disposition
 
-- **Status:** Proposed verification plan; no runtime results
+- **Status:** Phase 2 planning record. The [exit inventory](phase2-crash-coverage.md#slice-6-evidence-inventory) identifies completed evidence and limits on its use.
 - **Accountable owner:** Proto, ADR-0005 decision owner
 - **Source baseline:** `3cbfd55b9157058cbd72dfcc6e14a59080925681`; staged decision/tooling/contract PRs are separate review inputs
-- **Implementation gate:** Explicit ADR-0005 acceptance and recorded Phase 2 entry; this document grants neither
+- **Implementation gate:** The [entry review](../engineering/phase2-entry-review.md) records accepted design provenance and authorized pure slices; each further implementation slice requires its recorded approval.
 
 ## Evidence baseline and test necessity
 
@@ -30,6 +30,8 @@ The stable identifiers are unchanged. WB-INV-007 receives only scoped rejection 
 
 ## Durable-boundary crash checklist
 
+The [Slice 6 coverage matrix](phase2-crash-coverage.md) maps each interruption to its recovery outcome, existing evidence and remaining run.
+
 Use ADR-0005's unified recovery table as the expected oracle; do not create a divergent recovery policy here. For each point record before/after durable files, SQLite visible/confirmed prefix, custody pending/committed state, named fault, automatic versus operator disposition, and whether any acknowledgment/dispatch occurred:
 
 1. Before prepare and during the final PENDING frame write/fsync.
@@ -46,6 +48,76 @@ Use ADR-0005's unified recovery table as the expected oracle; do not create a di
 Also inject ENOSPC/write/fsync errors, corrupt complete records and replace journal content independently of custody. Distinguish process crash, OS crash and simulated power loss in evidence; require the matching target proof before claiming each durability class. A documented trusted-kernel/root assumption is not a passing attack test.
 
 ## Implementation sequence after acceptance
+
+### Proposed limits and measurement
+
+[ADR-0008](../decisions/0008-phase2-resource-limits.md) proposes operation limits and a tracked denial-history exception. This section is a review draft. Acceptance records provisional values; target-specific enforcement precedes effectful use, and measured confirmation or amendment is due before Phase 2 exit.
+
+First test pure confirm/recovery classification with supplied interruption states and an independent expected result from ADR-0005. Then integrate actual persistence and exercise every point in the durable-boundary crash checklist above, including lock handoff, PENDING, SQLite commit, COMMITTED, head publication and acknowledgment. Run process kill at all ten checklist points using fault hooks. Inject short writes, ENOSPC and fsync failures only at relevant write/sync/rename stages in points 1, 3, 5, 6 and 10, with one representative per distinct ADR-0005 recovery outcome. Reuse those cases for point 9 through one event kind end to end, and verify other kinds use the shared coordinator through API/dependency review. Distinct persistence paths require their own evidence.
+
+For every interruption assert the named recovery outcome, exact durable pledge/head and confirmed prefix, preserved denial receipts, and withheld acknowledgment/dispatch when required. Compare recovered projections with an independently specified oracle where recovery permits completion. Missing pledges and corrupt history must reach their specified halted/operator states. Process termination, OS crash and power-loss claims each require their own matching evidence.
+
+| Workload | Proposed sample | Question answered |
+| --- | --- | --- |
+| Serial no-op authority path | 100 warm-up operations, then 1,000 measured operations | Where does protocol time accumulate? |
+| Contended writer | 2 clients, 1,000 total requests, one authoritative writer | Are lock waits bounded and duplicate transitions rejected? |
+| Recovery/replay | 100 measured custody frames and a pilot-validated projection to 10,000 for the receipt workload; exact runtime debit and separate cold-start limits | Are time, memory and scan bounds enforced with correct recovery outcomes? |
+| Denial reconciliation | 100, 1,000 and 10,000 generated receipts, including concurrent authorized work | How much storage and reconciliation work does each denial induce? |
+
+Run three repetitions per ordinary workload with fixed input seeds. Precompute total validation visits including repeated scans and import-created records; ordinary runs stay below 80,000 visits. Split generators across fresh isolated stores if needed, recording each segment. Boundary/over-limit tests use dedicated stores and check refusal at the process boundary that owns the limit. Fresh stores follow authorized genesis; no resource-latch state or transition is tested. Record actual generated record counts and bytes because receipt import adds events and custody frames. Stop the input generator after its declared request count or 10 minutes; report unfinished work. Use a disposable test volume sized and recorded before execution, with a separate ENOSPC test. Volume exhaustion is a fault case, never an audit-retention policy.
+
+Measure monotonic elapsed time for lock wait, prepare, SQLite commit, confirmation and head publication, plus whole-task latency. Record stage overlap so timings are not double-counted. Report p50/p95/p99 with sample count, completed tasks/second, rejections/timeouts, timeout-induced operator halts by durable boundary, peak RSS per process, CPU time, stored bytes, WAL size, checkpoint counts, recovery time and scanned records. Preserve raw observations and failed runs. A no-op result is a protocol-overhead baseline for that workload and target.
+
+Every run must identify source, reviewed limits, compiler/build, SQLite source/options/effective settings, CPU/RAM, OS/kernel, filesystem/mount options, storage device or volume, VFS, VM cache/flush configuration and warm/cold state. Commit/publication timings and durability claims require the selected Linux storage target. macOS development measurements cover portable pure/encoding work. Live capability expiry is Linux-only in Phase 2. Pure replay receives recorded facts; measurement clocks remain outside its decisions.
+
+Accept the experiment only when correctness/fault cases pass, each bound is enforced at and beyond its limit, and saturation preserves audit and recovery semantics. A legitimate workload exceeding a provisional bound requires a reviewed scope or limit revision. Latency percentiles are observations until workload-specific targets are accepted; a timeout ceiling is not a latency objective. Later tool/provider workloads and the production target require fresh measurements.
+
+Existing tests cover identity, arithmetic and prepare classification. The proposed new cases address previously unimplemented durable boundaries and limit exhaustion. Their cost is a bounded pure-case set followed by real-process fault fixtures and the workload matrix above; implement only with the matching slice and preserve the existing test inventory. Review approves provisional limits and enforcement before implementation; measurements then confirm or amend them before Phase 2 exit.
+
+Supply clocks, visit counts, allocations and limits directly to pure decisions. Test below, at and above 5/30/180/90 seconds using supplied time; inject the 60-second recovery expiry. Adapters use one over-limit case per blocking stage with shortened configured limits, plus one full-value configuration/run proving the accepted values are in force. Require readiness and authoritative projection to match the expected durable-state oracle in every case.
+
+| Limit | Case | Named outcome or proof |
+| --- | --- | --- |
+| Lock/operation | Supplied time below/at/above 5 and 30 seconds; operation budget exhausted during lock wait, prepare, commit or confirm; third extra request attempt | LOCK_WAIT_EXCEEDED or OPERATION_DEADLINE_EXCEEDED; no deadline reset; PENDING_EVENT_MISSING when applicable |
+| Whole task/scope | Supplied time below/at/above 180 seconds; second proposal/use/attempt | TASK_DEADLINE_EXCEEDED or TASK_SCOPE_EXCEEDED; no confirmed completion |
+| Capability | Supplied time below/at/above 90 seconds, regression and incarnation change; API review excludes wall-clock reads from live decisions | Valid path within 90 seconds; EXPIRED_CAPABILITY at or after expiry; recorded expiry never moves; restarted grants cannot dispatch; wall-clock steps cannot extend permission |
+| Recovery | Runtime session at 100,000 and attempted 100,001 debits; custodian history-read, arena and elapsed-time boundaries tested separately | Runtime permits completion at the cap when validation finishes in time and refuses excess work with RECOVERY_LIMIT_EXCEEDED. Cold startup withholds service on a binding byte, allocation or time limit. |
+| Arena/SQLite | Exhaust each allocator independently during normal work and recovery | MEMORY_LIMIT_EXCEEDED or SQLITE_NOMEM; retained history and bounded recovery/readiness verified |
+| Cgroup | Check each process configuration; reuse one real termination from the crash checklist including native allocations | PROCESS_MEMORY_TERMINATED; one real termination followed by bounded recovery and its expected readiness outcome |
+| Execution retry | Lose response after dispatch | Existing indeterminate outcome; no automatic redispatch |
+
+Resource-limit diagnostics are proposed by ADR-0008; wire fault meanings remain in ADR-0005. Record capability-expiry frequency and operator halts alongside latency to assess whether bounds make legitimate workloads unusable. Capacity-warning threshold, delivery and operator action must be proven before exception closure.
+
+At slice 4 completion, report visits per confirmed event and bytes per denial including custody/import amplification. At slice 5 completion, report visits per task, fixed startup work and concurrent-denial overhead. For a declared denial allowance, derive tasks per store from the remaining 80,000-visit ordinary budget divided by conservative visits per task. Unbounded denials permit no positive guaranteed task capacity. Record any cap revision before slice 6.
+
+### Cold recovery readiness and visit ownership
+
+Proto approved two Phase 2 exit-criterion amendments on 2026-11-22.
+
+1. For the receipt workload, accept the three 100-frame measurements and the cost model validated by the 151-frame pilot. Use the model to project debits at 10,000 custody frames. Recovery time and memory at 10,000 frames remain unmeasured. The separate denial-reconciliation workload still counts generated receipts. [Measurements and model](phase2-crash-coverage.md#cold-recovery-feasibility)
+2. Assign the exact 100,000/100,001 debit proof to the runtime client session. Starting from zero, demonstrate a legal sequence that completes required validation at exactly 100,000 debits before the deadline. Demonstrate refusal of an attempted 100,001st debit, with the counter preserved and protected progress withheld. Record actual examinations separately. Authenticated custody diagnostics remain available during a runtime budget refusal. [Startup reachability](phase2-crash-coverage.md#startup-visit-reachability)
+
+Cold-start verification now exercises the 8 MiB history-read guard (at the cap and one byte over), shared 8 MiB arena allocation, and 60-second deadline (strictly before and at expiry). Verify readiness and preservation on each path. Passing the file-size check alone cannot establish readiness because the history slice and the validator’s authorization map share the arena. The earlier requirement for a visit-triggered custodian exit is retired.
+
+For a future sustained-denial envelope claim, the unimplemented successor would have to prove CAPACITY_WARNING at 80,000 estimated visits using the exact successful-recovery count plus conservative metadata-delta factors, and CAPACITY_UNKNOWN when the observation/factors are missing, invalidated or overflow. Include denial-only growth with an unchanged event head. Verify delta estimates cover measured incremental visits; restart discards the estimate and recomputes recovery. Retain separate arena/SQLite exhaustion, the 10,000-receipt curve point and the full crash checklist.
+
+Proposed stability review thresholds use existing samples. For each steady-state serial run, compare p95 commit latency in the last quarter with the first measured quarter after warm-up; a ratio above 1.25 in at least two of three repetitions triggers investigation. For completed denial-heavy recovery samples at 100, 10,000 and 100,000 visits, time per visit at each larger size should be at most twice that at the preceding size on the same target/configuration. Record actual visits and fixed startup cost. A cap/deadline failure is a failed workload, never a completed timing sample. Review WAL/checkpoint activity alongside drift; these provisional thresholds require confirmation or recorded amendment at the early capacity checkpoint.
+
+The capability tests cover supplied-clock boundaries and the live-deadline API dependency check. Kernel suspend/NTP behavior receives no new platform test. Retain one full-value settings/run check plus shortened-limit adapter cases. The existing crash checklist supplies the single real cgroup termination case where applicable.
+
+### Fresh-runtime dispatch denial
+
+**Verified on x64-review for the isolated no-op gate.** The issuing runtime dispatched once. In the paired restart case the issuer exited after claim confirmation. The fresh runtime verified the durable permit and claim 62 ms into the original 90-second interval, invoked the primitive zero times and recorded a custody-confirmed reason-9 rejection bound to that claim. [Paired BOOTTIME observations and proof](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-live-dispatch-qualification)
+
+### No-op observed return and verdict
+
+Verified on x64-review through the real primitive, custodian and SQLite store. A returned result produced Verified. Killing the issuer after return and before observation produced Indeterminate and Rejected on restart. Killing it after confirmed observation produced exactly one evaluation on restart, and another restart preserved the rows and custody tip. The harness independently checks the persisted digest, claim binding and criterion. [Target evidence](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-no-op-observation-and-evaluation-qualification)
+
+### Isolated state acceptance and contention
+
+The x64-review harness checked the verified, rejected, revoked and stale paths. Two real acceptors raced one evaluation. The lock loser obtained the original confirmed result on retry. Separate SQL inserts at a different event Ref proved the scoped attempt and transition constraints. Rebuilding a missing index required a matching confirmed prefix. [Target evidence and operator procedure](../decisions/0005-event-integrity-acceptance-and-recovery.md#isolated-state-acceptance-qualification)
+
+### Implementation slices
 
 | Slice | Deliverable | Prerequisite and review gate |
 |---|---|---|
@@ -76,6 +148,6 @@ Proto owns remediation and the ADR decision; that accountability is not an indep
 
 The binding deadline for all three debts is **Phase 5 entry**. The v1 release gate is a downstream backstop, not an alternative later deadline. Failure to close a debt prevents Phase 5 entry even if v1 publication is far away. The Phase 2 entry alternative records named debt and ownership; it does not waive these closure conditions or allow self-approval of a critical/high finding.
 
-## Present results versus future proofs
+## Historical design-candidate results versus future proofs
 
-The design-only candidate has passing documentation governance and 25 Python controls (22 existing plus three targeted governance-tooling controls). The revised native macOS runner executed the original two Odin packages/five named tests. Static vector hash calculations were cross-checked with OpenSSL; SQLite archive/source digests matched upstream. No runtime codec, custodian, SQLite binding, authority path, privilege test, fault injection or replay suite exists yet. Hosted foundation runs on each review PR are regression evidence for their tested commit, not runtime proof. Record final PR heads and actual hosted outcomes in the handoff.
+At the source baseline named in this document, the design-only candidate had passing documentation governance and 25 Python controls (22 existing plus three targeted governance-tooling controls). The revised native macOS runner executed the original two Odin packages/five named tests. Static vector hash calculations were cross-checked with OpenSSL; SQLite archive/source digests matched upstream. No runtime codec, custodian, SQLite binding, authority path, privilege test, fault injection or replay suite exists yet. Hosted foundation runs on each review PR are regression evidence for their tested commit, not runtime proof. Record final PR heads and actual hosted outcomes in the handoff.
