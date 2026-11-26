@@ -34,9 +34,11 @@ Warband uses separate layers for separate jobs:
 
 Instructions guide behavior. Repository controls and verification enforce behavior.
 
-## Phase 1 closure
+## Current phase and remaining obligations
 
-The Phase 1 foundation is accepted. Dependency recovery, the remaining code-review items and the native Ubuntu 26.04 rejection check are still open. Phase 2 implementation is not authorized.
+[ADR-0004](../decisions/0004-reproducible-odin-toolchain-and-ci.md) records foundation acceptance. [ADR-0005](../decisions/0005-event-integrity-acceptance-and-recovery.md) records Phase 2 design acceptance; the [entry review](../engineering/phase2-entry-review.md) defines the authorized implementation scope and its pure-code follow-ons.
+
+The [foundation obligations table](PHASE_PLAN.md#foundation-obligations-carried-to-production) tracks recorded Ubuntu rejection evidence, pending promotion, dependency recovery and structural finding closure at their named gates.
 
 ## Technical details
 

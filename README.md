@@ -7,19 +7,12 @@
   <a href="https://pubs.opengroup.org/onlinepubs/9799919799/utilities/sh.html"><img src="https://img.shields.io/badge/Shell-475569?style=for-the-badge&amp;logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZD0ibTQgNSA3IDctNyA3bTkgMGg3IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8%2BPC9zdmc%2B" alt="Shell" /></a>
 </p>
 
-Warband is designed to let AI help with tasks while keeping people in control.
+Warband aims to let AI help with tasks while people stay in control.
 
-The model may suggest what should happen. Warband decides what is allowed, performs the action within set limits, checks the result, and keeps a record.
+The current program shows its version and prints a fixed test sample. It cannot carry out AI tasks yet.
 
-AI suggestions cannot directly change the system or mark work complete.
+The design keeps AI suggestions separate from permission to act or mark work complete.
 
 ## Documentation
 
-- [Changelog](CHANGELOG.md)
-- [Project charter](docs/foundation/project-charter.md)
-- [Runtime constitution](docs/foundation/runtime-constitution.md)
-- [System architecture](docs/architecture/README.md)
-- [Governance](docs/governance/README.md)
-- [Engineering standards](docs/engineering/README.md)
-- [Security model](docs/security/security-model.md)
-- [Verification plan](docs/verification/README.md)
+Start with [Help and documentation](docs/README.md). It has separate guides for users, maintainers, and developers.
