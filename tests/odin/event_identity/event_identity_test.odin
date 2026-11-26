@@ -70,3 +70,80 @@ prepare_classification_checks_binding_and_pending_replay :: proc(t: ^testing.T) 
 	changed.sequence = 2
 	testing.expect_value(t, events.classify_prepare(changed, checkpoint, nil), .InvalidSequence)
 }
+
+@(test)
+confirm_classification_checks_pending_and_committed_replay :: proc(t: ^testing.T) {
+	store := events.StoreId{}
+	store[0] = 1
+	checkpoint := events.Checkpoint{store = store, epoch = 1}
+	request := events.Pledge{store = store, epoch = 1, sequence = 1}
+	request.head[0] = 2
+	request.digest[0] = 3
+	testing.expect_value(t, events.classify_confirm(request, checkpoint, &request, nil, true), .EligibleConfirmation)
+	testing.expect_value(t, events.classify_confirm(request, checkpoint, nil, nil, true), .MissingPledge)
+	testing.expect_value(t, events.classify_confirm(request, checkpoint, &request, nil, false), .HeadPublicationPending)
+	changed := request
+	changed.digest[0] = 4
+	testing.expect_value(t, events.classify_confirm(changed, checkpoint, &request, nil, true), .RequestMismatch)
+	changed = request
+	changed.epoch = 2
+	testing.expect_value(t, events.classify_confirm(changed, checkpoint, &request, nil, true), .InvalidIdentity)
+	changed = request
+	changed.previous_head[0] = 5
+	testing.expect_value(t, events.classify_confirm(changed, checkpoint, &changed, nil, true), .RequestMismatch)
+	checkpoint.sequence = request.sequence
+	checkpoint.head = request.head
+	later := events.Pledge{store = store, epoch = 1, previous_sequence = 1, previous_head = request.head, sequence = 2}
+	later.head[0] = 6
+	later_before := later
+	testing.expect_value(t, events.classify_confirm(request, checkpoint, &later, &request, true), .CommittedReplay)
+	testing.expect_value(t, later, later_before)
+	testing.expect_value(t, events.classify_confirm(request, checkpoint, &later, &request, false), .HeadPublicationPending)
+	changed = request
+	changed.digest[0] = 4
+	testing.expect_value(t, events.classify_confirm(changed, checkpoint, &later, &request, true), .RequestMismatch)
+	checkpoint.head[0] = 7
+	testing.expect_value(t, events.classify_confirm(request, checkpoint, &later, &request, true), .RequestMismatch)
+}
+
+@(test)
+recovery_classification_checks_outcomes_and_mismatch_precedence :: proc(t: ^testing.T) {
+	store := events.StoreId{}
+	store[0] = 1
+	committed := events.Checkpoint{store = store, epoch = 1, sequence = 1}
+	committed.head[0] = 2
+	pending := events.Pledge{store = store, epoch = 1, previous_sequence = 1, previous_head = committed.head, sequence = 2}
+	pending.head[0] = 3
+	pending.digest[0] = 4
+	journal := events.Checkpoint{store = store, epoch = 1, sequence = 2, head = pending.head}
+	testing.expect_value(t, events.classify_recovery(committed, committed, nil, nil), .Ready)
+	testing.expect_value(t, events.classify_recovery(committed, committed, &pending, nil), .PendingEventMissing)
+	testing.expect_value(t, events.classify_recovery(committed, journal, &pending, &pending), .PendingConfirmation)
+	testing.expect_value(t, events.classify_recovery(committed, journal, nil, &pending), .UnattestedTail)
+	changed_journal := journal
+	changed_journal.sequence = 3
+	testing.expect_value(t, events.classify_recovery(committed, changed_journal, &pending, nil), .UnattestedTail)
+	changed_event := pending
+	changed_event.digest[0] = 5
+	testing.expect_value(t, events.classify_recovery(committed, journal, &pending, &changed_event), .IntegrityFault)
+	testing.expect_value(t, events.classify_recovery(committed, journal, &pending, nil), .IntegrityFault)
+	changed_journal = committed
+	changed_journal.head[0] = 6
+	testing.expect_value(t, events.classify_recovery(committed, changed_journal, &pending, nil), .IntegrityFault)
+	changed_journal = committed
+	changed_journal.sequence = 0
+	testing.expect_value(t, events.classify_recovery(committed, changed_journal, nil, nil), .IntegrityFault)
+	changed_event = pending
+	changed_event.previous_head[0] = 7
+	testing.expect_value(t, events.classify_recovery(committed, committed, &changed_event, nil), .IntegrityFault)
+	changed_journal = journal
+	changed_journal.epoch = 2
+	testing.expect_value(t, events.classify_recovery(committed, changed_journal, &pending, &pending), .EpochMismatch)
+	changed_journal.store[0] = 8
+	testing.expect_value(t, events.classify_recovery(committed, changed_journal, &pending, &pending), .StoreIdentityMismatch)
+	changed_event = pending
+	changed_event.epoch = 2
+	testing.expect_value(t, events.classify_recovery(committed, committed, &changed_event, nil), .EpochMismatch)
+	changed_event.store[0] = 8
+	testing.expect_value(t, events.classify_recovery(committed, journal, &pending, &changed_event), .StoreIdentityMismatch)
+}

@@ -15,7 +15,7 @@ defaults:
 jobs:
   phase1-linux:
     name: Phase 1 Linux Foundation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       LLVM_CONFIG: /usr/bin/llvm-config-19
@@ -40,6 +40,10 @@ jobs:
         run: bash scripts/build_odin.sh linux_amd64 2>&1 | tee out/linux_amd64/compiler.log
       - name: Build Warband and verify ELF x86-64
         run: bash scripts/build_warband.sh linux_amd64 2>&1 | tee out/linux_amd64/build.log
+      - name: Build and verify the static SQLite archive
+        run: bash scripts/build_sqlite.sh linux_amd64 2>&1 | tee out/linux_amd64/sqlite-build.log
+      - name: Verify Linux SQLite writer open
+        run: bash scripts/test_writer_open.sh linux_amd64 2>&1 | tee out/linux_amd64/writer-open.log
       - name: Verify governance and negative controls
         run: |
           python3 scripts/check_docs.py 2>&1 | tee out/linux_amd64/governance.log
@@ -48,6 +52,53 @@ jobs:
         run: python3 scripts/run_odin_tests.py --odin .local/toolchains/odin-linux_amd64/odin --output out/linux_amd64/tests 2>&1 | tee out/linux_amd64/odin-tests.log
       - name: Verify CLI behavior
         run: python3 scripts/verify_cli.py out/linux_amd64/warband 2>&1 | tee out/linux_amd64/smoke.log
+      - name: Verify isolated Linux custodian with distinct UIDs
+        run: |
+          bash scripts/build_custodian.sh 2>&1 | tee out/linux_amd64/custodian-build.log
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_custody_denial.py \
+            out/linux_amd64/custodian/normal/custodian \
+            out/linux_amd64/custodian/dirsync-fault/custodian 2>&1 | tee out/linux_amd64/custody-denial.log
+      - name: Verify custody receipt reconciliation and retained segments
+        run: |
+          bash scripts/build_reconcile.sh 2>&1 | tee out/linux_amd64/reconcile-build.log
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_receipt_import.py 2>&1 | tee out/linux_amd64/reconcile.log
+      - name: Verify model request issuance, atomic intake and recovery
+        run: |
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_model_request.py 2>&1 | tee out/linux_amd64/model-request.log
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_request_recovery.py 2>&1 | tee out/linux_amd64/request-recovery.log
+      - name: Qualify the confined marker worker on the hosted kernel
+        run: |
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_marker_worker.py --hosted 2>&1 | tee out/linux_amd64/marker-worker.log
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_marker_completion.py --hosted 2>&1 | tee out/linux_amd64/marker-completion.log
+      - name: Verify live no-op dispatch and fresh-runtime denial
+        run: |
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_noop_gate.py 2>&1 | tee out/linux_amd64/noop-gate.log
+      - name: Verify production failures on an exhausted disposable volume
+        run: |
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_volume_exhaustion.py 2>&1 | tee out/linux_amd64/volume.log
+      - name: Qualify SQLite commit after a WAL sync failure
+        run: |
+          sudo apt-get install -y --no-install-recommends libfuse3-dev
+          dpkg-query -W libfuse3-dev libfuse3-3 > out/linux_amd64/wal-sync-packages.txt
+          clang-19 -std=c11 -O2 -Wall -Wextra -Werror tests/integration/linux/wal_sync_fs.c -lfuse3 -o out/linux_amd64/wal-sync-fs
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/integration/linux/test_wal_sync.py --hosted 2>&1 | tee out/linux_amd64/wal-sync.log
+      - name: Measure cold recovery on single custody histories
+        run: |
+          export ODIN_ROOT="$PWD/.local/toolchains/odin-linux_amd64"
+          llvm_bin=$("$LLVM_CONFIG" --bindir)
+          export PATH="$ODIN_ROOT:$llvm_bin:$PATH"
+          python3 tests/measurement/build_capacity.py --recovery 2>&1 | tee out/linux_amd64/cold-capacity-build.log
+          sudo systemd-run --quiet --scope -p MemoryMax=256M -p MemorySwapMax=0 \
+            /usr/bin/python3 tests/measurement/recovery_capacity.py 2>&1 | tee out/linux_amd64/cold-capacity.log
       - name: Summarize evidence
         if: always()
         run: |
@@ -92,6 +143,16 @@ jobs:
           export LLVM_CONFIG CXX
           bash scripts/build_odin.sh darwin_arm64 2>&1 | tee out/darwin_arm64/compiler.log
           bash scripts/build_warband.sh darwin_arm64 2>&1 | tee out/darwin_arm64/build.log
+      - name: Build and verify the static SQLite archive
+        run: |
+          LLVM_CONFIG="$(brew --prefix llvm@19)/bin/llvm-config"
+          export LLVM_CONFIG
+          bash scripts/build_sqlite.sh darwin_arm64 2>&1 | tee out/darwin_arm64/sqlite-build.log
+      - name: Verify macOS SQLite writer open
+        run: |
+          LLVM_CONFIG="$(brew --prefix llvm@19)/bin/llvm-config"
+          export LLVM_CONFIG
+          bash scripts/test_writer_open.sh darwin_arm64 2>&1 | tee out/darwin_arm64/writer-open.log
       - name: Verify governance and test inventory
         run: |
           LLVM_CONFIG="$(brew --prefix llvm@19)/bin/llvm-config"

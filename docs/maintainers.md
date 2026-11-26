@@ -4,36 +4,56 @@ Use this guide to update, review, and release Warband.
 
 ## Check the scope
 
-Read applicable `AGENTS.md` guidance before editing. [project.json](../project.json) declares Phase 2. The [entry review](engineering/phase2-entry-review.md) authorizes pure identity, epoch advancement, and prepare classification only. The CLI still provides the Phase 1 foundation.
+Read the applicable `AGENTS.md` guidance. The [entry review](engineering/phase2-entry-review.md#slice-3b-gate-0) records completed pure custody work and the activated Linux custodian scope. Review [target evidence](verification/isolated-linux-custodian.md) against the recorded storage stack and UID and memory boundaries. The [Phase 2 exit record](governance/phase2-exit.md) identifies the qualified envelope.
 
 Follow the [authority order](governance/README.md#authority-order) when descriptions conflict. Keep design acceptance, implementation permission, and verified behavior separate.
 
 ## Important interfaces and calls
 
-Source links pin reviewed baseline `109b8d1`. Check the current files before changing them.
+Source and test links open the current main branch. For a release review, check the same paths at the release commit.
 
-- [cmd/warband/main.odin](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/cmd/warband/main.odin) owns `version` and `fixture`. Success writes stdout and returns status 0. Invalid arguments write stderr and return status 2. [verify_cli.py](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/scripts/verify_cli.py) checks exact output.
-- [src/domain/types.odin](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/src/domain/types.odin) defines distinct IDs, `FixtureSchema`, `Fixture`, and `Error`. Call `domain.validate_fixture(value)` to check schema and IDs.
-- [src/fixture/codec.odin](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/src/fixture/codec.odin) owns `encode`, `decode`, and the 25-byte fixture. `decode(bytes) -> (domain.Fixture, domain.Error)` checks length only. Neither codec function validates schema or IDs. Check those separately.
-- [src/domain/events/identity.odin](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/src/domain/events/identity.odin) defines `StoreId`, `Epoch`, `Sequence`, and `EventRef`. `validate_event_ref(value, store, epoch)` checks an explicit expected scope. Do not use the input's own scope as its authority.
+- [cmd/warband/main.odin](https://github.com/progentic/Warband/blob/main/cmd/warband/main.odin) owns `version` and `fixture`. Success writes stdout and returns status 0. Invalid arguments write stderr and return status 2. [verify_cli.py](https://github.com/progentic/Warband/blob/main/scripts/verify_cli.py) checks exact output.
+- [src/domain/types.odin](https://github.com/progentic/Warband/blob/main/src/domain/types.odin) defines distinct IDs, `FixtureSchema`, `Fixture`, and `Error`. Call `domain.validate_fixture(value)` to check schema and IDs.
+- [src/fixture/codec.odin](https://github.com/progentic/Warband/blob/main/src/fixture/codec.odin) owns `encode`, `decode`, and the 25-byte fixture. `decode(bytes) -> (domain.Fixture, domain.Error)` checks length only. Neither codec function validates schema or IDs. Check those separately.
+- [src/domain/events/identity.odin](https://github.com/progentic/Warband/blob/main/src/domain/events/identity.odin) defines `StoreId`, `Epoch`, `Sequence`, and `EventRef`. `validate_event_ref(value, store, epoch)` checks an explicit expected scope. Do not use the input's own scope as its authority.
 - In that file, `next_sequence(0)` returns 1. `next_epoch(0)` returns `EmptyEpoch`. Both return zero and a typed error on overflow. Check the error before using the value.
-- [src/domain/events/prepare.odin](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/src/domain/events/prepare.odin) defines `Pledge`, `Checkpoint`, and `PrepareDecision`. Call `classify_prepare(request: Pledge, current: Checkpoint, pending: ^Pledge)` with `nil` when no pledge exists. It returns `PrepareDecision` and never mutates inputs. A live pledge permits only exact replay. `EligiblePledge` and `PendingReplay` grant no execution authority. The function performs no authentication, hash verification, or durable writes.
+- [src/domain/events/prepare.odin](https://github.com/progentic/Warband/blob/main/src/domain/events/prepare.odin) defines `Pledge`, `Checkpoint`, and `PrepareDecision`. Call `classify_prepare(request: Pledge, current: Checkpoint, pending: ^Pledge)` with `nil` when no pledge exists. It returns `PrepareDecision` and never mutates inputs. A live pledge permits only exact replay. `EligiblePledge` and `PendingReplay` grant no execution authority. The function performs no authentication, hash verification, or durable writes.
+- `src/custody/pledge.odin` exposes `encode_pledge(value, store, epoch)`, `decode_pledge(bytes, store, epoch)` and `derive_head(value)`. Supply the expected scope independently. Check typed codec errors before using results; failures return zero values. Preserve exact 136-byte layout and domain/NUL hashing against the independent vectors. These APIs grant no authority or persisted-event guarantee.
 - The CLI calls `parse_command`, `describe_command`, then `write_result`. Keep command and presentation decisions pure. Preserve [ADR-0007's reviewed I/O boundaries](decisions/0007-phase1-entrypoint-boundaries.md).
-- [toolchain/odin.lock.json](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/toolchain/odin.lock.json) pins compiler and platform profiles. Follow the [build instructions](engineering/phase1-build-and-verification.md). A Mac pass proves no Linux result.
+- [toolchain/odin.lock.json](https://github.com/progentic/Warband/blob/main/toolchain/odin.lock.json) pins compiler and platform profiles. Follow the [build instructions](engineering/phase1-build-and-verification.md). A Mac pass proves no Linux result.
+
+### Reviewing audit and custody changes
+
+- For [audit event codecs](https://github.com/progentic/Warband/tree/main/src/audit), compare the changed bytes, digest and linked head with the [independent vectors](verification/adr0005-golden-vectors.json). Exercise the rejection cases for the affected event kind. For a wire-format change, follow the migration rules below.
+- For [custody records](https://github.com/progentic/Warband/blob/main/src/custody/record.odin), check all affected frame kinds, used lengths, ordinal and predecessor binding. For [history validation](https://github.com/progentic/Warband/blob/main/src/custody/history.odin), check that denials preserve pending pledges and epoch changes bind the old checkpoint and pending record hash.
+- For request or reply changes, use the [custody tests](https://github.com/progentic/Warband/tree/main/tests/odin/custody) to check role separation and disclosure. Administrative requests exclude operator credentials. An unauthenticated denial hides the committed head, pending pledge and custody tip. Authenticated verify replies retain the tip for receipt selection.
+- Treat hosted codec results as evidence for the tested representation and pure decisions. Gate 0 calls for separate Linux evidence from real process identities, filesystem access and durable writes before claiming those controls.
+
+### Reviewing store, importer and live capability changes
+
+- **Store.** Verify that provisioning exclusively creates a new file and leaves an existing database byte-identical on refusal. On every writer open, check that the first query reads `user_version=1` before WAL is set. Require read-back of WAL, FULL synchronization, enabled foreign keys and schema version 1 on that connection. [SQLite store profile](engineering/phase2-entry-review.md#sqlite-store-profile)
+- **Importer.** Trace the OS writer lock from tail reconciliation through custody prepare, atomic SQLite commit, persisted-row read-back and exact confirm. Check that restart examines the tail before trusting the watermark, and that the second restart preserves both SQLite rows and custody tip. [Writer ordering](decisions/0005-event-integrity-acceptance-and-recovery.md#writer-ordering-and-visibility) · [Post-COMMIT proof](decisions/0005-event-integrity-acceptance-and-recovery.md#post-commit-process-kill-proof)
+- **Live capability.** For future dispatch changes, require the issuing execution’s private live grant and fresh Linux elapsed-time checks strictly before expiry at claim confirmation and immediately before dispatch. A fresh runtime must withhold dispatch when presented with a prior grant’s durable evidence alone. Preserve the paired Linux test: the issuing process invokes the primitive once and a fresh process records its refusal against the confirmed claim. [Accepted clock rule](decisions/0005-event-integrity-acceptance-and-recovery.md#accepted-live-capability-clock-amendment) · [Linux denial evidence](verification/phase2-verification-plan.md#fresh-runtime-dispatch-denial)
+
+### Reviewing recovery and capacity evidence
+
+- For a crash or storage fault, identify the exact operation, caller result and surviving files. Compare the capture inventory with its logged SHA-256 digest. Check the first authenticated checkpoint after startup before crediting an importer retry with recovery. For complete custody corruption, require refusal and byte preservation; only a validated torn suffix is eligible for trimming. [Crash and storage-error matrix](verification/phase2-crash-coverage.md)
+- For capacity results, check the unit, history size and process that owns the limit. The 100-frame runs were timed; the 10,000-frame receipt result projects debits only. Review exact runtime-session debit tests separately from custodian startup size, arena and deadline tests. [Measurement record](verification/phase2-crash-coverage.md#cold-recovery-feasibility) · [Boundary criteria](verification/phase2-verification-plan.md#cold-recovery-readiness-and-visit-ownership)
+- When assessing a new workload, compare it with the measured Phase 2 envelope. A future sustained-denial claim requires a new exception and qualification. Phase 3 entry requires Proto’s separate explicit approval. [Source and test inventory](verification/phase2-crash-coverage.md#slice-6-evidence-inventory) · [Execution design](decisions/0009-controlled-local-marker-execution.md)
 
 ## Update the matching records
 
 1. Identify the affected contract, accepted decision, and existing proof before changing behavior.
 2. Align user expectations, security limits, negative paths, and [traceability](verification/traceability-matrix.md). Preserve stable `WB-*` identifiers.
 3. Present the [test-necessity case](engineering/coding-standard.md#test-necessity) before adding a test. State the failure, evidence, coverage gap, value, and cost.
-4. Update [tests/odin-packages.json](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/tests/odin-packages.json) when test names or packages change. The runner checks exact names and fresh reports.
+4. Update [tests/odin-packages.json](https://github.com/progentic/Warband/blob/main/tests/odin-packages.json) when test names or packages change. The runner checks exact names and fresh reports.
 5. Record material architecture changes in an ADR. Follow the [definition of done](engineering/definition-of-done.md). Passing tests do not close release debt or authorize another phase.
 
 ## Handle compatibility
 
 Keep the [fixture specification](verification/phase1-fixture-specification.md) aligned with authorized fixture changes. The fixture does not define runtime event bytes.
 
-Follow [ADR-0005's migration rules](decisions/0005-event-integrity-acceptance-and-recovery.md#custody-frames-head-and-request-framing) for future event or custody schemas. Review version changes, obtain operator permission, and retain original bytes and identities. No runtime codec or migration service exists yet. Review affected evidence when storage, custody, producer trust, or effect boundaries change.
+Follow [ADR-0005's migration rules](decisions/0005-event-integrity-acceptance-and-recovery.md#custody-frames-head-and-request-framing) for future event or custody schemas. Review version changes, obtain operator permission, and retain original bytes and identities. All ten audit event kinds have codecs. A migration procedure remains planned. Review affected evidence when storage, custody, producer trust, or effect boundaries change.
 
 ## Validate and hand off
 

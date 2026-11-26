@@ -22,6 +22,7 @@ Do not rewrite accepted history. Add a new record that supersedes the old decisi
 - [ADR-0004](0004-reproducible-odin-toolchain-and-ci.md): Phase 1 build foundation, accepted 2026-11-10.
 - [ADR-0005](0005-event-integrity-acceptance-and-recovery.md): Event and recovery design, accepted 2026-11-10.
 - [ADR-0007](0007-phase1-entrypoint-boundaries.md): Phase 1 program structure, accepted 2026-10-12.
+- [ADR-0009](0009-controlled-local-marker-execution.md) records the preproduction marker-file design accepted on 2026-11-21. Phase 3 entry requires separate owner approval after Phase 2 exit.
 
 ## Current proposed work
 

@@ -4,13 +4,11 @@ Use this guide to trace the code and understand the architecture. The [constitut
 
 ## Current implementation
 
-[project.json](../project.json) declares Phase 2. The [entry review](engineering/phase2-entry-review.md) authorizes pure identity, epoch advancement, and prepare classification only. The CLI still exposes Phase 1 commands. Warband has no runtime gateway, policy engine, evaluator, state writer, database, custodian, or execution tool yet.
-
-Source links pin reviewed main baseline `109b8d1`.
+The user-facing `warband` CLI exposes `version` and `fixture`. The isolated Phase 2 Linux programs run a no-op task through dispatch, observation, evaluation and state acceptance. They store events in SQLite and verify them against the custodian’s checkpoint. To trace these paths, see the [audit and custody modules](#audit-and-custody-modules) and the [store, reconciliation and timing modules](#store-reconciliation-and-timing-modules).
 
 ## Command flow
 
-In [cmd/warband/main.odin](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/cmd/warband/main.odin), `main` reads arguments and calls `parse_command`. That function requires exactly one command argument. `describe_command` turns the command enum into a `Presentation`. `write_result` writes it. `main` then exits with its status.
+In [cmd/warband/main.odin](https://github.com/progentic/Warband/blob/main/cmd/warband/main.odin), `main` reads arguments and calls `parse_command`. That function requires exactly one command argument. `describe_command` turns the command enum into a `Presentation`. `write_result` writes it. `main` then exits with its status.
 
 `describe_command` chooses content, stream, format, and status without I/O. Invalid arguments select an explicit error result. They cannot invoke arbitrary commands.
 
@@ -18,15 +16,15 @@ In [cmd/warband/main.odin](https://github.com/progentic/Warband/blob/109b8d173a7
 
 ## Fixture data
 
-[src/domain/types.odin](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/src/domain/types.odin) defines distinct identifiers and `validate_fixture`. Validation checks schema 1 and nonzero task/run IDs. Callers supply the tick.
+[src/domain/types.odin](https://github.com/progentic/Warband/blob/main/src/domain/types.odin) defines distinct identifiers and `validate_fixture`. Validation checks schema 1 and nonzero task/run IDs. Callers supply the tick.
 
-[src/fixture/codec.odin](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/src/fixture/codec.odin) encodes one schema byte and three little-endian u64 values: task, run, and tick. Offsets 1, 9, and 17 produce 25 bytes. See the [independent byte specification](verification/phase1-fixture-specification.md).
+[src/fixture/codec.odin](https://github.com/progentic/Warband/blob/main/src/fixture/codec.odin) encodes one schema byte and three little-endian u64 values: task, run, and tick. Offsets 1, 9, and 17 produce 25 bytes. See the [independent byte specification](verification/phase1-fixture-specification.md).
 
 `decode` checks length only. `encode` performs no domain validation. Call `validate_fixture` to check parsed values. Codec success grants no authority and proves no task outcome. This fixture does not implement runtime event serialization.
 
 ## Event identity
 
-[src/domain/events/identity.odin](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/src/domain/events/identity.odin) defines a 16-byte `StoreId` and distinct u64 `Epoch` and `Sequence` types. `EventRef` binds all three. A sequence alone cannot identify an event across stores or epochs.
+[src/domain/events/identity.odin](https://github.com/progentic/Warband/blob/main/src/domain/events/identity.odin) defines a 16-byte `StoreId` and distinct u64 `Epoch` and `Sequence` types. `EventRef` binds all three. A sequence alone cannot identify an event across stores or epochs.
 
 - `validate_event_ref` rejects empty fields, then checks the supplied expected store and epoch.
 - `next_sequence` allows 0 to 1 and rejects overflow.
@@ -36,7 +34,7 @@ These pure functions return typed errors. They perform no history lookup, unique
 
 ## Prepare classification
 
-[src/domain/events/prepare.odin](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/src/domain/events/prepare.odin) defines domain values, not wire layouts. `Checkpoint` holds store, epoch, sequence, and head. `Pledge` also binds the predecessor and proposed head/digest.
+[src/domain/events/prepare.odin](https://github.com/progentic/Warband/blob/main/src/domain/events/prepare.odin) defines domain values, not wire layouts. `Checkpoint` holds store, epoch, sequence, and head. `Pledge` also binds the predecessor and proposed head/digest.
 
 `classify_prepare` reads supplied values and applies these checks in order:
 
@@ -48,19 +46,38 @@ These pure functions return typed errors. They perform no history lookup, unique
 
 Earlier failures take precedence. The function never replaces a pledge or advances a checkpoint. Callers still need trusted history, authentication, hash checks, and durable writes. The classifier implements none of those controls.
 
-The [event tests](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/tests/odin/event_identity/event_identity_test.odin) cover identity, arithmetic, and six classifier cases. The [manifest](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/tests/odin-packages.json) lists three packages and nine tests. These tests prove partial domain behavior, not runtime replay or durability.
+The [event tests](https://github.com/progentic/Warband/tree/main/tests/odin/event_identity) also cover confirm and recovery classification. Exact committed replay preserves a later pending pledge. Recovery distinguishes an exact pledged event awaiting confirmation from a missing pledged event that requires operator reconciliation.
+
+## Audit and custody modules
+
+- **Event bytes.** The [audit package](https://github.com/progentic/Warband/tree/main/src/audit) implements all ten event kinds, from task creation and proposal recording through evaluation, transition acceptance, rejection, revocation and attempt disposition. Each codec uses the shared envelope and checks the expected store and epoch. The proposal fingerprint binds the entire encoded proposal payload, including its IDs.
+- **Custody bytes.** The [record codec](https://github.com/progentic/Warband/blob/main/src/custody/record.odin) handles PENDING, COMMITTED, GENESIS, EPOCH and REJECTION. Variable-size encoders return a fixed buffer and a used length. Pass only the used bytes to the next stage. The [head-file codec](https://github.com/progentic/Warband/blob/main/src/custody/head.odin) handles the materialized checkpoint.
+- **History.** The [history validator](https://github.com/progentic/Warband/blob/main/src/custody/history.odin) checks record order, predecessor hashes, pledge pairing, epoch changes and authorization-ID uniqueness against a supplied published head. A denial can precede enrollment. Later denials advance custody history while preserving a pending pledge.
+- **Requests and replies.** The [WBCR codec](https://github.com/progentic/Warband/blob/main/src/custody/request.odin) handles prepare, confirm, verify, enroll and epoch change. The [peer decision](https://github.com/progentic/Warband/blob/main/src/custody/peer.odin) checks the supplied listener, operation and observed UID. The [WBRS codec](https://github.com/progentic/Warband/blob/main/src/custody/reply.odin) uses caller-supplied authentication context to redact denial replies and validate receipt cursor bounds. The separate Linux custodian authenticates connected peers and records custody history. Its [build and test recipe](verification/isolated-linux-custodian.md) uses the isolated Linux target.
+
+## Store, reconciliation and timing modules
+
+- **Create or open a store.** The operator runs `provision-store` after custody enrollment to create a new schema-v1 database. For an existing database, `open_writer` checks the version before switching to WAL and returns a verified writer after reading back its connection settings. [Provisioning](https://github.com/progentic/Warband/blob/main/src/store/provision.odin) · [Writer open](https://github.com/progentic/Warband/blob/main/src/store/writer.odin)
+- **Trace a denial receipt.** Start at `src/runtime:run`. It uses the Linux custody client to authenticate the custodian, checks the SQLite tail against custody, then calls `append_verified_event` for each outstanding receipt. [Reconciliation](https://github.com/progentic/Warband/blob/main/src/runtime/reconcile_linux.odin) · [Custody client](https://github.com/progentic/Warband/tree/main/src/runtime/client) · [Pledged append](https://github.com/progentic/Warband/blob/main/src/store/append_linux.odin)
+- **Check a deadline.** `timing.check` takes supplied elapsed milliseconds and returns the least remaining time across applicable deadlines. Equality expires the deadline. The Linux gate reads CLOCK_BOOTTIME at claim confirmation and immediately before dispatch. A runtime restart clears the issuing process’s live grant. [Pure timing decision](https://github.com/progentic/Warband/blob/main/src/domain/timing/deadline.odin)
 
 ## Repository checks
 
-[check_docs.py](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/scripts/check_docs.py) separates inventory reads from pure governance decisions. Its provenance checks validate document fields, not operator identity or commit ancestry.
+[check_docs.py](https://github.com/progentic/Warband/blob/main/scripts/check_docs.py) separates inventory reads from pure governance decisions. Its provenance checks validate document fields, not operator identity or commit ancestry.
 
-[run_odin_tests.py](https://github.com/progentic/Warband/blob/109b8d173a753f52682418ac0c299096e452bd0e/scripts/run_odin_tests.py) checks exact source discovery, manifest entries, and fresh reports. [Build-manifest publication](engineering/phase1-effect-composition-review.md) writes directly to its destination. It provides no crash-safe replacement guarantee.
+[run_odin_tests.py](https://github.com/progentic/Warband/blob/main/scripts/run_odin_tests.py) checks exact source discovery, manifest entries, and fresh reports. [Build-manifest publication](engineering/phase1-effect-composition-review.md) writes directly to its destination. It provides no crash-safe replacement guarantee.
 
-## Accepted design: future runtime
+## Trace a no-op task
 
 The [architecture](architecture/README.md) and [package boundaries](engineering/package-boundaries.md) separate proposal, policy, execution, evaluation, and state acceptance. The model proposes data. Policy decides. The executor acts within limits. Evaluators check observations. Only the state boundary accepts eligible facts.
 
-The [pipeline](architecture/execution-pipeline.md) records audit events at each security-relevant stage. [ADR-0005](decisions/0005-event-integrity-acceptance-and-recovery.md) accepts a deterministic no-op design. Warband has not implemented this pipeline.
+Start in `run_noop_gate`. The claim consumes the capability’s single use. After dispatch, the observer compares the returned bytes with `NOOP`. The evaluator takes the confirmed observation Ref, reads its stored bytes and checks the digest and criterion. Follow `run_acceptor` to see how a verified verdict advances task and control versions once. An exact retry returns the stored transition. [Gate and acceptor](https://github.com/progentic/Warband/blob/main/src/runtime/noop_gate_linux.odin) · [Evaluator](https://github.com/progentic/Warband/blob/main/src/runtime/noop_evaluator_linux.odin)
+
+To inspect an interrupted run, follow `replay-noop` from the authenticated checkpoint into the pure reducer. Read journal readiness separately from the task projection. For example, a pledge with a missing SQLite event yields `PendingEventMissing`; replay can describe the earlier confirmed prefix while the importer withholds progress. [Replay command](https://github.com/progentic/Warband/tree/main/cmd/replay-noop) · [Reducer](https://github.com/progentic/Warband/tree/main/src/replay)
+
+For capacity work, distinguish the runtime session’s charged visits from frames examined during cold custodian startup. Startup checks history size, arena allocation and elapsed time before opening its sockets. The verification plan identifies the exact boundaries still to exercise. [Capacity criteria](verification/phase2-verification-plan.md#cold-recovery-readiness-and-visit-ownership)
+
+The next execution boundary has an accepted design for a marker file on preproduction x64-review. Implementation requires Phase 2 exit and separate owner approval. [ADR-0009](decisions/0009-controlled-local-marker-execution.md)
 
 ### State and evidence
 

@@ -13,13 +13,13 @@
 
 ## Problem
 
-The passing Linux job currently runs on Ubuntu 24.04 through `ubuntu-latest`. GitHub's [runner announcement](https://github.com/actions/runner-images/issues/14748), checked on 2026-10-10, schedules a rolling transition to Ubuntu 26.04 from October 19 through November 19. Different jobs may receive different host images during that period.
+At the original review baseline, the Linux job ran on Ubuntu 24.04 through `ubuntu-latest`. GitHub's [runner announcement](https://github.com/actions/runner-images/issues/14748), checked on 2026-10-10, schedules a rolling transition to Ubuntu 26.04 from October 19 through November 19. Different jobs may receive different host images during that period.
 
 The required Linux job retains the Ubuntu 24.04-only profile and LLVM/clang 19.1.1 at exact signed Ubuntu package revisions. The rejection is intentional. A runner upgrade is not evidence that a replacement toolchain is compatible. The existing job should fail rather than install a guessed version.
 
 ## Constraints retained
 
-- Keep primary compiler, application build, tests and smoke jobs on `ubuntu-latest`, never `ubuntu-slim`.
+- Run the required Linux foundation job on explicit `ubuntu-24.04` under the owner-authorized testing exception below. Preserve native VM execution.
 - Preserve exact version checks, signed package provenance, the reviewed Odin source SHA, explicit test identities and executable architecture checks.
 - Preserve independent hosted evidence. Do not copy native macOS binaries or local success claims into Linux proof.
 - Do not select production architecture, alter accepted runtime contracts or add Phase 2 code.
@@ -31,7 +31,7 @@ The required Linux job retains the Ubuntu 24.04-only profile and LLVM/clang 19.1
 |---|---|---|
 | Option A: native Ubuntu 26.04 dependency profile | Keeps the build directly on the moving hosted VM | Inspect real package revisions and Odin compatibility; review an explicit new lock profile; complete clean source builds, architecture, all tests and negative controls before promotion. Owner-selected Option A for evaluation; promotion still requires successful native evidence and separate owner approval. |
 | Use a reviewed Ubuntu 24.04 build container on `ubuntu-latest` | Separates the tested build userspace from the changing host OS | Review the official image's x64 digest and provenance, dependency closure and Actions compatibility; preserve explicit bash/pipefail and receipts; record host image, container digest and guest OS separately. This proves a container build, not the future VM sandbox. No digest is selected or container configured yet. |
-| Temporarily use an explicit Ubuntu 24.04 runner | Retains the current direct VM build | Requires a user-approved exception to the `ubuntu-latest` constraint. It is not selected by this proposal. |
+| Temporarily use an explicit Ubuntu 24.04 runner | Retains the current direct VM build | Selected by the owner on 2026-11-12 for the required baseline job; see the testing exception below. |
 | Keep the current guard and pause hosted builds after migration | Avoids accepting unreviewed inputs | CI may become unavailable. Keep that failure visible; local verification does not replace the hosted gate. |
 
 GitHub [supports job containers](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/run-jobs-in-a-container) on a Linux runner. Such jobs default to `sh`, so the existing explicit bash setting must be retained if that option is chosen. A plain Ubuntu image also needs reviewed bootstrap dependencies; the current installer assumes `sudo`, Git and Python already exist. These differences require an explicit implementation and independent verification, not merely an added `container` line.
@@ -44,7 +44,7 @@ GitHub [supports job containers](https://docs.github.com/en/actions/how-tos/writ
 4. Prove malformed/unknown profiles, unsupported OS versions and wrong LLVM patches still fail. Verify clean builds without inherited compiler caches and the independently specified golden bytes.
 5. Promote only the reviewed profile after its hosted checks pass. Preserve old inputs and define rollback without an automatic fallback.
 
-A separately named `Phase 1 Ubuntu 26.04 Compatibility` job now evaluates the explicit `linux_ubuntu2604` profile on `ubuntu-26.04`. It does not replace the required `ubuntu-latest` job, change its default `linux` profile or approve promotion. The [candidate evidence](../verification/ubuntu2604-compatibility-evidence.md) records actual inputs and outcomes.
+A separately named `Phase 1 Ubuntu 26.04 Compatibility` job now evaluates the explicit `linux_ubuntu2604` profile on `ubuntu-26.04`. The required baseline job uses `ubuntu-24.04` under the testing exception below and retains its default `linux` profile; compatibility evaluation remains separately named. The [candidate evidence](../verification/ubuntu2604-compatibility-evidence.md) records actual inputs and outcomes.
 
 ## Acceptance evidence
 
@@ -56,6 +56,14 @@ The Node 20 action-runtime warnings are a separate maintenance task. New action 
 
 Proposed only. The compatibility evaluation is published as v0.0.2; the required Ubuntu 24.04 job, original profile and exact compiler checks remain. The Ubuntu 26.04 profile keeps the reviewed Odin SHA and independently observed exact Ubuntu dependencies. Native builds and existing controls passed, while the executable declares x86-64-v3 rather than the Ubuntu 24.04 binary's baseline-only ISA property. Input inspection traces that floor to native glibc startup/runtime packages; selecting GCC 14 headers alone does not remove it.
 
-Proto acknowledges that floor for CI artifacts only, with the off-runner execution rule in D1. Candidate-specific rejecting cases remain unexecuted; D2 authorizes only checks A and B in their own implementation PR, including the OS diagnostic/no-APT conditions. D3 requires a separate promotion PR after rollout completion, with rollback defined and no automatic fallback. D4 accepts intermittent required-job failures during the window; the guard remains unchanged. Manual re-runs retain the same commit/workflow/declared profile, preserve failed-attempt evidence and identify the actual runner image; a green 24.04 attempt does not demonstrate a 26.04 baseline pass. No runner exception, container, host-OS profile selection or protection bypass is authorized.
+Proto acknowledges that floor for CI artifacts only, with the off-runner execution rule in D1. Candidate-specific rejecting cases remain unexecuted; D2 authorizes only checks A and B in their own implementation PR, including the OS diagnostic/no-APT conditions. D3 requires a separate promotion PR after rollout completion, with rollback defined and no automatic fallback. D4 accepts intermittent required-job failures during the window; the guard remains unchanged. Manual re-runs retain the same commit/workflow/declared profile, preserve failed-attempt evidence and identify the actual runner image; a green 24.04 attempt does not demonstrate a 26.04 baseline pass. That historical direction authorized retries; the 2026-11-12 decision below subsequently authorizes the explicit baseline runner pin.
 
 2026-10-18: Review deadline met. Owner decisions are recorded in [the promotion review](../engineering/ubuntu2604-promotion-review.md#owner-decision-2026-10-18) (PR #6): both rejecting checks authorized; promotion after the rollout completes; intermittent required-job failures accepted during the rollout window with the guard unchanged. ADR acceptance, dependency archive/recovery and ADR-0004 remain open.
+
+## Owner-authorized testing exception recorded 2026-11-12
+
+Proto authorized pinning the required Linux job to Ubuntu 24.04, publishing this fix, then rerunning and merging recovery PR #27 after all checks pass. The exact workflow change is `jobs.phase1-linux.runs-on: ubuntu-latest` to `ubuntu-24.04`. This replaces the moving-label constraint for that job while retaining the `Phase 1 Linux Foundation` check name, Ubuntu 24.04 OS guard, locked toolchain, test inventory and required-check protection. Other jobs and their profiles retain their existing configuration.
+
+[Run 43292683858](https://github.com/progentic/Warband/actions/runs/43292683858) tested recovery head `2da2fe4bbc86119b2c39ba242c4ed8d8e8b62124` against main `8096a27274b504dae2aea7f3691a988a3d7c08fe`. Attempts 1–3 landed on Ubuntu 26.04 and stopped before dependency installation with `expected ubuntu:24.04, got ubuntu:26.04`. Failed logs and runner identities are retained under `.local/recovery-ci/43292683858-attempt{1,2,3}/` and in the hosted run evidence.
+
+Verification requires a passing native Ubuntu 24.04 baseline job on this workflow, the existing OS/profile rejection controls, and all required checks on the updated recovery PR. Attribute success to the actual runner and tested source. Reconsider the explicit pin only through the separately reviewed post-rollout promotion path; any rollback remains an explicit reviewed workflow change. ADR-0006's broader promotion and formal acceptance remain separate decisions.

@@ -1,0 +1,278 @@
+package reconcile
+
+import "core:crypto/sha2"
+import "core:fmt"
+import "core:sys/linux"
+import a "../audit"
+import e "../domain/events"
+import t "../domain/timing"
+import state "../state"
+import store "../store"
+import client "client"
+
+GateResult :: enum {EvidenceInvalid, Unavailable, ReconciliationRequired, MissingClaim, NoLiveGrantEntry,
+                    ExpiredCapability, InvalidClock, TaskDeadlineExceeded, RefusalUnconfirmed, Eligible, Dispatched, EvaluationVerified, EvaluationRejected}
+
+@(private)
+PROOF :: #config(WARBAND_TEST_CLAIM_BARRIER,false)
+
+@(private)
+LiveGrant :: struct {
+	starts: t.Starts,
+	prior_ms: u64,
+	permit: e.EventRef,
+	capability: e.CapabilityId,
+	claim: e.EventRef,
+	attempt: e.AttemptId,
+}
+
+@(private)
+Window :: struct {result: GateResult, cutoff: i64, observed: i64}
+
+@(private)
+check_window :: proc(grant: ^LiveGrant, now: i64) -> Window {
+	if now < 0 { return {result=.InvalidClock} }
+	decision := t.check(.Capability,grant.starts,grant.prior_ms,u64(now))
+	#partial switch decision.outcome {
+	case .ExpiredCapability: return {result=.ExpiredCapability,observed=now}
+	case .TaskDeadlineExceeded: return {result=.TaskDeadlineExceeded,observed=now}
+	case .WithinDeadline:
+		grant.prior_ms = u64(now)
+		if decision.remaining_ms > u64(max(i64)-now) { return {result=.InvalidClock} }
+		return {.Eligible,now+i64(decision.remaining_ms),now}
+	case: return {result=.InvalidClock,observed=now}
+	}
+}
+
+@(private)
+issue_and_claim :: proc(w: store.VerifiedWriter, s: ^client.Session, cp: e.Checkpoint, mark: u64,
+                        proposal: a.ProposalRecorded, task_evidence: e.EvidenceId, admission: i64, live: ^Maybe(LiveGrant)) -> GateResult {
+	start := client.wb_elapsed_ms()
+	stamp := client.wb_recorded_us()
+	if start < admission || stamp < 0 { return .InvalidClock }
+	grant := LiveGrant{starts={.Task=u64(admission),.Operation=nil,.LockWait=nil,.Capability=u64(start)},prior_ms=u64(start)}
+	// Separate random identifiers for the grant, evidence and attempt. Never accept IDs from the caller.
+	ids: [48]u8
+	count, err := linux.getrandom(ids[:],{})
+	if err != .NONE || count != len(ids) { return .Unavailable }
+	auth := a.AuthorizationRecorded{reference={cp.store,cp.epoch,cp.sequence+1},previous_head=cp.head,
+		recorded_time=u64(stamp),proposal=proposal.reference,decision=.Permit,use_limit=1,expiry=u64(stamp)+90_000_000}
+	copy(auth.capability[:],ids[:16])
+	copy(auth.evidence[:],ids[16:32])
+	if auth.evidence == task_evidence { return .Unavailable }
+	copy(grant.attempt[:],ids[32:])
+	window := check_window(&grant,client.wb_elapsed_ms())
+	if window.result != .Eligible { return window.result }
+	auth_head, ok := store.append_noop(w,s,cp,mark,auth,window.cutoff)
+	if !ok { return .Unavailable }
+	grant.permit,grant.capability = auth.reference,auth.capability
+	fingerprint, fp_err := a.fingerprint_proposal(proposal,cp.store,cp.epoch)
+	stamp = client.wb_recorded_us()
+	if fp_err != .None || stamp < 0 { return .Unavailable }
+	claim := a.DispatchClaimed{reference={cp.store,cp.epoch,auth_head.sequence+1},previous_head=auth_head.head,
+		recorded_time=u64(stamp),claim_time=u64(stamp),authorization=auth.reference,capability=auth.capability,
+		attempt=grant.attempt,expected_task_version=1,expected_control_revision=1,proposal_fingerprint=fingerprint}
+	window = check_window(&grant,client.wb_elapsed_ms())
+	if window.result != .Eligible { return window.result }
+	_, ok = store.append_noop(w,s,auth_head,mark,claim,window.cutoff)
+	if !ok { return .Unavailable }
+	window = check_window(&grant,client.wb_elapsed_ms()) // receipt has arrived; enforce a fresh observation at confirmation
+	if window.result != .Eligible { return window.result }
+	grant.claim = claim.reference
+	live^ = grant
+	when PROOF {
+		fmt.println("authorization_start_ms",start,"claim_confirmed_ms",window.observed)
+		if linux.kill(linux.getpid(),.SIGSTOP) != .NONE { return .Unavailable }
+	}
+	return .Eligible
+}
+
+@(private)
+invoke_noop :: proc() -> [4]u8 {
+	when PROOF || #config(WARBAND_TEST_INVOCATION_WITNESS,false) { fmt.println("primitive_invoked") }
+	return {'N','O','O','P'}
+}
+
+@(private)
+bound_claim :: proc(h: store.NoopHistory, requested: e.EventRef) -> bool {
+	return state.bound_claim(h.evidence,requested)
+}
+
+@(private)
+dispatch :: proc(w: store.VerifiedWriter,s: ^client.Session,cp: e.Checkpoint,h: store.NoopHistory,
+                 requested: e.EventRef,live: ^Maybe(LiveGrant),returned: ^Maybe([4]u8)) -> GateResult {
+	claim, claimed := h.claim.(a.DispatchClaimed)
+	if !claimed { return .MissingClaim }
+	if !bound_claim(h,requested) { return .EvidenceInvalid }
+	auth := h.permit.(a.AuthorizationRecorded)
+
+	when PROOF { fmt.println("confirmed_evidence", u64(auth.reference.sequence), u64(claim.reference.sequence)) }
+	result := GateResult.NoLiveGrantEntry
+	grant, present := live^.(LiveGrant)
+	tick := client.wb_elapsed_ms()
+	if tick < 0 { return .InvalidClock }
+	if present {
+		if grant.permit != auth.reference || grant.claim != claim.reference || grant.attempt != claim.attempt ||
+		   grant.capability != claim.capability { return .EvidenceInvalid }
+		window := check_window(&grant,tick)
+		tick, result = window.observed, window.result
+		if result == .Eligible {
+			live^ = nil
+			value := invoke_noop()
+			returned^ = value
+			when PROOF { fmt.println("dispatch_ms",tick) }
+			fmt.println("returned",string(value[:]))
+			when PROOF {
+				if linux.kill(linux.getpid(),.SIGSTOP) != .NONE { return .Unavailable }
+			}
+			return .Dispatched
+		}
+	}
+	when PROOF { fmt.println("dispatch_ms",tick,"refusal",result) }
+	wire, encode_err := a.encode_dispatch_claimed(claim,cp.store,cp.epoch)
+	stamp := client.wb_recorded_us()
+	if stamp < 0 || encode_err != .None { return .RefusalUnconfirmed }
+	ctx: sha2.Context_256
+	sha2.init_256(&ctx)
+	sha2.update(&ctx,wire[:])
+	rejection := a.RejectionRecorded{reference={cp.store,cp.epoch,cp.sequence+1},recorded_time=u64(stamp),
+		previous_head=cp.head,producer=2,stage=3,reason=9,related=claim.reference}
+	if result == .ExpiredCapability { rejection.reason = 5 }
+	sha2.final(&ctx,rejection.rejected_input_digest[:])
+	_, ok := store.append_noop(w,s,cp,h.mark,rejection,s.deadline)
+	if !ok { return .RefusalUnconfirmed }
+	return result
+}
+
+run_noop_gate :: proc(path: cstring,s: ^client.Session,archives: []Archive,requested: e.EventRef) -> (result: GateResult) {
+	admission := client.wb_elapsed_ms()
+	if admission < 0 || !store.limit_sqlite() { return .Unavailable }
+	fd := client.wb_writer_gate(path)
+	if fd < 0 { return .Unavailable }
+	defer client.wb_release_gate(fd)
+	locked := client.wb_elapsed_ms()
+	if locked < admission || locked-admission >= 5_000 { return .Unavailable }
+	w, open_err := store.open_writer(path)
+	if open_err != .None { return .Unavailable }
+	defer if !store.close_writer(&w) { result = .Unavailable }
+	if !store.limit_writer_cache(w) { return .Unavailable }
+	live: Maybe(LiveGrant) // Starts empty in each execution. Replay cannot write this slot.
+	for {
+		now := client.wb_elapsed_ms()
+		if now < admission { return .InvalidClock }
+		s.deadline, s.visits, s.exhausted = now+60_000,0,false
+		compared: e.EventRef
+		recovery := reconcile_locked(w,s,archives,nil,&compared)
+		if recovery != .Ready && recovery != .PendingConfirmation { return .ReconciliationRequired }
+		page, ok := client.verify(s,0)
+		if !ok || page.pending != nil { return .Unavailable }
+		h, valid := store.noop_history(w,page.committed,s)
+		task, created := h.task.(a.TaskCreated)
+		proposal, proposed := h.proposal.(a.ProposalRecorded)
+		if !valid || !created || !proposed || proposal.reference != requested || !state.valid_proposal(task,proposal) { return .EvidenceInvalid }
+		if h.permit == nil && h.claim == nil && live == nil {
+			issued := issue_and_claim(w,s,page.committed,h.mark,proposal,task.evidence,admission,&live)
+			if issued != .Eligible { return issued }
+			continue // reconcile the pre-dispatch receipt snapshot and read durable evidence again
+		}
+		if obs, found := h.observation.(a.ObservationRecorded); found {
+			return evaluate_confirmed(w,s,requested,obs.reference)
+		}
+		returned: Maybe([4]u8)
+		gate := dispatch(w,s,page.committed,h,requested,&live,&returned)
+		if gate != .Dispatched && gate != .NoLiveGrantEntry { return gate }
+		ref, recorded := record_observation(w,s,requested,h.claim.(a.DispatchClaimed).reference,returned)
+		if !recorded { return .Unavailable }
+		when PROOF {
+			if returned != nil && linux.kill(linux.getpid(),.SIGSTOP) != .NONE { return .Unavailable }
+		}
+		evaluated := evaluate_confirmed(w,s,requested,ref)
+		if evaluated == .EvaluationVerified && gate == .Dispatched { return .Dispatched }
+		if evaluated == .EvaluationRejected && gate == .NoLiveGrantEntry { return .NoLiveGrantEntry }
+		return evaluated
+	}
+}
+
+@(private)
+record_observation :: proc(w: store.VerifiedWriter,s: ^client.Session,requested,claim: e.EventRef,
+                           returned: Maybe([4]u8)) -> (e.EventRef,bool) {
+	page, ok := client.verify(s,0)
+	if !ok || page.pending != nil { return {},false }
+	cp := page.committed
+	h, valid := store.noop_history(w,cp,s)
+	if !valid || !bound_claim(h,requested) || h.claim.(a.DispatchClaimed).reference != claim || h.observation != nil { return {},false }
+	id, fresh := new_evidence(h)
+	stamp := client.wb_recorded_us()
+	if !fresh || stamp < 0 { return {},false }
+	outcome := a.ObservationOutcome.Indeterminate
+	if value, present := returned.([4]u8); present && value == ([4]u8{'N','O','O','P'}) { outcome = .Returned }
+	obs := a.ObservationRecorded{reference={cp.store,cp.epoch,cp.sequence+1}, previous_head=cp.head,
+		recorded_time=u64(stamp),claim=claim,evidence=id,outcome=outcome}
+	_, confirmed := store.append_noop(w,s,cp,h.mark,obs,s.deadline)
+	return obs.reference,confirmed
+}
+
+@(private)
+new_evidence :: proc(h: store.NoopHistory) -> (e.EvidenceId,bool) {
+	id: e.EvidenceId
+	count, err := linux.getrandom(id[:],{})
+	return id,err == .NONE && count == len(id) && store.available_evidence(h,id)
+}
+
+AcceptResult :: enum {Unavailable, LockUnavailable, StoreUnavailable, ReconciliationRequired, CustodyUnavailable,
+                      IndexRefused, IndexVerified, IndexOrHistoryInvalid, InvalidEvidence, RejectedEvaluation,
+                      Revoked, Terminal, StaleVersions, AcceptanceUnconfirmed, Accepted, Recorded}
+
+// The operator explicitly selects provisioning. Normal acceptance can only check the index.
+run_acceptor :: proc(path: cstring,s: ^client.Session,archives: []Archive,requested: e.EventRef,
+                     task,control: u64,provision: bool) -> (result: AcceptResult, event: a.TransitionAccepted) {
+	start := client.wb_elapsed_ms()
+	if start<0 || !store.limit_sqlite() { return .Unavailable,{} }
+	s.deadline = start+60_000
+	fd := client.wb_writer_gate(path)
+	if fd<0 { return .LockUnavailable,{} }
+	defer client.wb_release_gate(fd)
+	locked := client.wb_elapsed_ms()
+	if locked<start || locked-start>=5_000 { return .LockUnavailable,{} }
+	w,err := store.open_writer(path)
+	if err!=.None { return .StoreUnavailable,{} }
+	defer if !store.close_writer(&w) { result = .StoreUnavailable; event = {} }
+	if !store.limit_writer_cache(w) { return .StoreUnavailable,{} }
+	if !provision {
+		compared: e.EventRef
+		recovery := reconcile_locked(w,s,archives,nil,&compared)
+		if recovery!=.Ready && recovery!=.PendingConfirmation { return .ReconciliationRequired,{} }
+	}
+	page,ok := client.verify(s,0)
+	if !ok || page.pending!=nil || page.committed.store!=s.store || page.committed.epoch!=s.epoch { return .CustodyUnavailable,{} }
+	cp := page.committed
+	if provision {
+		if !store.provision_acceptance_index(w,cp,s) { return .IndexRefused,{} }
+		return .IndexVerified,{}
+	}
+	h,valid := store.acceptance_snapshot(w,cp,s)
+	if !valid { return .IndexOrHistoryInvalid,{} }
+	if !client.within_budget(s) { return .Unavailable,{} }
+	decision := state.decide(h.evidence,requested,task,control)
+	switch decision {
+	case .Recorded: return .Recorded,h.transition.(a.TransitionAccepted)
+	case .RejectedEvaluation: return .RejectedEvaluation,{}
+	case .Revoked: return .Revoked,{}
+	case .Terminal: return .Terminal,{}
+	case .StaleVersions: return .StaleVersions,{}
+	case .InvalidEvidence: return .InvalidEvidence,{}
+	case .Eligible:
+	}
+	when #config(WARBAND_TEST_ACCEPT_BARRIER,false) {
+		if linux.kill(linux.getpid(),.SIGSTOP) != .NONE { return .Unavailable,{} }
+	}
+	claim := h.claim.(a.DispatchClaimed)
+	stamp := client.wb_recorded_us()
+	v := a.TransitionAccepted{reference={cp.store,cp.epoch,cp.sequence+1},previous_head=cp.head,
+		evaluation=requested,claim=claim.reference,expected_task_version=task,expected_control_revision=control}
+	n,entropy := linux.getrandom(v.transition[:],{})
+	if stamp<0 || entropy!=.NONE || n!=len(v.transition) { return .Unavailable,{} }
+	v.recorded_time = u64(stamp)
+	if !store.append_acceptance(w,s,cp,v) { return .AcceptanceUnconfirmed,{} }
+	return .Accepted,v
+}
