@@ -12,10 +12,10 @@ ln -s /usr/lib/x86_64-linux-gnu/libcurl.so.4 "$linkdir/libcurl.so"
 ln -s /usr/lib/x86_64-linux-gnu/libz.so.1 "$linkdir/libz.so"
 clang-19 -std=c11 -O2 -Wall -Wextra -Werror -c cmd/provider-transport/network_policy.c -o "$linkdir/policy.o"
 llvm-ar-19 rcsD "$linkdir/libwb_network_policy.a" "$linkdir/policy.o"
-for profile in fixture production-roots connector; do
+for profile in fixture production-roots connector connector-production-roots; do
     test_roots=false
-    if [[ $profile != production-roots ]]; then test_roots=true; fi
-    connector=false; if [[ $profile == connector ]]; then connector=true; fi
+    if [[ $profile != *production-roots ]]; then test_roots=true; fi
+    connector=false; if [[ $profile == connector* ]]; then connector=true; fi
     exe="$out/transport-$profile"
     odin build cmd/provider-transport -target:linux_amd64 -define:WARBAND_TRANSPORT_FIXTURE=true \
         "-define:WARBAND_EXTERNAL_CONNECTOR=$connector" "-define:WARBAND_TEST_ROOTS=$test_roots" -vet -warnings-as-errors "-extra-linker-flags:-L$linkdir" "-out:$exe"

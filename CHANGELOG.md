@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.2.4 - 2026-11-25
+
+### Added
+
+- Added an offline aggregate qualification runner for the assembled provider stack. It checks the observed request bytes, DNS and kernel traces, typed results and authority-store state, and binds the evidence to the Git tree and binaries.
+
 ## 0.2.3 - 2026-11-24
 
 ### Added
