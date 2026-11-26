@@ -6,7 +6,7 @@ test "$(uname -mr)" = "6.8.0-142-generic x86_64"
 export LLVM_CONFIG=/usr/bin/llvm-config-19
 out="$PWD/out/linux_amd64/provider"
 mkdir -p "$out"
-evidence=$(mktemp -d "$out/connector-142.XXXXXXXX")
+evidence=$(mktemp -d "${1:-$out}/connector-142.XXXXXXXX")
 bash scripts/build_provider_transport.sh > "$evidence/build.log"
 bash scripts/test_writer_open.sh linux_amd64 > "$evidence/store.log"
 bash scripts/build_custodian.sh > "$evidence/custodian.log"

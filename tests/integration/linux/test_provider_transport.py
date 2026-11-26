@@ -59,11 +59,22 @@ EXTENDED = {**PREFLIGHT, **TLS_CASES, 'cancel-after-send':'Cancelled','issuer-de
             'total-stall':'Deadline','bad-content':'Candidate.InvalidJson','bad-envelope':'Envelope.InvalidEnvelope'}
 
 
+ASSEMBLED = {'empty-example':'Ok','fresh-after-reply':'Ok','content-at':'Ok',
+             'content-over':'Envelope.CandidateTooLarge','refusal':'Envelope.Refused',
+             'finish-length':'Envelope.Truncated','second-choice':'Envelope.InvalidEnvelope',
+             'wrong-model':'Envelope.WrongModel','wrong-payload':'Candidate.PayloadMismatch',
+             'foreign-redirect':'HttpFailure','body-stall':'Deadline','old-tls':'TlsFailure',
+             'unclassified-input':'InvalidHandoff','unauthorized-peer':'PeerDenied',
+             'method-input':'InvalidHandoff','path-input':'InvalidHandoff','header-input':'InvalidHandoff',
+             'proxy-input':'InvalidHandoff','model-input':'InvalidHandoff','fragmented-chunks':'Ok','truncated-body':'Framing','duplicate-envelope':'Envelope.InvalidEnvelope',
+             'tool-output':'Envelope.ToolOutput','streaming':'Envelope.InvalidEnvelope'}
+
+
 def now_ms():
     return time.clock_gettime_ns(time.CLOCK_BOOTTIME) // 1_000_000
 
 
-def fixture_body():
+def fixture_body(rid=RID, payload="YWJj"):
     # Independent serialization, checked against 3a's complete 790-byte vector.
     fields = dict(schema_version={'type':'integer','enum':[1]}, request_id={'type':'string'},
                   action={'type':'string','enum':['create_marker']},
@@ -73,9 +84,9 @@ def fixture_body():
     body = dict(model=MODEL, n=1, stream=False, store=False,
                 response_format=dict(type='json_schema', json_schema=dict(name='marker_candidate', strict=True, schema=schema)),
                 messages=[dict(role='developer', content='Return the marker proposal matching the schema. Echo the request ID and the Base64 payload exactly.'),
-                          dict(role='user', content='request_id=' + RID.decode() + ' payload_b64=YWJj')])
+                          dict(role='user', content='request_id=' + rid.decode() + ' payload_b64=' + payload)])
     raw = json.dumps(body, separators=(',', ':')).encode()
-    if hashlib.sha256(raw).hexdigest() != GOLDEN:
+    if rid==RID and payload=='YWJj' and hashlib.sha256(raw).hexdigest() != GOLDEN:
         raise ValueError('fixture projection differs from the reviewed vector')
     return raw
 
@@ -99,7 +110,7 @@ class Observer(socketserver.ThreadingTCPServer):
 
     def handle_error(self, *_):
         exc=sys.exc_info()[1]
-        if self.case in TLS_CASES and isinstance(exc,(ssl.SSLError, ConnectionError)):
+        if (self.case in TLS_CASES or self.case=='old-tls') and isinstance(exc,(ssl.SSLError, ConnectionError)):
             return
         self.valid = False  # avoid logging peer-controlled data
 
@@ -113,7 +124,8 @@ class Endpoint(http.server.BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
 
     def setup(self):
-        if self.server.case=='setup-stall':
+        if self.server.case in ('setup-stall','cancel-after-connect'):
+            if hasattr(self.server,'handshake_wait'): self.server.handshake_wait.set()
             self.server.release.wait(8)
             raise ConnectionResetError()
         self.request = self.server.tls.wrap_socket(self.request, server_side=True)
@@ -134,13 +146,15 @@ class Endpoint(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         h = self.headers
+        size=getattr(self.server,"expected_size",790)
+        digest=getattr(self.server,"expected_digest",GOLDEN)
         correct = (self.path == PATH and self.request_version == 'HTTP/1.1'
                    and h.get_all('Host') == [HOST] and h.get_all('Expect') is None
                    and h.get_all('Content-Type') == ['application/json']
                    and h.get_all('Authorization') == ['Bearer ' + self.server.token]
-                   and h.get_all('Content-Length') == ['790'] and h.get_all('Accept') in (None, ['*/*'])
+                   and h.get_all('Content-Length') == [str(size)] and h.get_all('Accept') in (None, ['*/*'])
                    and all(k.lower() in {'host','content-type','authorization','content-length','accept'} for k in h))
-        if not correct or hashlib.sha256(self.rfile.read(790)).hexdigest() != GOLDEN:
+        if not correct or hashlib.sha256(self.rfile.read(size)).hexdigest() != digest:
             self.server.valid = False
             self.close_connection = True
             return
@@ -160,15 +174,28 @@ class Endpoint(http.server.BaseHTTPRequestHandler):
             data=self.server.reply
             self.wfile.write(interim+first+b'x'*pad+end+f'{len(data):x}\r\n'.encode()+data+b'\r\n0\r\n'+trailer+b'\r\n')
             return
-        self.send_response_only(int(case) if case.isdigit() else 307 if case == 'redirect' else 200)
+        if case=='fragmented-chunks':
+            self.wfile.write(b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n')
+            for offset in range(0,len(self.server.reply),7):
+                piece=self.server.reply[offset:offset+7]
+                self.wfile.write(f'{len(piece):x}\r\n'.encode()+piece+b'\r\n')
+            self.wfile.write(b'0\r\n\r\n')
+            return
+        self.send_response_only(int(case) if case.isdigit() else 307 if case in ('redirect','foreign-redirect') else 200)
         if case=='compressed': self.send_header('Content-Encoding','gzip')
         if case=='length-conflict': self.send_header('Transfer-Encoding','chunked')
         if case == 'redirect':
             self.send_header('Location', 'https://' + HOST + '/unexpected')
-        body = b'' if case == 'redirect' else self.server.reply
-        self.send_header('Content-Length', str(len(body)))
+        if case=='foreign-redirect': self.send_header('Location', 'https://93.184.216.35/unexpected')
+        body = b'' if case in ('redirect','foreign-redirect') else self.server.reply
+        self.send_header('Content-Length', str(len(body)+int(case=='truncated-body')))
         self.end_headers()
-        self.wfile.write(body)
+        if case=='truncated-body': self.close_connection=True
+        if case=='body-stall':
+            self.wfile.write(body[:1])
+            self.server.release.wait(8)
+        else:
+            self.wfile.write(body)
 
 
 @contextlib.contextmanager
@@ -268,6 +295,9 @@ def relay():
         os.close(grant); os.close(secret)
         with parent:
             parent.sendall(observer.recv(FRAME.size))
+            if 'WB_ASSEMBLED_RELAY' in env:
+                p.wait(timeout=12)
+                return
             if parent.recv(64)!=b'R': raise ValueError('launcher preflight')
             observer.sendall(b'R')
             msg,fds,_,_=socket.recv_fds(observer,16,1)
@@ -292,8 +322,11 @@ def await_orphans(pids):
 
 def drive(root, command, case, proxy, endpoint):
     began=now_ms()
-    deadline = began + (32_000 if case=='total-stall' else 0 if case=='expired' else 1800 if case=='stall' else 8000)
-    packet = FRAME.pack(b'WBT0' if case=='malformed' else b'WBT1', RID, 1, 3 if case=='unknown-example' else 2, deadline)
+    deadline = began + (32_000 if case=='total-stall' else 0 if case=='expired' else 1800 if case in ('stall','body-stall') else 8000)
+    packet = FRAME.pack(b'WBT0' if case=='malformed' else b'WBT1', endpoint.rid, 1, 3 if case=='unknown-example' else endpoint.example, deadline)
+    extra={'unclassified-input':b'WB3D_EXCLUDED_field','method-input':b'GET','path-input':b'/extra',
+           'header-input':b'X-Custom: fixture','proxy-input':b'proxy','model-input':b'another-model'}
+    packet+=extra.get(case,b'')
     with contextlib.ExitStack() as stack:
         parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         stack.enter_context(parent)
@@ -309,6 +342,9 @@ def drive(root, command, case, proxy, endpoint):
             fcntl.fcntl(fd, fcntl.F_ADD_SEALS, fcntl.F_SEAL_SEAL | fcntl.F_SEAL_WRITE |
                     fcntl.F_SEAL_GROW | fcntl.F_SEAL_SHRINK)
         env = dict(PATH=os.defpath, WB_ISSUER_FD=str(child.fileno()), WB_CREDENTIAL_FD=str(fd), WB_OPPORTUNITY_FD=str(grant))
+        if endpoint.assembled:
+            env.update(WB_ASSEMBLED_RELAY='1', WB_EXCLUDED_CONTEXT='WB3D_EXCLUDED_context',
+                       WB_EARLIER_REPLY=endpoint.previous)
         if case=='missing-token': env.pop('WB_CREDENTIAL_FD')
         if case == 'proxy-env':
             url = 'http://127.0.0.1:' + str(proxy.server_address[1])
@@ -322,7 +358,7 @@ def drive(root, command, case, proxy, endpoint):
             parent.sendall(packet)
         def spawn(sock, argv):
             proc=subprocess.Popen(argv,cwd=root,env=dict(env,WB_ISSUER_FD=str(sock.fileno())),
-                pass_fds=(sock.fileno(),fd,grant),user=0 if endpoint.bootstrap else 65534,
+                pass_fds=(sock.fileno(),fd,grant),user=0 if endpoint.bootstrap and case!='unauthorized-peer' else 65534,
                 group=0 if endpoint.bootstrap else 65534,extra_groups=[],start_new_session=True,
                 stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
             stack.callback(stop,proc)
@@ -344,14 +380,32 @@ def drive(root, command, case, proxy, endpoint):
             os.close(writer); writer=-1
             for sock in (parent,rival): sock.settimeout(4)
             one,two=parent.recv(64,socket.MSG_PEEK),rival.recv(64,socket.MSG_PEEK)
-            if sorted((one,two))!=[b'R',b'Spent']: raise ValueError('duplicate grant')
-            if two==b'R': parent,p=rival,second
+            if endpoint.assembled:
+                if (one==b'Spent')==(two==b'Spent'): raise ValueError('duplicate grant')
+            elif sorted((one,two))!=[b'R',b'Spent']: raise ValueError('duplicate grant')
+            if one==b'Spent': parent,p=rival,second
         else:
             os.write(writer,packet)
             os.close(writer); writer=-1
         if case=='issuer-death' and ctypes.CDLL(None).prctl(36,1,0,0,0)!=0:
             raise OSError('subreaper unavailable')
         try:
+            if endpoint.assembled:
+                endpoint.metrics['launcher_pid']=p.pid
+                if case=='unauthorized-peer':
+                    if p.wait(timeout=2)!=1 or p.stdout.read() or p.stderr.read(): raise ValueError('unexpected launcher exit')
+                    return 'PeerDenied'
+                if case in ('cancel-after-connect','cancel-after-send','issuer-death'):
+                    barrier=endpoint.handshake_wait if case=='cancel-after-connect' else endpoint.seen
+                    if not barrier.wait(4): raise TimeoutError('endpoint barrier')
+                    if case=='issuer-death':
+                        launcher,=children(p.pid)
+                        endpoint.metrics['launcher_pid']=launcher
+                        descendants=children(launcher)
+                        p.kill(); p.wait(timeout=2)
+                        await_orphans([launcher,*descendants])
+                        return 'IssuerLost'
+                    parent.sendall(b'C')
             while True:
                 parent.settimeout(max(0.001,(deadline+2000-now_ms())/1000))
                 msg, _, flags, _ = parent.recvmsg(64 * 1024 + 64)
@@ -359,6 +413,7 @@ def drive(root, command, case, proxy, endpoint):
                     raise ValueError('truncated driver packet')
                 if msg != b'R':
                     break
+                if endpoint.assembled: raise ValueError('connector requested an issuer-supplied socket')
                 if endpoint.attempts or now_ms() >= deadline or case == 'pre-cancel':
                     raise ValueError('unexpected connector request')
                 endpoint.attempts += 1
@@ -389,27 +444,27 @@ def drive(root, command, case, proxy, endpoint):
                 if case=='cancel-after-send':
                     if not endpoint.seen.wait(3): raise TimeoutError('endpoint receipt')
                     parent.sendall(b'C')
-            if endpoint.bootstrap and msg not in (b'InvalidHandoff',b'CredentialUnavailable',b'Deadline',b'Spent'):
+            if endpoint.bootstrap and msg not in (b'InvalidHandoff',b'CredentialUnavailable',b'Deadline',b'Spent',b'Cancelled'):
                 if len(msg)<17: raise ValueError('short transfer record')
                 status,sent,headers,received=struct.unpack('<IIII',msg[:16])
                 if status>599 or sent>16384 or headers>16384 or received>65536: raise ValueError('invalid transfer counts')
-                endpoint.metrics=dict(http_status=status, uploaded=sent, headers=headers, body=received)
+                endpoint.metrics.update(http_status=status, uploaded=sent, headers=headers, body=received)
                 msg=msg[16:]
                 if msg.startswith(b'Ok\0'):
-                    expected = hashlib.sha256(endpoint.reply).digest()+RID+struct.pack('<II',2,3)
-                    if msg[3:] != expected or sent!=790 or received!=len(endpoint.reply) or status!=200:
+                    expected = hashlib.sha256(endpoint.reply).digest()+endpoint.rid+struct.pack('<II',endpoint.example,endpoint.payload_length)
+                    if msg[3:] != expected or sent!=endpoint.expected_size or received!=len(endpoint.reply) or status!=200:
                         raise ValueError('incorrect front-end selection or transfer counts')
                     msg=b'Ok\0'+endpoint.reply
             if msg.startswith(b'Ok\0') and msg[3:] == endpoint.reply:
                 msg = b'Ok'
             elif msg == b'Ok':
                 raise ValueError('missing response body')
-            if msg not in {v.encode() for v in (*CASES.values(),*EXTENDED.values())}:
+            if msg not in {v.encode() for v in (*CASES.values(),*EXTENDED.values(),*ASSEMBLED.values())}:
                 raise ValueError('unknown disposition')
             elapsed=now_ms()-began
             if case=='setup-stall' and not 5000<=elapsed<7000: raise ValueError('setup deadline')
             if case=='total-stall' and not 30000<=elapsed<32000: raise ValueError('total deadline')
-            if case == 'stall' and now_ms() < deadline:
+            if case in ('stall','body-stall') and now_ms() < deadline:
                 raise ValueError('premature deadline disposition')
             if case=='proxy-env' and keylog.stat().st_size: raise ValueError('TLS key log disclosure')
             if p.wait(timeout=2) != 0 or p.stdout.read(1) or p.stderr.read(1):
@@ -426,15 +481,45 @@ def drive(root, command, case, proxy, endpoint):
             if p.poll() is None: stop(p)
 
 
-def exercise(root, command, tls, case, mutant=False, bootstrap=False):
+def exercise(root, command, tls, case, mutant=False, bootstrap=False, dns=None, previous=''):
     endpoint = Observer(TARGET, Endpoint)
     endpoint.tls, endpoint.case, endpoint.token = tls, case, secrets.token_hex(24)
     endpoint.attempts,endpoint.bootstrap,endpoint.metrics = 0,bootstrap,{}
-    proposal = dict(schema_version=1, request_id=RID.decode(), action='create_marker',
-                    expected_effect='marker_contains_payload', payload_b64='YWJj')
+    endpoint.assembled=dns is not None
+    endpoint.previous=previous
+    names=[]
+    if dns: tls.set_servername_callback(lambda sock,name,ctx: names.append(name))
+    endpoint.handshake_wait=threading.Event()
+    endpoint.rid=secrets.token_hex(16).encode() if endpoint.assembled else RID
+    endpoint.example=1 if case=='empty-example' else 2
+    payload='' if endpoint.example==1 else 'YWJj'
+    endpoint.payload_length=0 if endpoint.example==1 else 3
+    expected_body=fixture_body(endpoint.rid,payload)
+    endpoint.expected_size=len(expected_body)
+    endpoint.expected_digest=hashlib.sha256(expected_body).hexdigest()
+    if dns:
+        dns.case='control'
+        dns.queries=[]
+        endpoint.token='WB3D_SECRET_'+secrets.token_hex(16)
+    proposal = dict(schema_version=1, request_id=endpoint.rid.decode(), action='create_marker',
+                    expected_effect='marker_contains_payload', payload_b64='' if case=='wrong-payload' else payload)
     message = dict(role='assistant', content=json.dumps(proposal))
     endpoint.reply = json.dumps(dict(object='chat.completion', model=MODEL, id=secrets.token_hex(12),
                                      choices=[dict(index=0, finish_reason='stop', message=message)])).encode()
+    if dns:
+        response=json.loads(endpoint.reply)
+        response['id']='WB3D_BODY_'+secrets.token_hex(16)
+        choice=response['choices'][0]
+        if case=='refusal': choice['message'].update(refusal='WB3D_BODY_refusal',content=None)
+        if case=='finish-length': choice['finish_reason']='length'
+        if case=='second-choice': response['choices'].append(choice.copy())
+        if case=='tool-output': choice['message']['tool_calls']=[]
+        if case=='streaming': response['object']='chat.completion.chunk'
+        if case=='wrong-model': response['model']='fixture-other'
+        if case in ('content-at','content-over'):
+            choice['message']['content']=choice['message']['content'].ljust(8192+int(case=='content-over'))
+        endpoint.reply=json.dumps(response).encode()
+        if case=='duplicate-envelope': endpoint.reply=endpoint.reply.replace(b'"index": 0',b'"index": 0,"index": 0')
     if case in ('body-at','body-over'):
         endpoint.reply=endpoint.reply.ljust(65536+int(case=='body-over'),b' ')
     if case=='bad-envelope': endpoint.reply=b'{}'
@@ -455,10 +540,11 @@ def exercise(root, command, tls, case, mutant=False, bootstrap=False):
         except (OSError, ValueError, subprocess.SubprocessError) as exc:
             result = type(exc).__name__  # retain the observer's counts even if the driver disappears
     proxy_attempts = proxy.connections - 1
-    want = int(case not in PREFLIGHT and case!='pre-cancel' and case not in TLS_CASES)
-    connects=int(case not in PREFLIGHT and case!='pre-cancel')
-    expected={**CASES,**EXTENDED}[case]
-    passed = (result == expected and endpoint.attempts == endpoint.connections == connects and endpoint.requests == want
+    blocked = case in PREFLIGHT or case in ('pre-cancel','unauthorized-peer') or case.endswith('-input')
+    want = int(not blocked and case not in TLS_CASES and case!='old-tls')
+    connects=int(not blocked)
+    expected={**CASES,**EXTENDED,**ASSEMBLED}[case]
+    passed = (result == expected and endpoint.attempts == (0 if dns else connects) and endpoint.connections == connects and endpoint.requests == want
               and endpoint.valid and proxy_attempts == 0)
     if case.isdigit():
         passed &= endpoint.metrics.get('http_status')==int(case)
@@ -468,9 +554,19 @@ def exercise(root, command, tls, case, mutant=False, bootstrap=False):
         passed &= endpoint.metrics.get('body')==65536
     if mutant:
         passed = not passed and endpoint.valid and result == 'Ok' and endpoint.attempts == endpoint.connections == 1 and endpoint.requests == 2
-    return dict(case='detect-double-send' if mutant else case, passed=passed, disposition=result,
+    if dns:
+        passed &= dns.valid and dns.queries==([] if blocked else [1,28,1,28])
+        if want: passed &= names==[HOST]
+        # Log only the independently matched, fixed SNI. Unknown names stay private.
+        endpoint.metrics['sni_verified']=names==[HOST]
+        endpoint.metrics.update(dns=list(dns.queries),request_id=endpoint.rid.decode(),
+                                expected_request_sha256=endpoint.expected_digest,example=endpoint.example)
+        if case=='empty-example': dns.prior_reply=endpoint.reply.decode()
+    row=dict(case='detect-double-send' if mutant else case, passed=passed, disposition=result,
                 connector_attempts=endpoint.attempts, connections=endpoint.connections, requests=endpoint.requests,
                 proxy_connections=proxy_attempts, request_shape_valid=endpoint.valid,**endpoint.metrics)
+    if dns: del row['connector_attempts']  # independent connect counts are graded from the kernel trace
+    return row
 
 
 def verify_public_chain(root, fixture_ca, vectors):
@@ -500,9 +596,11 @@ def main():
     mode.add_argument('--trusted-launcher', type=Path, help='root-installed fixture bootstrap that drops child UIDs')
     mode.add_argument('--self-test', action='store_true')
     parser.add_argument('--public-vectors',type=Path,help='Go crypto/x509/verify_test.go with googleLeaf and gtsIntermediate')
+    parser.add_argument('--assembled',action='store_true',help='let the real 3c connector resolve and dial the synthetic endpoint')
     parser.add_argument('--production-roots',action='store_true',help='test fixture refusal with production trust settings')
     parser.add_argument('--isolated', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.assembled and not args.trusted_launcher: parser.error('assembled run requires the trusted launcher')
     script = Path(__file__).resolve()
     if not args.isolated:
         return subprocess.call(['unshare','--net',sys.executable,script,'--isolated',*sys.argv[1:]])
@@ -510,7 +608,7 @@ def main():
         parser.error('requires a fresh loopback-only Linux network namespace')
     subprocess.run(['ip','link','set','lo','up'],check=True)
     subprocess.run(['ip','address','add',TARGET[0]+'/32','dev','lo'],check=True)
-    with tempfile.TemporaryDirectory() as tmp:
+    with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as services:
         root = Path(tmp)
         key = root/'private'/'key.pem'
         key.parent.mkdir(mode=0o700)
@@ -543,15 +641,48 @@ def main():
         shutil.copyfile(args.trusted_launcher or args.driver or script,dest)
         dest.chmod(0o555)
         command = [str(dest)] if args.driver or args.trusted_launcher else [sys.executable,str(dest),'--peer']
+        dns=None
+        old=None
+        if args.assembled:
+            from test_provider_connector import DNS, STUB, OTHER
+            subprocess.run(['ip','addr','add',OTHER+'/32','dev','lo'],check=True)
+            trap=services.enter_context(observing(Observer((OTHER,443),Proxy)))
+            with socket.create_connection(trap.server_address,timeout=1): pass
+            until=time.monotonic()+1
+            while trap.connections!=1:
+                if time.monotonic()>=until: raise TimeoutError('redirect positive control')
+                time.sleep(.01)
+            dns=services.enter_context(observing(Observer(STUB,DNS)))
+            dns.hold=False
+            dns.prior_reply=''
+            if guard:=os.environ.get('WB_GUARD_STORE'):
+                for name in ('journal','data','endpoints'):
+                    (root/name).symlink_to(Path(guard)/name,target_is_directory=True)
+            old=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            old.minimum_version=old.maximum_version=ssl.TLSVersion.TLSv1_1
+            old.set_ciphers('DEFAULT:@SECLEVEL=0')
+            old.load_cert_chain(cert,key)
+            # An independent TLS 1.1 control proves the test server can complete that handshake.
+            client=ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            client.minimum_version=client.maximum_version=ssl.TLSVersion.TLSv1_1
+            client.set_ciphers('DEFAULT:@SECLEVEL=0'); client.load_verify_locations(cert)
+            with observing(Observer(('127.0.0.1',0),Endpoint)) as witness:
+                witness.case,witness.tls='success',old
+                with socket.create_connection(witness.server_address,timeout=2) as sock,client.wrap_socket(sock,server_hostname=HOST) as verified:
+                    if verified.version()!='TLSv1.1': raise ValueError('old TLS control failed')
         success = True
         cases=list(CASES)
         if args.trusted_launcher:
             cases=['untrusted'] if args.production_roots else [*cases,*[k for k in EXTENDED if k!='untrusted']]
+        if args.assembled and not args.production_roots:
+            cases=[c for c in cases if c!='wrong-peer']+list(ASSEMBLED)
         if args.self_test: cases.append('mutant')
         for case in cases:
             try:
-                row = exercise(root, command+(['--double'] if case=='mutant' else []), wrong if case=='wrong-name' else tls,
-                               'success' if case=='mutant' else case, case=='mutant',bool(args.trusted_launcher))
+                row = exercise(root, command+(['--double'] if case=='mutant' else []), wrong if case=='wrong-name' else old if case=='old-tls' else tls,
+                               'success' if case=='mutant' else case, case=='mutant',bool(args.trusted_launcher),
+                               dns,dns.prior_reply if dns and case=='fresh-after-reply' else '')
+                if dns and trap.connections!=1: raise ValueError('redirect target received a follow-up')
             except (OSError, ValueError, subprocess.SubprocessError) as exc:
                 row = dict(case=case,passed=False,error=type(exc).__name__)
             print(json.dumps(dict(subject='oracle-self-test' if args.self_test else 'external-driver',fixture_ca_sha256=hashlib.sha256(cert.read_bytes()).hexdigest(),**row)),flush=True)
