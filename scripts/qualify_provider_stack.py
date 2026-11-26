@@ -66,7 +66,7 @@ def guarded(executable, evidence, profile, vectors):
         f.run('Ready')
         before=snapshot(f)
         require(before['event_count']>0 and not before['pending'],'guard store must start confirmed')
-        args=['strace','-ff','-o',str(traces/'trace'),'-e','trace=execve,execveat,fork,vfork,clone,clone3,setresuid,connect',
+        args=['strace','-ff','-o',str(traces/'trace'),'-e','trace=execve,execveat,fork,vfork,clone,clone3,setresuid,connect,openat',
               '/usr/bin/python3','-u','tests/integration/linux/test_provider_transport.py',
               '--assembled','--trusted-launcher',executable]
         if profile=='production':
@@ -82,6 +82,8 @@ def results(path, expected, subject):
     for line in path.read_text().splitlines():
         if line.startswith('{'):
             records.append(json.loads(line))
+    other=[r.get('subject') for r in records if r.get('subject')!=subject]
+    require(other==(['offline-chain'] if set(expected)=={'untrusted'} else []), 'unexpected evidence row')
     by_case={r['case']:r for r in records if r.get('subject')==subject}
     require(set(by_case)==set(expected) and len(by_case)==sum(r.get('subject')==subject for r in records),
             f'{path.name}: case inventory mismatch')
@@ -119,6 +121,10 @@ def grade_processes(directory, cases):
             if line.startswith(('execve(','execveat(')):
                 path=re.search(r'"([^"]+)"',line)
                 require(path and Path(path[1]).name in allowed,'unexpected executable in provider namespace')
+            if re.match(r'^setresuid\(6000[123],',line):
+                require(not any(re.search(r'"(?:[^"]*/)?(?:journal|endpoints|data)/',call)
+                                for call in text.splitlines() if call.startswith('openat(')),
+                        'provider role opened a store or custody path')
             if re.match(r'^setresuid\(6000[12],',line):
                 require(all('EPERM' in s for s in re.findall(r'^connect\(.*$',text,re.M)),
                         'adapter role connected directly')
@@ -128,7 +134,30 @@ def grade_processes(directory, cases):
                 upstream_connects=upstream_total,additional_connects=0,worker_launches=0)
 
 
+def verify_manifest(evidence, expected_digest):
+    manifest=evidence/'manifest.json'
+    require(digest(manifest)==expected_digest,'manifest hash mismatch')
+    report=json.loads(manifest.read_text())
+    actual={}
+    for path in evidence.rglob('*'):
+        require(not path.is_symlink(),'unexpected evidence symlink')
+        if path.is_file() and path!=manifest:
+            actual[str(path.relative_to(evidence))]=digest(path)
+    require(report['files']==actual,'retained artifact inventory or hash mismatch')
+    for profile,summary in report['profiles'].items():
+        expected={'untrusted'} if profile=='production' else (
+            set(transport.CASES)|set(transport.EXTENDED)|set(transport.ASSEMBLED))-{'wrong-peer','untrusted'}
+        cases,_=results(evidence/(profile+'.jsonl'),expected,'external-driver')
+        recomputed=grade_processes(evidence/(profile+'-traces'),cases)
+        require(all(summary[k]==v for k,v in recomputed.items()),'trace regrade mismatch')
+        state=json.loads((evidence/(profile+'-state.json')).read_text())
+        require(state['before']==state['after'] and state['before']['event_count']>0,'authority state mismatch')
+    require(set(report['profiles'])=={'fixture','production'},'missing trust profile')
+    return report
+
+
 def run(vectors):
+    require(__debug__ and not os.environ.get('PYTHONOPTIMIZE'),'qualification requires assertions')
     require(sys.version_info>=(3,11),'Python 3.11+ required')
     require(os.uname().release=='6.8.0-142-generic' and os.uname().machine=='x86_64','wrong qualification target')
     source=tree()
@@ -163,7 +192,7 @@ def run(vectors):
             subprocess.run(['sudo','install','-m555',source_exe,driver],check=True)
             installed=subprocess.check_output(['sudo','sha256sum',driver],text=True).split()[0]
             require(installed==digest(source_exe),'installed binary differs')
-            capture(['sudo','systemd-run','--quiet','--scope','-p','MemoryMax=384M','-p','MemorySwapMax=0',
+            capture(['sudo','systemd-run','--quiet','--scope','-p','MemoryMax=256M','-p','MemorySwapMax=0',
                      '/usr/bin/python3',RUNNER,'--guard',driver,evidence,profile,vectors],evidence/(profile+'-guard.log'))
             # Trace files are created by root in the target scope.
             subprocess.run(['sudo','chown','-R',f'{os.getuid()}:{os.getgid()}',evidence/(profile+'-traces')],check=True)
@@ -199,13 +228,18 @@ def run(vectors):
                             'WB-NEG-003/011':'offline destination and canary fixtures'},
                   live_provider='pending separate authorization')
     write_json(evidence/'manifest.json',manifest)
-    print(json.dumps(dict(manifest_sha256=digest(evidence/'manifest.json'),profiles=profiles)),flush=True)
+    fingerprint=digest(evidence/'manifest.json')
+    verify_manifest(evidence,fingerprint)
+    print(json.dumps(dict(manifest_sha256=fingerprint,profiles=profiles)),flush=True)
 
 
 if __name__=='__main__':
     os.chdir(ROOT)
     if sys.argv[1:2]==['--guard'] and len(sys.argv)==6:
         guarded(Path(sys.argv[2]),Path(sys.argv[3]),sys.argv[4],Path(sys.argv[5]))
+    elif sys.argv[1:2]==['--verify'] and len(sys.argv)==4:
+        report=verify_manifest(Path(sys.argv[2]).resolve(strict=True),sys.argv[3])
+        print(json.dumps(dict(verified=True,source=report['source'],profiles=report['profiles'])))
     elif len(sys.argv)==2:
         run(Path(sys.argv[1]).resolve(strict=True))
     else:
