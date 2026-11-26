@@ -4,6 +4,12 @@ All notable changes to Warband are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.7 - 2026-11-26
+
+### Added
+
+- Added offline Phase 4 negative-path qualification through synthetic provider replies, including two-request learned-promotion rejection. The grader records separate provider, catalog admission, approval, and post-claim observations and identifies outstanding live and downstream evidence.
+
 ## 0.1.0 - 2026-11-10
 
 ### Added
