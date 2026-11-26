@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.2.7 - 2026-11-26
+
+### Added
+
+- Added offline Phase 4 negative-path qualification through synthetic provider replies, including two-request learned-promotion rejection. The grader records separate provider, catalog admission, approval, and post-claim observations and identifies outstanding live and downstream evidence.
+
 ## 0.2.6 - 2026-11-25
 
 ### Added
