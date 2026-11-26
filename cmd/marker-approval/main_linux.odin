@@ -65,8 +65,17 @@ operator_cli :: proc(fd: i32,runtime: u32,deadline: i64) -> int {
 }
 
 run :: proc(arena: ^mem.Arena) -> int {
-	if len(os.args)!=2 { return 2 }
+	if len(os.args)<2 { return 2 }
 	mode := os.args[1]
+	request_id: Maybe([16]u8)
+	if mode=="receipts" && len(os.args)==3 {
+		if len(os.args[2])!=32 { return 2 }
+		raw,ok:=hex.decode(transmute([]u8)os.args[2])
+		if !ok || len(raw)!=16 || string(hex.encode(raw))!=os.args[2] { return 2 }
+		id:[16]u8
+		copy(id[:],raw)
+		request_id=id
+	} else if len(os.args)!=2 { return 2 }
 	if mode!="decide" && mode!="serve" && mode!="receipts" && mode!="gate" && mode!="execute" && mode!="complete" && mode!="finalize" { return 2 }
 	start := c.wb_elapsed_ms()
 	if start<0 { return 1 }
@@ -93,7 +102,7 @@ run :: proc(arena: ^mem.Arena) -> int {
 	}
 	defer if live!=nil && live.directory_fd>=0 { l.close(live.directory_fd) }
 	if mode=="receipts" {
-		task,control,consumed,ok := r.marker_review_versions(peer,start,arena)
+		task,control,consumed,ok := r.marker_review_versions(peer,start,arena,request_id)
 		if !ok { return 1 }
 		fmt.println("ConfirmedProjection",task,control)
 		if consumed { fmt.println("ConfirmedClaimConsumed") }
@@ -102,7 +111,7 @@ run :: proc(arena: ^mem.Arena) -> int {
 	fd := c.wb_approval_accept(sock,peer,start+180_000)
 	if fd<0 { return 1 }
 	defer l.close(l.Fd(fd))
-	result := r.marker_review(fd,peer,live,start,arena)
+	result := r.marker_review(fd,peer,live,start,arena,request_id)
 	fmt.println(result.status,"LiveGrant",result.grant!=nil)
 	if (mode=="gate" || mode=="execute" || mode=="complete") && result.status==.Permitted {
 		l.close(l.Fd(sock))

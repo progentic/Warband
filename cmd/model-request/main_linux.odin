@@ -14,7 +14,9 @@ import l "core:sys/linux"
 workspace: [128*1024*1024]u8
 
 // The offline driver owns a private sequenced-packet channel to the live issuer.
-workflow_fixture :: proc(session:r.RequestSession, example:m.Catalog_Id) -> int {
+workflow_fixture :: proc(session:r.RequestSession, example:m.Catalog_Id, operator_review:=false) -> int {
+	start:=client.wb_elapsed_ms()
+	if start<0 { return 1 }
 	issued: a.RequestIssued
 	status,id:=r.request_round(session,.Issue,example,issuance=&issued)
 	if status!=.Issued { fmt.println(status); return 1 }
@@ -34,9 +36,26 @@ workflow_fixture :: proc(session:r.RequestSession, example:m.Catalog_Id) -> int 
 		length,_:=endian.get_u32(packet[36:40],.Little)
 		selected.example=m.Catalog_Id(catalog)
 		selected.decoded_length=int(length)
-		status,_=r.request_round(session,.AdmitSelection,id=id,selection=selected)
+		prepared:=r.PreparedProposal{directory_fd=-1}
+		live:^r.PreparedProposal
+		if operator_review { live=&prepared }
+		defer if prepared.directory_fd>=0 { l.close(prepared.directory_fd) }
+		status,_=r.request_round(session,.AdmitSelection,id=id,selection=selected,review=live)
 		fmt.println(status)
 		if status!=.Admitted { return 1 }
+		if operator_review {
+			peer:u32
+			sock:=client.wb_approval_socket(1,&peer)
+			if sock<0 { return 1 }
+			defer l.close(l.Fd(sock))
+			fmt.println("AwaitingOperator")
+			fd:=client.wb_approval_accept(sock,peer,start+180_000)
+			if fd<0 { return 1 }
+			defer l.close(l.Fd(fd))
+			result:=r.marker_review(fd,peer,live,start,cast(^mem.Arena)context.allocator.data,id)
+			fmt.println(result.status)
+			return 0 if result.status==.Permitted || result.status==.Rejected else 1
+		}
 	}
 	return 0
 }
@@ -48,6 +67,8 @@ run :: proc() -> int {
 	defer l.close(session.lease)
 	when #config(WARBAND_REQUEST_PROOF,false) {
 		switch os.args[1] {
+		case "workflow-review-empty": return workflow_fixture(session,1,true)
+		case "workflow-review-abc": return workflow_fixture(session,2,true)
 		case "workflow-empty": return workflow_fixture(session,1)
 		case "workflow-abc": return workflow_fixture(session,2)
 		}

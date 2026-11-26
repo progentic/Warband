@@ -29,7 +29,7 @@ decision_packet :: proc(p: a.MarkerProposal,d: a.MarkerDecision) -> (DecisionPac
 ReviewStatus :: enum u8 {Withheld, Display, Permitted, Rejected, Recorded, BindingMismatch, DecisionConflict,
                          DirectoryHold, ReconciliationRequired, Uncertain, Unavailable, LockUnavailable, RecoveryLimitExceeded}
 ReviewResult :: struct {status: ReviewStatus, decision: e.EventRef, grant: Maybe(LiveGrant)}
-ReviewDisplay :: struct {proposal: a.MarkerProposal, checkpoint: e.Checkpoint, task_version, control_revision: u64, consumed: bool}
+ReviewDisplay :: struct {request_id: Maybe([16]u8), proposal: a.MarkerProposal, checkpoint: e.Checkpoint, task_version, control_revision: u64, consumed: bool}
 @(private)
 ReviewHistory :: struct {proposal: a.MarkerProposal, task_evidence: e.EvidenceId, decision: Maybe(a.MarkerApproval), permit: Maybe(a.MarkerPermit), claim: Maybe(a.MarkerClaim)}
 
@@ -41,7 +41,7 @@ review_history :: proc(s: IntakeSnapshot) -> (ReviewHistory,bool) {
 	if len(s.replay.tasks)!=1 || !s.replay.tasks[0].marker || s.replay.receipts_used!=len(s.receipts) { return {},false }
 	for row in s.rows[:int(s.cp.sequence)] {
 		switch row.bytes[6] {
-		case 8:
+		case 8,18,19: // Issuance and expiry were verified by request-aware replay.
 		case 1:
 			t,err := a.decode_task_created(row.bytes,row.ref.store,row.ref.epoch)
 			if err!=.None { return {},false }
@@ -74,10 +74,26 @@ continuous_directory :: proc(prepared: ^PreparedProposal,p: a.MarkerProposal) ->
 	return prepared!=nil && prepared.proposal==p && dispatch_directory(prepared,p)==.Eligible
 }
 
+// A model review authenticates the consumption against the same confirmed
+// issuance at display, decision and permit read-back.
+@(private)
+review_snapshot :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoint,id: Maybe([16]u8)) -> (IntakeSnapshot,IntakeOutcome) {
+	expected,model:=id.([16]u8)
+	if !model { return intake_snapshot(w,s,root) }
+	h: r.RequestHistory
+	snap,status:=intake_snapshot(w,s,root,&h)
+	if status!=.Ready && status!=.PendingConfirmation { return snap,status }
+	if !client.within_budget(s,2*u64(h.count)+1) { return {},.RecoveryLimitExceeded }
+	if !catalog_matches(&h) || !store.request_inventory(w,&h) { return {},.IntegrityFault }
+	spent,ok:=check_pair(w,snap,&h)
+	if !ok || spent!=expected { return {},.IntegrityFault }
+	return snap,status
+}
+
 @(private)
 issue_marker_permit :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoint,prepared: ^PreparedProposal,
-                           decision: a.MarkerApproval,admission,deadline: i64) -> ReviewResult {
-	snap,status := intake_snapshot(w,s,root)
+                           decision: a.MarkerApproval,admission,deadline: i64,id: Maybe([16]u8)) -> ReviewResult {
+	snap,status := review_snapshot(w,s,root,id)
 	if status!=.Ready { return {status=.Uncertain} }
 	h,ok := review_history(snap)
 	view := snap.replay.tasks
@@ -97,7 +113,7 @@ issue_marker_permit :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.C
 	if window.result!=.Eligible { return {status=.Withheld} }
 	cp,confirmed := store.append_intake(w,s,snap.cp,snap.mark,v,min(window.cutoff,deadline))
 	if !confirmed { return {status=.Uncertain} }
-	last,ready := intake_snapshot(w,s,root)
+	last,ready := review_snapshot(w,s,root,id)
 	if ready!=.Ready || last.cp!=cp { return {status=.Uncertain} }
 	final,valid := review_history(last)
 	if !valid || final.permit!=v || last.replay.tasks[0].control_revision!=v.expected_control_revision+1 ||
@@ -110,12 +126,21 @@ issue_marker_permit :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.C
 // issuing descriptor or elapsed origin and always returns an empty grant.
 @(private)
 recover_decision :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoint,snap: IntakeSnapshot,
-                         h: ReviewHistory,peer: u32,d: a.MarkerDecision,deadline: i64) -> ReviewResult {
+                         h: ReviewHistory,peer: u32,d: a.MarkerDecision,deadline: i64,model: bool) -> ReviewResult {
 	pledge := snap.pending.(e.Pledge)
 	if !client.within_budget(s,2*u64(len(snap.rows))) { return {status=.RecoveryLimitExceeded} }
 	cp := e.Checkpoint{s.store,s.epoch,pledge.sequence,pledge.head}
 	segments := [?]r.Segment{{rows=snap.rows}}
-	candidate := r.project_markers(root,cp,nil,segments[:],snap.receipts[:])
+	candidate: r.Result
+	if model {
+		kind:=snap.rows[len(snap.rows)-1].bytes[6]
+		if kind!=12 && kind!=13 { return {status=.ReconciliationRequired} }
+		history: r.RequestHistory
+		if !client.within_budget(s,u64(len(history.entries))*u64(len(snap.rows))) { return {status=.RecoveryLimitExceeded} }
+		candidate,_=r.project_requests(root,cp,nil,segments[:],snap.receipts[:])
+	} else {
+		candidate=r.project_markers(root,cp,nil,segments[:],snap.receipts[:])
+	}
 	if candidate.error!=.None || len(candidate.tasks)!=1 { return {status=.ReconciliationRequired} }
 	tail := snap.rows[len(snap.rows)-1]
 	approval: a.MarkerApproval
@@ -162,7 +187,7 @@ recover_decision :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Chec
 @(private)
 review_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoint,prepared: ^PreparedProposal,display: ^ReviewDisplay,
                       packet: ^DecisionPacket,peer: u32,admission,deadline: i64,inspect_only: bool) -> ReviewResult {
-	snap,status := intake_snapshot(w,s,root)
+	snap,status := review_snapshot(w,s,root,display.request_id)
 	if inspect_only {
 		if (status!=.Ready && status!=.PendingConfirmation) || len(snap.replay.tasks)!=1 || !snap.replay.tasks[0].marker {
 			return {status=.ReconciliationRequired}
@@ -177,14 +202,14 @@ review_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpo
 	p := h.proposal
 	if packet==nil {
 		if prepared!=nil && !continuous_directory(prepared,p) { return {status=.DirectoryHold} }
-		display^={proposal=p,checkpoint=snap.cp}
+		display^={proposal=p,checkpoint=snap.cp,request_id=display.request_id}
 		return {status=.Display}
 	}
 	d := a.MarkerDecision(packet[100])
 	expected,valid := decision_packet(p,d)
 	if !valid || packet^!=expected || display.proposal!=p { return {status=.BindingMismatch} }
 	if status==.PendingConfirmation {
-		return recover_decision(w,s,root,snap,h,peer,d,deadline)
+		return recover_decision(w,s,root,snap,h,peer,d,deadline,display.request_id!=nil)
 	}
 	if v,exists := h.decision.(a.MarkerApproval); exists {
 		if v.operator_uid!=u64(peer) || v.decision!=d { return {status=.DecisionConflict} }
@@ -204,7 +229,7 @@ review_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpo
 	_,confirmed := store.append_intake(w,s,snap.cp,snap.mark,v,deadline)
 	if !confirmed { return {status=.Uncertain} }
 	if d==.Reject { return {status=.Rejected,decision=v.reference} }
-	return issue_marker_permit(w,s,root,prepared,v,admission,deadline)
+	return issue_marker_permit(w,s,root,prepared,v,admission,deadline,display.request_id)
 }
 
 // Each call acquires a fresh gate. No writer or custody lock spans the human decision.
@@ -238,17 +263,17 @@ review_round :: proc(prepared: ^PreparedProposal,display: ^ReviewDisplay,packet:
 }
 
 // The receipt service reports the confirmed versions even when outstanding receipts block a new decision.
-marker_review_versions :: proc(operator: u32,admission: i64,scratch: ^mem.Arena) -> (u64,u64,bool,bool) {
-	display: ReviewDisplay
+marker_review_versions :: proc(operator: u32,admission: i64,scratch: ^mem.Arena,request_id: Maybe([16]u8)=nil) -> (u64,u64,bool,bool) {
+	display:=ReviewDisplay{request_id=request_id}
 	result := review_round(nil,&display,nil,operator,admission,scratch,inspect_only=true)
 	return display.task_version,display.control_revision,display.consumed,result.status==.Display
 }
 
-marker_review :: proc(fd: i32,operator: u32,prepared: ^PreparedProposal,admission: i64,scratch: ^mem.Arena) -> ReviewResult {
+marker_review :: proc(fd: i32,operator: u32,prepared: ^PreparedProposal,admission: i64,scratch: ^mem.Arena,request_id: Maybe([16]u8)=nil) -> ReviewResult {
 	peer: u32
 	if client.wb_approval_peer(fd,operator,&peer)!=0 { return {status=.Withheld} }
 	deadline := admission+180_000
-	display: ReviewDisplay
+	display:=ReviewDisplay{request_id=request_id}
 	result := review_round(prepared,&display,nil,peer,admission,scratch)
 	if result.status!=.Display { return result }
 	p := &display.proposal
