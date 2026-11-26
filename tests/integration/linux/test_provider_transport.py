@@ -36,6 +36,7 @@ import sys
 import tempfile
 import threading
 import time
+from typing import NamedTuple
 
 HOST = 'api.openai.com'
 PATH = '/v1/chat/completions'
@@ -320,10 +321,21 @@ def await_orphans(pids):
     if pending: raise ValueError('issuer left descendants')
 
 
-def drive(root, command, case, proxy, endpoint):
+class Issuance(NamedTuple):
+    request_id: bytes
+    revision: int
+    example: int
+    deadline_ms: int
+
+
+def drive(root, command, case, proxy, endpoint, issuance=None):
     began=now_ms()
-    deadline = began + (32_000 if case=='total-stall' else 0 if case=='expired' else 1800 if case in ('stall','body-stall') else 8000)
-    packet = FRAME.pack(b'WBT0' if case=='malformed' else b'WBT1', endpoint.rid, 1, 3 if case=='unknown-example' else endpoint.example, deadline)
+    if issuance is None:
+        deadline = began + (32_000 if case=='total-stall' else 0 if case=='expired' else 1800 if case in ('stall','body-stall') else 8000)
+        packet = FRAME.pack(b'WBT0' if case=='malformed' else b'WBT1', endpoint.rid, 1, 3 if case=='unknown-example' else endpoint.example, deadline)
+    else:
+        deadline = issuance.deadline_ms
+        packet = FRAME.pack(b'WBT1', *issuance)
     extra={'unclassified-input':b'WB3D_EXCLUDED_field','method-input':b'GET','path-input':b'/extra',
            'header-input':b'X-Custom: fixture','proxy-input':b'proxy','model-input':b'another-model'}
     packet+=extra.get(case,b'')
@@ -454,6 +466,9 @@ def drive(root, command, case, proxy, endpoint):
                     expected = hashlib.sha256(endpoint.reply).digest()+endpoint.rid+struct.pack('<II',endpoint.example,endpoint.payload_length)
                     if msg[3:] != expected or sent!=endpoint.expected_size or received!=len(endpoint.reply) or status!=200:
                         raise ValueError('incorrect front-end selection or transfer counts')
+                    if issuance is not None:
+                        # Copy only the validated fields from the actual launcher packet.
+                        endpoint.selection = msg[3+hashlib.sha256().digest_size:]
                     msg=b'Ok\0'+endpoint.reply
             if msg.startswith(b'Ok\0') and msg[3:] == endpoint.reply:
                 msg = b'Ok'
@@ -481,7 +496,7 @@ def drive(root, command, case, proxy, endpoint):
             if p.poll() is None: stop(p)
 
 
-def exercise(root, command, tls, case, mutant=False, bootstrap=False, dns=None, previous=''):
+def exercise(root, command, tls, case, mutant=False, bootstrap=False, dns=None, previous='', issuance=None):
     endpoint = Observer(TARGET, Endpoint)
     endpoint.tls, endpoint.case, endpoint.token = tls, case, secrets.token_hex(24)
     endpoint.attempts,endpoint.bootstrap,endpoint.metrics = 0,bootstrap,{}
@@ -492,6 +507,11 @@ def exercise(root, command, tls, case, mutant=False, bootstrap=False, dns=None, 
     endpoint.handshake_wait=threading.Event()
     endpoint.rid=secrets.token_hex(16).encode() if endpoint.assembled else RID
     endpoint.example=1 if case=='empty-example' else 2
+    if issuance is not None:
+        if not bootstrap or dns is None:
+            raise ValueError('workflow requires the assembled connector')
+        endpoint.rid, endpoint.example = issuance.request_id, issuance.example
+        endpoint.selection = None
     payload='' if endpoint.example==1 else 'YWJj'
     endpoint.payload_length=0 if endpoint.example==1 else 3
     expected_body=fixture_body(endpoint.rid,payload)
@@ -536,7 +556,7 @@ def exercise(root, command, tls, case, mutant=False, bootstrap=False, dns=None, 
                 raise TimeoutError('proxy positive control')
             time.sleep(.01)
         try:
-            result = drive(root, command, case, proxy, endpoint)
+            result = drive(root, command, case, proxy, endpoint, issuance)
         except (OSError, ValueError, subprocess.SubprocessError) as exc:
             result = type(exc).__name__  # retain the observer's counts even if the driver disappears
     proxy_attempts = proxy.connections - 1
@@ -566,6 +586,8 @@ def exercise(root, command, tls, case, mutant=False, bootstrap=False, dns=None, 
                 connector_attempts=endpoint.attempts, connections=endpoint.connections, requests=endpoint.requests,
                 proxy_connections=proxy_attempts, request_shape_valid=endpoint.valid,**endpoint.metrics)
     if dns: del row['connector_attempts']  # independent connect counts are graded from the kernel trace
+    if issuance is not None:
+        row['selection'] = endpoint.selection
     return row
 
 
@@ -589,6 +611,22 @@ def verify_public_chain(root, fixture_ca, vectors):
           vectors_sha256=hashlib.sha256(source).hexdigest(),production_bundle='accepted',fixture_bundle='rejected')),flush=True)
 
 
+def fixture_tls(root):
+    key = root/'private'/'key.pem'
+    key.parent.mkdir(mode=0o700)
+    cert = root/'fixture-ca.pem'
+    subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN='+HOST,
+                    '-addext','subjectAltName=DNS:'+HOST,'-keyout',key,'-out',cert],
+                   check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    tls.minimum_version = ssl.TLSVersion.TLSv1_2
+    tls.load_cert_chain(cert,key)
+    (root/'fixture-empty-roots').mkdir(mode=0o755)
+    root.chmod(0o755)
+    cert.chmod(0o644)
+    return tls,cert,key
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -610,18 +648,7 @@ def main():
     subprocess.run(['ip','address','add',TARGET[0]+'/32','dev','lo'],check=True)
     with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as services:
         root = Path(tmp)
-        key = root/'private'/'key.pem'
-        key.parent.mkdir(mode=0o700)
-        cert = root/'fixture-ca.pem'
-        subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN='+HOST,
-                        '-addext','subjectAltName=DNS:'+HOST,'-keyout',key,'-out',cert],
-                       check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-        tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        tls.minimum_version = ssl.TLSVersion.TLSv1_2
-        tls.load_cert_chain(cert,key)
-        (root/'fixture-empty-roots').mkdir(mode=0o755)
-        root.chmod(0o755)
-        cert.chmod(0o644)
+        tls,cert,key = fixture_tls(root)
         wrong=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         # Keep the fixture root trusted but issue a leaf for a different name.
         csr=root/'wrong.csr'; leaf=root/'wrong.pem'

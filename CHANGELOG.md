@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.2.5 - 2026-11-25
+
+### Added
+
+- Added offline qualification of model-request admission from the confined adapter’s validated selection. The runtime checks the returned ID, catalog identity and length against custody-confirmed issuance before admitting the catalog payload.
+
 ## 0.2.4 - 2026-11-25
 
 ### Added
