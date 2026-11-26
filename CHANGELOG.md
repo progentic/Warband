@@ -10,6 +10,12 @@ and current tags. Only include categories that contain notable changes.
 Add a version entry when publication is authorized, using the actual publication
 date. Draft candidates are documented in their PR and evidence record until then.
 
+## 0.2.6 - 2026-11-25
+
+### Added
+
+- The offline operator workflow now presents the admitted model proposal through the authenticated marker CLI. The runtime retains its original directory descriptor through the decision and verifies the displayed binding before issuing a permit. A receipt lookup with the issued request ID can recover a committed decision without dispatching a worker.
+
 ## 0.2.5 - 2026-11-25
 
 ### Added

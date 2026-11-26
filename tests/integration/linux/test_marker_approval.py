@@ -27,8 +27,9 @@ def line(proc):
 
 
 @contextlib.contextmanager
-def server(f, mode, projection=None):
-    p = subprocess.Popen(['./review',mode], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+def server(f, mode, projection=None, request_id=None):
+    args = ['./review',mode] if request_id is None else ['./review',mode,request_id.hex()]
+    p = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE, bufsize=0, **identity(f.root,f.runtime))
     try:
         if mode in ('serve','gate'):
@@ -46,7 +47,7 @@ def server(f, mode, projection=None):
         p.wait(timeout=5)
 
 
-def cli(f, proposal, answer, before_decision=None):
+def cli(f, proposal, answer, before_decision=None, payload=PAYLOAD):
     with subprocess.Popen(['./review','decide'], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE, bufsize=0, **identity(f.root,f.operator)) as p:
         try:
@@ -58,10 +59,13 @@ def cli(f, proposal, answer, before_decision=None):
             device,inode = struct.unpack_from('<QQ',proposal,136)
             assert display[2]==f'Create marker in private directory {proposal[120:136].hex()} device {device} inode {inode}'
             assert display[3].startswith('Versions 1 0 policy 2')
-            assert display[4]==f'Fingerprint {fp.hex()} Length {len(PAYLOAD)} SHA256 {digest.hex()}'
+            assert display[4]==f'Fingerprint {fp.hex()} Length {len(payload)} SHA256 {digest.hex()}'
             assert display[5]=='Type approve or reject and press Enter.'
             if before_decision:
                 before_decision()
+            if answer is None:
+                p.stdin.close()
+                return p.wait(timeout=10),p.stdout.read().decode()
             p.stdin.write(answer+b'\n')
             p.stdin.close()
             result=line(p)

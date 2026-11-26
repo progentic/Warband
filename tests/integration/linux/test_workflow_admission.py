@@ -1,9 +1,12 @@
 """Qualify custody-issued selections against the confined synthetic provider on x64-review."""
 import contextlib
+import fcntl
 import json
 import os
+import re
 from pathlib import Path
 import select
+import signal
 import shutil
 import socket
 import struct
@@ -13,7 +16,8 @@ import tempfile
 import time
 
 import test_provider_transport as transport
-from test_marker_approval import binding
+from test_marker_approval import binding, cli, server, wire_peer
+from test_custody_denial import as_user
 from test_model_request import actor, command, request_store
 from test_provider_connector import DNS, STUB
 from test_receipt_import import LE, OUT, STORE, sha
@@ -57,16 +61,122 @@ def check_admission(f, genesis, rid, payload, example, deadline):
     return ref.hex(), fingerprint.hex()
 
 
+REVIEW_CASES = ('approve', 'reject', 'disconnect', 'ref', 'fingerprint', 'length', 'digest',
+                'directory', 'issuer-lost', 'provenance', 'commit12', 'commit13')
+
+
+def review_case(f, process, case, genesis, rid, payload, issued):
+    ref, fp = check_admission(f, genesis, rid, payload, issued.example, issued.deadline_ms)
+    assert line(process) == 'AwaitingOperator'
+    wire = replay(f, genesis, [18, 1, 11])[-1]
+    directory, = (f.root/'attempts').iterdir()
+    inode = directory.stat()
+    held = [fd for fd in Path(f'/proc/{process.pid}/fd').iterdir() if os.path.samestat(fd.stat(), inode)]
+    assert len(held) == 1
+    initial = snapshot(f)
+
+    def after_display():
+        assert os.path.samestat(held[0].stat(), inode)
+        with f.db.open('rb') as gate:
+            fcntl.flock(gate, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if case == 'directory':
+            directory.rename(f.root/'original-attempt')
+            directory.mkdir(mode=0o700)
+            os.chown(directory, f.runtime, f.runtime)
+            assert os.path.samestat(held[0].stat(), inode) and not os.path.samestat(directory.stat(), inode)
+        elif case == 'provenance':
+            os.removexattr(directory, 'user.warband.commit.v1')
+
+    expected = {'approve':'Permitted', 'reject':'Rejected', 'disconnect':'Withheld',
+                'directory':'ReconciliationRequired', 'provenance':'ReconciliationRequired'}
+    interrupted = case in ('commit12', 'commit13')
+    if case == 'issuer-lost':
+        process.kill()
+        assert process.wait(timeout=5) == -signal.SIGKILL
+        wrong_id = bytes([rid[0] ^ 1]) + rid[1:]
+        lookup = subprocess.run(['./review', 'receipts', wrong_id.hex()], **actor(f),
+                                capture_output=True, timeout=10)
+        assert lookup.returncode == 1 and not lookup.stdout
+        with server(f, 'receipts', 0, rid) as receipt:
+            assert cli(f, wire, b'approve', payload=payload) == (1, 'DirectoryHold')
+            assert line(receipt) == 'DirectoryHold LiveGrant false'
+        outcome = 'DirectoryHold'
+    elif interrupted:
+        as_user(f.operator, lambda: wire_peer(f, 'lost_reply', wire))
+        until = time.monotonic() + 10
+        while time.monotonic() < until:
+            stop = os.waitid(os.P_PID, process.pid, os.WSTOPPED | os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            if stop:
+                assert (stop.si_code, stop.si_status) == (os.CLD_STOPPED, signal.SIGSTOP)
+                break
+            time.sleep(.01)
+        else:
+            raise TimeoutError('missing post-COMMIT stop')
+        process.kill()
+        assert process.wait(timeout=5) == -signal.SIGKILL
+        tail = int(case[-2:])
+        assert f.verify()[3] and f.rows()[0][-1][3][6] == tail
+        # Historical confirmation can finish only for the authenticated matching decision.
+        with server(f, 'receipts', 0, rid):
+            assert cli(f, wire, b'reject', payload=payload) == (1, 'DecisionConflict')
+        with server(f, 'receipts', 0, rid) as receipt:
+            assert cli(f, wire, b'approve', payload=payload) == (0, f'Recorded {STORE.hex()} 1 4')
+            assert line(receipt) == 'Recorded LiveGrant false'
+        outcome = 'Recorded'
+    else:
+        outcome = expected.get(case, 'BindingMismatch')
+        if case in expected:
+            answer = None if case == 'disconnect' else b'reject' if case == 'reject' else b'approve'
+            rc, reply = cli(f, wire, answer, after_display, payload)
+            suffix = f' {STORE.hex()} 1 4' if case in ('approve', 'reject') else ''
+            assert (rc, reply) == (int(not suffix), '' if case == 'disconnect' else outcome+suffix)
+        else:
+            as_user(f.operator, lambda: wire_peer(f, case, wire))
+        assert line(process) == outcome
+        assert process.wait(timeout=5) == int(case not in ('approve', 'reject'))
+
+    decided = case in ('approve', 'reject') or interrupted
+    permitted = case in ('approve', 'commit13')
+    events = replay(f, genesis, [18, 1, 11] + [12]*decided + [13]*permitted)
+    assert events[2] == wire
+    if decided:
+        decision = events[3]
+        assert decision[56:165] == b''.join(binding(wire)) + LE(f.operator) + bytes([2 if case=='reject' else 1])
+        if permitted:
+            assert events[4][56:88] == decision[8:40] and events[4][120] == 1
+        settled = snapshot(f)
+        # A fresh service has no original descriptor. Repeating the decision only reads its receipt.
+        with server(f, 'receipts', int(permitted), rid) as receipt:
+            answer = b'reject' if case=='reject' else b'approve'
+            assert cli(f, wire, answer, payload=payload) == (0, f'Recorded {STORE.hex()} 1 4')
+            assert line(receipt) == 'Recorded LiveGrant false'
+        assert settled == snapshot(f)
+    final = snapshot(f)
+    assert final['consumed'] == initial['consumed'] and final['requests'] == initial['requests']
+    if not decided:
+        assert final['checkpoint'] == initial['checkpoint'] and final['tip'] == initial['tip']
+    assert not list(directory.iterdir())
+    return dict(outcome=outcome, ref=ref, fingerprint=fp, decisions=int(decided), permits=int(permitted),
+                projection=[1, int(permitted)], issuer_pid=process.pid)
+
+
 def run_case(root, driver, tls, dns, case, example=2):
     payload = {1: b'', 2: b'abc'}[example]
     mode = 'workflow-empty' if example == 1 else 'workflow-abc'
+    if case in REVIEW_CASES:
+        mode = 'workflow-review-empty' if example == 1 else 'workflow-review-abc'
     with request_store() as f:
         command(f, 'provision', ['Ready'])
         genesis = f.verify()[2][32:]
         # The production CLI must reject the proof-only selection input before issuance.
         command(f, mode, [], 2)
         replay(f, genesis, [])
-        shutil.copy2(OUT/'reconcile/model-request-proof', f.root/'model-request-proof')
+        binary = 'model-request-proof'
+        if case in REVIEW_CASES:
+            shutil.copy2(OUT/'reconcile/marker-approval', f.root/'review')
+            if case.startswith('commit'):
+                binary += '-' + case
+        shutil.copy2(OUT/'reconcile'/binary, f.root/'model-request-proof')
         parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
         with parent, child, contextlib.ExitStack() as cleanup:
             process = subprocess.Popen(['./model-request-proof', mode], **actor(f), stdin=child,
@@ -102,7 +212,10 @@ def run_case(root, driver, tls, dns, case, example=2):
             parent.sendall(selection)
             disposition = line(process)
             report = dict(case=case, catalog=example, disposition=disposition, requests=row['requests'])
-            if case in ('control', 'duplicate'):
+            if case in REVIEW_CASES:
+                assert disposition == 'Admitted'
+                report.update(review_case(f, process, case, genesis, rid, payload, issued))
+            elif case in ('control', 'duplicate'):
                 assert disposition == 'Admitted'
                 ref, fingerprint = check_admission(f, genesis, rid, payload, example, issued.deadline_ms)
                 settled = snapshot(f)
@@ -155,7 +268,34 @@ def main(driver):
         for case in ('control', 'wrong-id', 'wrong-example', 'wrong-length', 'expired', 'duplicate'):
             run_case(root, executable, tls, dns, case)
         run_case(root, executable, tls, dns, 'control', example=1)
+        for case in REVIEW_CASES:
+            run_case(root, executable, tls, dns, case)
+        run_case(root, executable, tls, dns, 'approve', example=1)
+
+
+def grade_launches(evidence):
+    records = [json.loads(line) for line in (evidence/'cases.jsonl').read_text().splitlines() if line.startswith('{')]
+    reviews = [row for row in records if 'issuer_pid' in row]
+    expected = [(case, 2) for case in REVIEW_CASES] + [('approve', 1)]
+    assert sorted((row['case'], row['catalog']) for row in reviews) == sorted(expected)
+    traces = evidence/'traces'
+    for row in reviews:
+        calls = (traces/f"trace.{row['issuer_pid']}").read_text().splitlines()
+        execs = [s for s in calls if s.startswith(('execve(', 'execveat('))]
+        mode = 'workflow-review-empty' if row['catalog'] == 1 else 'workflow-review-abc'
+        assert len(execs) == 1 and f'"./model-request-proof", "{mode}"' in execs[0]
+        assert execs[0].rstrip().endswith('= 0')
+        assert not any(s.startswith(('clone(', 'clone3(', 'fork(', 'vfork(')) for s in calls)
+    for trace in traces.glob('trace.*'):
+        for binary in re.findall(r'^execve(?:at)?\((?:[^"]*, )?"([^"]+)"', trace.read_text(), re.M):
+            assert Path(binary).name not in ('marker-worker', 'marker-supervisor', 'worker-probe')
+    print(json.dumps(dict(graded_reviews=len(reviews), worker_launches=0)), flush=True)
 
 
 if __name__ == '__main__':
-    main(Path(sys.argv[1]).resolve(strict=True))
+    if sys.argv[1:2] == ['--grade-launches'] and len(sys.argv) == 3:
+        if not __debug__:
+            raise SystemExit('qualification requires assertions')
+        grade_launches(Path(sys.argv[2]))
+    else:
+        main(Path(sys.argv[1]).resolve(strict=True))

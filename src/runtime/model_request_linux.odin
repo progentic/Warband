@@ -101,7 +101,7 @@ expire_request :: proc(w: store.VerifiedWriter,s: ^client.Session,snap: IntakeSn
 @(private)
 request_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoint,owner: RequestSession,
                        op: RequestOperation,catalog_id: m.Catalog_Id,id: [16]u8,candidate: []u8,
-                       selection: m.Validated_Candidate, issuance: ^a.RequestIssued) -> (RequestStatus,[16]u8) {
+                       selection: m.Validated_Candidate, issuance: ^a.RequestIssued, retained: ^PreparedProposal) -> (RequestStatus,[16]u8) {
 	h:r.RequestHistory
 	snap,status:=intake_snapshot(w,s,root,&h)
 	if status==.PendingConfirmation && op==.Recover { return pending_requests(w,s,root,snap),{} }
@@ -181,7 +181,7 @@ request_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkp
 		model:=store.ModelWrite{issued=entry.issued,history=&h}
 		accepted,outcome:=intake_locked(w,s,root,parent,payload,i64(entry.issued.deadline_ms),&model)
 		if outcome!=.ConfirmedProposal { return .Reconciliation,{} }
-		l.close(accepted.directory_fd)
+		retained^=accepted
 		return .Admitted,id
 	}
 	if op==.Cancel { return expire_request(w,s,snap,&h,entry^,.Cancelled),id }
@@ -189,7 +189,7 @@ request_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkp
 }
 
 request_round :: proc(owner:RequestSession, op:RequestOperation, catalog_id:m.Catalog_Id=0,id:[16]u8={},candidate:[]u8=nil,
-                      selection:m.Validated_Candidate={}, issuance:^a.RequestIssued=nil) -> (RequestStatus,[16]u8) {
+                      selection:m.Validated_Candidate={}, issuance:^a.RequestIssued=nil, review:^PreparedProposal=nil) -> (RequestStatus,[16]u8) {
 	root,cust,trusted:=intake_configuration()
 	start:=client.wb_elapsed_ms()
 	if !trusted || start<0 || !store.limit_sqlite() { return .Unavailable,{} }
@@ -202,8 +202,15 @@ request_round :: proc(owner:RequestSession, op:RequestOperation, catalog_id:m.Ca
 	status:=RequestStatus.Unavailable
 	output:[16]u8
 	confirmed: a.RequestIssued
-	if store.limit_writer_cache(w) { status,output=request_locked(w,&s,root,owner,op,catalog_id,id,candidate,selection,&confirmed) }
+	retained:=PreparedProposal{directory_fd=-1}
+	defer if retained.directory_fd>=0 { l.close(retained.directory_fd) }
+	if store.limit_writer_cache(w) { status,output=request_locked(w,&s,root,owner,op,catalog_id,id,candidate,selection,&confirmed,&retained) }
 	if !store.close_writer(&w) { return .Unavailable,{} }
 	if status==.Issued && issuance!=nil { issuance^=confirmed }
+	// Transfer the original open descriptor only after writer closure succeeds.
+	if status==.Admitted && op==.AdmitSelection && review!=nil {
+		review^=retained
+		retained.directory_fd=-1
+	}
 	return status,output
 }
