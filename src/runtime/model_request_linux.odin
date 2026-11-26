@@ -12,7 +12,7 @@ import l "core:sys/linux"
 // The session holds a separate directory flock for its lifetime. A new caller
 // cannot declare session loss while the issuer or an inherited lease is alive.
 RequestSession :: struct {lease: l.Fd, id, boot: [16]u8}
-RequestOperation :: enum {Provision, Issue, Cancel, ExpireDue, Recover, Admit}
+RequestOperation :: enum {Provision, Issue, Cancel, ExpireDue, Recover, Admit, AdmitSelection}
 RequestStatus :: enum {Ready, Issued, Expired, Recorded, Unknown, Unavailable, Busy, Reconciliation, Limit, Admitted, Consumed, CandidateRejected}
 
 open_request_session :: proc() -> (RequestSession,bool) {
@@ -100,7 +100,8 @@ expire_request :: proc(w: store.VerifiedWriter,s: ^client.Session,snap: IntakeSn
 
 @(private)
 request_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoint,owner: RequestSession,
-                       op: RequestOperation,catalog_id: m.Catalog_Id,id: [16]u8,candidate: []u8) -> (RequestStatus,[16]u8) {
+                       op: RequestOperation,catalog_id: m.Catalog_Id,id: [16]u8,candidate: []u8,
+                       selection: m.Validated_Candidate, issuance: ^a.RequestIssued) -> (RequestStatus,[16]u8) {
 	h:r.RequestHistory
 	snap,status:=intake_snapshot(w,s,root,&h)
 	if status==.PendingConfirmation && op==.Recover { return pending_requests(w,s,root,snap),{} }
@@ -145,6 +146,7 @@ request_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkp
 		if err!=.None || !store.append_request_fact(w,s,snap.cp,snap.mark,wire[:],&ctx) { return .Reconciliation,{} }
 		end:=client.wb_elapsed_ms()
 		if end<now || u64(end)>=v.deadline_ms { return .Unavailable,{} }
+		if issuance!=nil { issuance^=v }
 		return .Issued,v.id
 	}
 	entry:=r.find_request(&h,id)
@@ -155,16 +157,21 @@ request_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkp
 	now:=client.wb_elapsed_ms()
 	if now<0 || u64(now)<entry.issued.start_ms { return .Unavailable,{} }
 	if u64(now)>=entry.issued.deadline_ms { return expire_request(w,s,snap,&h,entry^,.Deadline),id }
-	if op==.Admit {
+	if op==.Admit || op==.AdmitSelection {
 		example,ok:=m.catalog_entry(entry.issued.revision,m.Catalog_Id(entry.issued.catalog_id))
 		if !ok { return .Reconciliation,{} }
 		request_id:m.Request_Id
 		issued_id:=id
 		copy(request_id[:],hex.encode(issued_id[:]))
 		payload:=transmute([]u8)example.payload
-		result:=m.validate_candidate(candidate,request_id,{example.id,payload})
-		matched,valid:=result.(m.Validated_Candidate)
-		if !valid || matched.request_id!=request_id || matched.example!=example.id || matched.decoded_length!=len(payload) {
+		matched:=selection
+		if op==.Admit {
+			result:=m.validate_candidate(candidate,request_id,{example.id,payload})
+			valid: bool
+			matched,valid=result.(m.Validated_Candidate)
+			if !valid { return .CandidateRejected,{} }
+		}
+		if matched.request_id!=request_id || matched.example!=example.id || matched.decoded_length!=len(payload) {
 			return .CandidateRejected,{}
 		}
 		parent,pe:=l.open("attempts",DirectoryFlags)
@@ -181,7 +188,8 @@ request_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkp
 	return .Ready,id
 }
 
-request_round :: proc(owner:RequestSession, op:RequestOperation, catalog_id:m.Catalog_Id=0,id:[16]u8={},candidate:[]u8=nil) -> (RequestStatus,[16]u8) {
+request_round :: proc(owner:RequestSession, op:RequestOperation, catalog_id:m.Catalog_Id=0,id:[16]u8={},candidate:[]u8=nil,
+                      selection:m.Validated_Candidate={}, issuance:^a.RequestIssued=nil) -> (RequestStatus,[16]u8) {
 	root,cust,trusted:=intake_configuration()
 	start:=client.wb_elapsed_ms()
 	if !trusted || start<0 || !store.limit_sqlite() { return .Unavailable,{} }
@@ -193,7 +201,9 @@ request_round :: proc(owner:RequestSession, op:RequestOperation, catalog_id:m.Ca
 	if err!=.None { return .Unavailable,{} }
 	status:=RequestStatus.Unavailable
 	output:[16]u8
-	if store.limit_writer_cache(w) { status,output=request_locked(w,&s,root,owner,op,catalog_id,id,candidate) }
+	confirmed: a.RequestIssued
+	if store.limit_writer_cache(w) { status,output=request_locked(w,&s,root,owner,op,catalog_id,id,candidate,selection,&confirmed) }
 	if !store.close_writer(&w) { return .Unavailable,{} }
+	if status==.Issued && issuance!=nil { issuance^=confirmed }
 	return status,output
 }

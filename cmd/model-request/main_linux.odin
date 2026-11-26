@@ -1,5 +1,8 @@
 package main
 
+import a "../../src/audit"
+import m "../../src/model"
+import "core:encoding/endian"
 import r "../../src/runtime"
 import client "../../src/runtime/client"
 import "core:encoding/hex"
@@ -10,11 +13,45 @@ import l "core:sys/linux"
 
 workspace: [128*1024*1024]u8
 
+// The offline driver owns a private sequenced-packet channel to the live issuer.
+workflow_fixture :: proc(session:r.RequestSession, example:m.Catalog_Id) -> int {
+	issued: a.RequestIssued
+	status,id:=r.request_round(session,.Issue,example,issuance=&issued)
+	if status!=.Issued { fmt.println(status); return 1 }
+	fmt.println(status,string(hex.encode(id[:])),issued.revision,issued.catalog_id,issued.deadline_ms)
+	for delivery in 0..<2 {
+		fds:=[?]l.Poll_Fd{{fd=0,events={.IN}}}
+		ready,wait:=l.poll(fds[:],35_000)
+		if wait!=.NONE || ready!=1 { return 1 }
+		packet:[41]u8 // One spare byte detects oversized selection records.
+		n,err:=l.read(0,packet[:])
+		if err!=.NONE { return 1 }
+		if n==0 && delivery==1 { return 0 }
+		if n!=40 { return 1 }
+		selected:m.Validated_Candidate
+		copy(selected.request_id[:],packet[:32])
+		catalog,_:=endian.get_u32(packet[32:36],.Little)
+		length,_:=endian.get_u32(packet[36:40],.Little)
+		selected.example=m.Catalog_Id(catalog)
+		selected.decoded_length=int(length)
+		status,_=r.request_round(session,.AdmitSelection,id=id,selection=selected)
+		fmt.println(status)
+		if status!=.Admitted { return 1 }
+	}
+	return 0
+}
+
 run :: proc() -> int {
 	if len(os.args)!=2 { return 2 }
 	session,ok:=r.open_request_session()
 	if !ok { fmt.println("Unavailable"); return 1 }
 	defer l.close(session.lease)
+	when #config(WARBAND_REQUEST_PROOF,false) {
+		switch os.args[1] {
+		case "workflow-empty": return workflow_fixture(session,1)
+		case "workflow-abc": return workflow_fixture(session,2)
+		}
+	}
 	switch os.args[1] {
 	case "provision","recover":
 		op:=r.RequestOperation.Provision
