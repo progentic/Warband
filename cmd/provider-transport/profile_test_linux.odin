@@ -2,6 +2,7 @@ package main
 
 import "core:encoding/endian"
 import "core:testing"
+import m "../../src/model"
 import l "core:sys/linux"
 
 // Exercise the non-fixture success wire locally, without trusting a synthetic CA.
@@ -50,4 +51,30 @@ normal_selection_wire :: proc(t:^testing.T) {
 	copy(got[16:],"TlsFailure")
 	testing.expect(t,normal_reply(got[:26],frame))
 	testing.expect(t,!normal_reply(got[:27],frame))
+
+	input_tuple:=input_for(frame)
+	selected,valid:=m.decode_provider_reply(expected[:],input_tuple)
+	counts:=m.TransferCounts{200,790,80,len(response)}
+	testing.expect(t,valid && selected.counts==counts && selected.outcome==m.Validated_Candidate{2,input_tuple.id,3})
+	failure,known:=m.decode_provider_reply(got[:26],input_tuple)
+	testing.expect(t,known && failure.outcome==m.ProviderFailure.TlsFailure && failure.counts==counts)
+	early:=transmute([]byte)string("CredentialUnavailable")
+	preflight,recognized:=m.decode_provider_reply(early,input_tuple)
+	testing.expect(t,recognized && preflight.outcome==m.ProviderFailure.CredentialUnavailable && preflight.counts==nil)
+	testing.expect(t,!normal_reply(early,frame))
+	zero_counts:[16+len("TlsFailure")]byte
+	copy(zero_counts[16:],"TlsFailure")
+	observed,zero_ok:=m.decode_provider_reply(zero_counts[:],input_tuple)
+	testing.expect(t,zero_ok && observed.counts==m.TransferCounts{} && observed.outcome==m.ProviderFailure.TlsFailure)
+	for text in ([?]string{"TlsFailure","Ok","Deadline\x00","Spent!"}) {
+		_,accepted:=m.decode_provider_reply(transmute([]byte)text,input_tuple)
+		testing.expect(t,!accepted)
+	}
+	for text in ([?]string{"Candidate.PayloadMismatch","Envelope.Refused"}) {
+		reason_len:=copy(got[16:],text)
+		reply,accepted:=m.decode_provider_reply(got[:16+reason_len],input_tuple)
+		testing.expect(t,accepted && reply.counts==counts)
+		if text=="Envelope.Refused" { testing.expect(t,reply.outcome==m.ProfileStatus.Refused) }
+		else { testing.expect(t,reply.outcome==m.Candidate_Rejection.PayloadMismatch) }
+	}
 }
