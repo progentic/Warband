@@ -14,7 +14,7 @@ unique :: proc(ids: ^map[ScopedId]bool, kind: IdClass, id: [16]u8) -> bool {
 }
 
 // The cap includes expired and earlier-epoch issuances; slots are never recycled.
-RequestWitness :: struct {issued: a.RequestIssued, expiry: Maybe(a.RequestExpired)}
+RequestWitness :: struct {issued: a.RequestIssued, expiry: Maybe(a.RequestExpired), failure: Maybe(a.FailureDetails)}
 RequestHistory :: struct {entries: [32]RequestWitness, count: int}
 
 find_request :: proc(h: ^RequestHistory,id: [16]u8) -> ^RequestWitness {
@@ -73,6 +73,13 @@ reduce_records :: proc(records: []Record,receipts: []Receipt,$markers: bool,mark
 			if entry==nil || entry.issued.reference!=v.issuance { return nil,0,.InvalidReference }
 			if entry.expiry!=nil { return nil,0,.InvalidHistory }
 			entry.expiry = v
+			continue
+		case a.ProviderFailureObserved:
+			if requests==nil { return nil,0,.InvalidHistory }
+			entry:=find_request(requests,v.id)
+			if entry==nil || entry.issued.reference!=v.issuance { return nil,0,.InvalidReference }
+			if entry.expiry!=nil || entry.failure!=nil { return nil,0,.InvalidHistory }
+			entry.failure=v.failure
 			continue
 		case a.TaskCreated:
 			created := v

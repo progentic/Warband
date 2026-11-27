@@ -2,6 +2,7 @@ package replay_test
 
 import "core:encoding/hex"
 import "core:testing"
+import "core:reflect"
 import a "../../../src/audit"
 import c "../../../src/custody"
 import e "../../../src/domain/events"
@@ -31,6 +32,7 @@ request_catalog_revision_and_uniqueness :: proc(t: ^testing.T) {
 
 @(test)
 request_wire_and_confirmed_prefix :: proc(t: ^testing.T) {
+	provider_observation_vectors(t)
 	first,ok1 := hex.decode(transmute([]u8)string(IssuedVector)); defer delete(first)
 	second,ok2 := hex.decode(transmute([]u8)string(ExpiredVector)); defer delete(second)
 	assert(ok1 && ok2)
@@ -139,4 +141,103 @@ request_history_bounds_roles_and_versions :: proc(t: ^testing.T) {
 	cp=request_checkpoint(rows[:3],genesis)
 	wrong,empty := r.project_requests(genesis,cp,nil,segments[:],nil)
 	testing.expect(t,wrong.error==.InvalidReference && empty.count==0)
+}
+
+
+// Independently packed little-endian normal-profile TlsFailure vector following IssuedVector.
+ObservedVector :: "574245560200140001010101010101010101010101010101010000000000000002000000000000000b0000000000000009000100440000000101010101010101010101010101010101000000000000000100000000000000020202020202020202020202020202020202110100000000000000000000000000000000bbd96add826fe7131d4e285561b0c1ecb9e1561237f99a3b817c8143846d5605"
+ObservedHead :: "8e900ad2b2d81c6489a499fb795cb8ea9cf5711628320dc6bd720c2c5a5e580c"
+
+provider_observation_vectors :: proc(t:^testing.T) {
+	// A new terminal reply in the model decoder must have a reviewed audit code.
+	for val in m.ProviderFailure {
+		name,_:=reflect.enum_name_from_value(val)
+		_,transfer:=a.failure_code(.Transport,name)
+		_,early:=a.failure_code(.Bare,name)
+		testing.expect(t,transfer==(val!=.Spent))
+		testing.expect(t,early==(val==.CredentialUnavailable || val==.Deadline || val==.Cancelled || val==.InvalidHandoff || val==.Spent))
+	}
+	for val in m.ProfileStatus {
+		name,_:=reflect.enum_name_from_value(val)
+		_,known:=a.failure_code(.Envelope,name)
+		testing.expect(t,known==(val!=.Ok))
+	}
+	for val in m.Candidate_Rejection {
+		name,_:=reflect.enum_name_from_value(val)
+		_,known:=a.failure_code(.Candidate,name)
+		testing.expect(t,known)
+	}
+	issue_bytes,ok:=hex.decode(transmute([]u8)string(IssuedVector)); assert(ok); defer delete(issue_bytes)
+	golden,hex_ok:=hex.decode(transmute([]u8)string(ObservedVector)); assert(hex_ok); defer delete(golden)
+	store:e.StoreId
+	copy(store[:],issue_bytes[8:24])
+	issue,ie:=a.decode_request_issued(issue_bytes,store,1); assert(ie==.None)
+	v,err:=a.decode_provider_failure(golden,store,1); assert(err==.None)
+	testing.expect(t,v.id==issue.id && v.issuance==issue.reference && v.failure.profile==.NormalConnectorV1 &&
+	               v.failure.class==.Transport && v.failure.code==17 && v.failure.counts==a.FailureCounts{})
+	wire,encoded:=a.encode_provider_failure(v,store,1)
+	testing.expect(t,encoded==.None && string(wire[:])==string(golden))
+	for mut in ([?]struct{offset:int,value:u8}{
+		{104,0},{104,3},{105,0},{105,5},{106,0},{106,20},{107,0},{107,2},
+		{108,99},{115,1},{119,1},{123,1},{6,19},{48,8},{52,0},
+	}) {
+		bad:=wire; bad[mut.offset]=mut.value
+		_,invalid:=a.decode_provider_failure(bad[:],store,1)
+		testing.expect(t,invalid!=.None)
+	}
+	bare:=v
+	bare.failure={profile=.NormalConnectorV1,class=.Bare,code=1}
+	b,be:=a.encode_provider_failure(bare,store,1); assert(be==.None)
+	round,re:=a.decode_provider_failure(b[:],store,1)
+	testing.expect(t,re==.None && round==bare && round.failure.counts==nil)
+	b[108]=1
+	_,padding:=a.decode_provider_failure(b[:],store,1)
+	testing.expect_value(t,padding,a.Error.Malformed)
+	bare.failure.counts=a.FailureCounts{}
+	_,presence:=a.encode_provider_failure(bare,store,1)
+	testing.expect_value(t,presence,a.Error.Malformed)
+	v.failure.counts=a.FailureCounts{599,16384,16384,65536}
+	limits,le:=a.encode_provider_failure(v,store,1)
+	back,de:=a.decode_provider_failure(limits[:],store,1)
+	testing.expect(t,le==.None && de==.None && v==back)
+	rows:=[?]r.Row{{issue.reference,issue_bytes},{v.reference,wire[:]},{ {store,1,3},nil}}
+	parts:=[1]r.Segment{{rows=rows[:2]}}
+	genesis:=e.Checkpoint{store,1,0,issue.previous_head}
+	cp:=request_checkpoint(rows[:2],genesis)
+	head:=hex.encode(cp.head[:]); defer delete(head)
+	testing.expect(t,string(head)==ObservedHead)
+	before:=e.Checkpoint{store,1,1,v.previous_head}
+	pledge:=e.Pledge{store=store,epoch=1,previous_sequence=1,previous_head=before.head,sequence=2,
+	                 digest=fixture_digest(wire[:124]),head=cp.head}
+	pending,prefix:=r.project_requests(genesis,before,&pledge,parts[:],nil)
+	defer delete(pending.tasks)
+	testing.expect(t,pending.error==.None && pending.readiness==.PendingConfirmation && prefix.count==1 &&
+	               prefix.entries[0].failure==nil)
+	view,h:=r.project_requests(genesis,cp,nil,parts[:],nil)
+	defer delete(view.tasks)
+	testing.expect(t,view.error==.None && len(view.tasks)==0 && h.count==1 && h.entries[0].expiry==nil &&
+	               h.entries[0].failure==a.FailureDetails{.NormalConnectorV1,.Transport,17,a.FailureCounts{}})
+	legacy:=r.project_markers(genesis,cp,nil,parts[:],nil)
+	testing.expect(t,legacy.error!=.None)
+	fixture:=wire; fixture[104]=1
+	rows[1].bytes=fixture[:]
+	changed,empty:=r.project_requests(genesis,cp,nil,parts[:],nil)
+	testing.expect(t,changed.error!=.None && empty.count==0)
+	cp=request_checkpoint(rows[:2],genesis)
+	alternate,other:=r.project_requests(genesis,cp,nil,parts[:],nil)
+	defer delete(alternate.tasks)
+	failure,seen:=other.entries[0].failure.(a.FailureDetails)
+	testing.expect(t,alternate.error==.None && seen && failure.profile==.FixtureConnectorV1)
+	copy3:=wire
+	copy3[32]=3
+	rows[2].bytes=copy3[:]
+	parts[0].rows=rows[:]
+	cp=request_checkpoint(rows[:],genesis) // resealed conflicting duplicate, not a hash mismatch
+	duplicate,dropped:=r.project_requests(genesis,cp,nil,parts[:],nil)
+	testing.expect(t,duplicate.error==.InvalidHistory && dropped.count==0)
+	parts[0].rows=rows[:2]
+	fixture[88] ~= 1
+	cp=request_checkpoint(rows[:2],genesis)
+	mismatch,missing:=r.project_requests(genesis,cp,nil,parts[:],nil)
+	testing.expect(t,mismatch.error==.InvalidReference && missing.count==0)
 }

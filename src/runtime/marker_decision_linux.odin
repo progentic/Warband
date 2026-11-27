@@ -41,7 +41,7 @@ review_history :: proc(s: IntakeSnapshot) -> (ReviewHistory,bool) {
 	if len(s.replay.tasks)!=1 || !s.replay.tasks[0].marker || s.replay.receipts_used!=len(s.receipts) { return {},false }
 	for row in s.rows[:int(s.cp.sequence)] {
 		switch row.bytes[6] {
-		case 8,18,19: // Issuance and expiry were verified by request-aware replay.
+		case 8,18,19,20: // Request facts have already passed request-aware replay.
 		case 1:
 			t,err := a.decode_task_created(row.bytes,row.ref.store,row.ref.epoch)
 			if err!=.None { return {},false }

@@ -86,6 +86,11 @@ append_request_fact :: proc(w: VerifiedWriter,s: ^client.Session,cp: e.Checkpoin
 	case 19:
 		v,err := a.decode_request_expired(wire,cp.store,cp.epoch)
 		if err!=.None || v.reference!=next { return false }
+	case 20:
+		v,err:=a.decode_provider_failure(wire,cp.store,cp.epoch)
+		if err!=.None || v.reference!=next { return false }
+		entry:=r.find_request(ctx.before,v.id)
+		if entry==nil || entry.issued.reference!=v.issuance || entry.expiry!=nil || entry.failure!=nil { return false }
 	case: return false
 	}
 	h: sha2.Context_256
@@ -192,6 +197,11 @@ request_proof_selected :: proc(kind:u8,stage:string) -> bool {
 }
 request_probe :: proc(kind:u8,stage:string) {
 	when RequestProof {
+		stop :: #config(WARBAND_FAILURE_OBSERVATION_STOP,0)
+		#assert(stop>=0 && stop<=2)
+		if kind==20 && ((stop==1 && stage=="prepared") || (stop==2 && stage=="committed")) {
+			assert(l.kill(l.getpid(),.SIGSTOP)==.NONE)
+		}
 		if request_proof_selected(kind,stage) { assert(l.kill(l.getpid(),.SIGSTOP)==.NONE) }
 	}
 }

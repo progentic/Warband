@@ -10,6 +10,7 @@ import "core:fmt"
 import "core:mem"
 import "core:os"
 import "core:strconv"
+import "core:reflect"
 import l "core:sys/linux"
 
 workspace: [128*1024*1024]u8
@@ -28,6 +29,31 @@ review_admission :: proc(live:^r.PreparedProposal,id:[16]u8,start:i64) -> int {
 	return 0 if result.status==.Permitted || result.status==.Rejected else 1
 }
 
+// Profile identity comes from this entry point's fixed installed transport,
+// never from the reply. A test CA mounted at the system path does not change it.
+failure_details :: proc(reply:m.ProviderReply) -> (a.FailureDetails,bool) {
+	d:=a.FailureDetails{profile=.NormalConnectorV1}
+	name:string
+	switch reason in reply.outcome {
+	case m.Validated_Candidate: return {},false
+	case m.Candidate_Rejection:
+		d.class=.Candidate
+		name,_=reflect.enum_name_from_value(reason)
+	case m.ProfileStatus:
+		d.class=.Envelope
+		name,_=reflect.enum_name_from_value(reason)
+	case m.ProviderFailure:
+		d.class=.Bare if reply.counts==nil else .Transport
+		name,_=reflect.enum_name_from_value(reason)
+	}
+	ok:bool
+	d.code,ok=a.failure_code(d.class,name)
+	if c,present:=reply.counts.(m.TransferCounts); present {
+		d.counts=a.FailureCounts{c.http_status,c.uploaded,c.headers,c.received}
+	}
+	return d,ok
+}
+
 // The root setup creates this pair before forking both siblings. It releases
 // them only after closing its copies and dropping to the separate courier UID.
 normal_workflow :: proc(session:r.RequestSession,example:m.Catalog_Id) -> int {
@@ -44,8 +70,12 @@ normal_workflow :: proc(session:r.RequestSession,example:m.Catalog_Id) -> int {
 	flags,fe:=l.fcntl(grant,l.F_GETFL)
 	st:l.Stat
 	parent:=l.getppid()
+	if parent<=1 { return 1 }
+	courier,piderr:=l.pidfd_open(parent,{})
+	if piderr!=.NONE { return 1 }
+	defer l.close(l.Fd(courier))
 	if fe!=.NONE || .WRONLY not_in flags || .NONBLOCK not_in flags { return 1 }
-	if parent<=1 || se!=.NONE || kind!=5 || l.syscall(l.SYS_getsockopt,fd,1,17,&peer,&size)!=0 ||
+	if se!=.NONE || kind!=5 || l.syscall(l.SYS_getsockopt,fd,1,17,&peer,&size)!=0 ||
 	   size!=size_of(peer) || peer.pid!=i32(parent) || peer.uid!=0 || l.fstat(grant,&st)!=.NONE || !l.S_ISFIFO(st.mode) ||
 	   l.prctl(4,0,0,0,0)!=.NONE || l.prctl(1,uint(l.Signal.SIGKILL),0,0,0)!=.NONE || l.getppid()!=parent { return 1 }
 
@@ -66,9 +96,14 @@ normal_workflow :: proc(session:r.RequestSession,example:m.Catalog_Id) -> int {
 	if n,err:=l.send(fd,frame[:],{.NOSIGNAL,.DONTWAIT}); err!=.NONE || n!=len(frame) { return 1 }
 	now:=client.wb_elapsed_ms()
 	if now<start || u64(now)>=issued.deadline_ms { fmt.println("Deadline"); return 1 }
-	fds:=[1]l.Poll_Fd{{fd=fd,events={.IN}}}
+	// The wait-only courier and issuer have different UIDs. Observe its
+	// pinned lifetime explicitly, including when a socket reply is also ready.
+	fds:=[2]l.Poll_Fd{{fd=fd,events={.IN}},{fd=l.Fd(courier),events={.IN}}}
 	ready,wait:=l.poll(fds[:],i32(issued.deadline_ms-u64(now)))
-	if wait!=.NONE || ready!=1 { fmt.println("OutcomeUncertain"); return 1 }
+	if wait!=.NONE || ready!=1 || fds[1].revents!={} || .IN not_in fds[0].revents {
+		fmt.println("OutcomeUncertain")
+		return 1
+	}
 	buf:[160]byte
 	vec:=[1]l.IO_Vec{{&buf[0],len(buf)}}
 	msg:=l.Msg_Hdr{iov=vec[:]}
@@ -80,6 +115,18 @@ normal_workflow :: proc(session:r.RequestSession,example:m.Catalog_Id) -> int {
 	if !valid { fmt.println("InvalidHandoff"); return 1 }
 	selected,ok:=reply.outcome.(m.Validated_Candidate)
 	if !ok {
+		d,known:=failure_details(reply)
+		if !known { fmt.println("InvalidHandoff"); return 1 }
+		status,_=r.request_round(session,.ObserveFailure,id=id,failure=&d)
+		if status!=.Recorded { fmt.println("ObservationUnconfirmed",status); return 1 }
+		when #config(WARBAND_FAILURE_RETRY_PROOF,false) {
+			#assert(#config(WARBAND_REQUEST_PROOF,false))
+			same,_:=r.request_round(session,.ObserveFailure,id=id,failure=&d)
+			changed:=d
+			changed.profile=.FixtureConnectorV1
+			conflict,_:=r.request_round(session,.ObserveFailure,id=id,failure=&changed)
+			fmt.println("Retry",same,conflict)
+		}
 		if counts,observed:=reply.counts.(m.TransferCounts); observed {
 			fmt.println("ProviderFailure",reply.outcome,"Observed",counts.http_status,counts.uploaded,counts.headers,counts.received)
 		} else {
