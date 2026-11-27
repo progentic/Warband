@@ -4,6 +4,12 @@ All notable changes to Warband are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.9 - 2026-11-27
+
+### Changed
+
+- The normal issuer sends its confirmed request and one-shot grant directly to the confined launcher. A separate provisioner delivers the sealed credential after privileged setup has dropped to a wait-only UID. The issuer decodes the bounded reply, admits a matching selection once, and presents the confirmed proposal for local CLI approval.
+
 ## 0.2.8 - 2026-11-27
 
 ### Added

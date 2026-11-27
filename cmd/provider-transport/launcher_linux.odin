@@ -108,37 +108,9 @@ run_front :: proc(input_fd,output:l.Fd,frame:Frame,deadline:i64) -> bool {
 // Check the entire front-end packet before forwarding it across the issuer
 // boundary. A normal success is Ok+NUL and exactly the three selection fields.
 normal_reply :: proc(packet:[]byte, frame:Frame) -> bool {
-	if len(packet)<=16 { return false }
-	status,_:=endian.get_u32(packet[0:4],.Little)
-	sent,_:=endian.get_u32(packet[4:8],.Little)
-	headers,_:=endian.get_u32(packet[8:12],.Little)
-	received,_:=endian.get_u32(packet[12:16],.Little)
-	if (status!=0 && (status<100 || status>599)) || sent>m.RequestBodyLimit ||
-	   headers>LimitHeaders || received>m.ResponseBodyLimit { return false }
-
-	result:=packet[16:]
-	if len(result)==43 && string(result[:3])=="Ok\x00" {
-		input:=input_for(frame)
-		example,ok:=m.catalog_entry(input.revision,input.example)
-		id,_:=endian.get_u32(result[35:39],.Little)
-		length,_:=endian.get_u32(result[39:43],.Little)
-		return ok && status>=200 && status<300 && sent>0 && received>0 &&
-		       string(result[3:35])==string(input.id[:]) && id==u32(input.example) && length==u32(len(example.payload))
-	}
-	name:=string(result)
-	switch name {
-	case "ProfileUnavailable","InvalidProjection","CredentialUnavailable","InvalidHandoff","Cancelled","Deadline",
-	     "DestinationDenied","ResolutionUnavailable","ConnectFailure","SocketDenied","TransportFailure",
-	     "RequestLimit","RewindDenied","HeaderLimit","Framing","BodyLimit","TlsFailure","RateLimited","HttpFailure":
-		return true
-	}
-	for reason in m.Candidate_Rejection {
-		if name==fmt.tprintf("Candidate.%v",reason) { return true }
-	}
-	for reason in m.ProfileStatus {
-		if reason!=.Ok && name==fmt.tprintf("Envelope.%v",reason) { return true }
-	}
-	return false
+	#assert(LimitHeaders==m.ProviderHeaderLimit)
+	reply,ok:=m.decode_provider_reply(packet,input_for(frame))
+	return ok && reply.counts!=nil
 }
 
 kill_and_reap :: proc(slot:^l.Pid) {
@@ -153,6 +125,28 @@ kill_and_reap :: proc(slot:^l.Pid) {
 	}
 }
 
+// Give the provisioner an endpoint created here after trusted setup released
+// the children. The courier has never possessed either end of this pair.
+provision_credential :: proc(mailbox:l.Fd,deadline:i64) -> l.Fd {
+	pair:[2]l.Fd
+	if l.socketpair(.LOCAL,.SEQPACKET,l.Protocol(0),&pair)!=.NONE { return -1 }
+	defer l.close(pair[0])
+	control:=[3]u64{20,1<<32|1,u64(pair[1])}
+	key:=u8('K')
+	vec:=[1]l.IO_Vec{{&key,1}}
+	h:=l.Msg_Hdr{iov=vec[:],control=(cast(^[24]u8)&control)[:]}
+	sent,err:=l.sendmsg(mailbox,&h,{.NOSIGNAL,.DONTWAIT})
+	l.close(pair[1]) // A refusal from the provisioner must deliver EOF promptly.
+	if err!=.NONE || sent!=1 || !readable(pair[0],deadline) { return -1 }
+	b:[1]byte
+	n,fd:=receive(pair[0],b[:])
+	if n!=1 || b[0]!='K' {
+		if fd>=0 { l.close(fd) }
+		return -1
+	}
+	return fd
+}
+
 launch :: proc() -> int {
 	// Only the explicit IPC and grant handles cross the bootstrap boundary.
 	null,ne:=l.open("/dev/null",{.RDWR,.NOFOLLOW,.CLOEXEC})
@@ -162,10 +156,12 @@ launch :: proc() -> int {
 	}
 	l.close(null)
 	control,secret,grant:=env_fd("WB_ISSUER_FD"),env_fd("WB_CREDENTIAL_FD"),env_fd("WB_OPPORTUNITY_FD")
+	mailbox:=env_fd("WB_PROVISION_FD")
 	os.clear_env()
 	if control<3 || grant<3 || control==secret || control==grant || secret==grant { return 1 }
+	if mailbox>=3 && (!Production || secret>=3 || mailbox==control || mailbox==grant) { return 1 }
 	parent:=l.getppid()
-	if !lock_fds(([]l.Fd{control,secret,grant})) || !peer_is_parent(control,parent) ||
+	if !lock_fds(([]l.Fd{control,secret,grant,mailbox})) || !peer_is_parent(control,parent) ||
 	   l.setrlimit(.CORE,&l.RLimit{})!=.NONE || l.prctl(4,0,0,0,0)!=.NONE ||
 	   l.prctl(1,uint(l.Signal.SIGKILL),0,0,0)!=.NONE || l.getppid()!=parent { return 1 }
 	start:=now_ms()
@@ -175,7 +171,7 @@ launch :: proc() -> int {
 	if n!=len(frame) || other>=0 || string(frame[:4])!="WBT1" {
 		_=send(control,transmute([]byte)string("InvalidHandoff")); return 0
 	}
-	if secret<3 { _=send(control,transmute([]byte)string("CredentialUnavailable")); return 0 }
+	if secret<3 && mailbox<3 { _=send(control,transmute([]byte)string("CredentialUnavailable")); return 0 }
 	st:l.Stat
 	if l.fstat(grant,&st)!=.NONE || !l.S_ISFIFO(st.mode) || !readable(grant,start+5000) { return 1 }
 	got_grant,e:=l.read(grant,witness[:])
@@ -204,6 +200,11 @@ launch :: proc() -> int {
 			if count==1 && fd<0 && extra[0]=='C' { _=send(control,transmute([]byte)string("Cancelled")); return 0 }
 			if count!=len(frame) || fd>=0 || extra!=frame { _=send(control,transmute([]byte)string("InvalidHandoff")); return 0 }
 		}
+	}
+	if mailbox>=3 {
+		secret=provision_credential(mailbox,min(deadline,start+5000))
+		l.close(mailbox)
+		if secret<3 { _=send(control,transmute([]byte)string("CredentialUnavailable")); return 0 }
 	}
 	me:=l.getpid()
 	worker,ce:=l.fork()
