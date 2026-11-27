@@ -4,6 +4,16 @@ cd "$(dirname "$0")/.."
 export ODIN_ROOT="$PWD/.local/toolchains/odin-linux_amd64"
 export PATH="$ODIN_ROOT:/usr/lib/llvm-19/bin:$PATH"
 python3 scripts/assert_toolchain.py linux_amd64
+source_tree() {
+    git diff --quiet -- || return 1
+    test -z "$(git ls-files --others --exclude-standard)" || return 1
+    test -z "$(git ls-files --others -- src cmd)" || return 1
+    git write-tree
+}
+if [[ ${1:-} == --qualify-normal ]]; then
+    test "$(uname -mr)" = "6.8.0-142-generic x86_64"
+    tree=$(source_tree)
+fi
 out="$PWD/out/linux_amd64/provider"
 mkdir -p "$out"
 linkdir="$(mktemp -d)"
@@ -12,18 +22,33 @@ ln -s /usr/lib/x86_64-linux-gnu/libcurl.so.4 "$linkdir/libcurl.so"
 ln -s /usr/lib/x86_64-linux-gnu/libz.so.1 "$linkdir/libz.so"
 clang-19 -std=c11 -O2 -Wall -Wextra -Werror -c cmd/provider-transport/network_policy.c -o "$linkdir/policy.o"
 llvm-ar-19 rcsD "$linkdir/libwb_network_policy.a" "$linkdir/policy.o"
-for profile in fixture production-roots connector connector-production-roots; do
+for profile in fixture production-roots connector connector-production-roots normal; do
+    fixture=true
+    production=false
+    connector=false
     test_roots=false
-    if [[ $profile != *production-roots ]]; then test_roots=true; fi
-    connector=false; if [[ $profile == connector* ]]; then connector=true; fi
+    case "$profile" in
+        fixture) test_roots=true ;;
+        production-roots) ;;
+        connector) connector=true; test_roots=true ;;
+        connector-production-roots) connector=true ;;
+        normal) production=true; fixture=false; connector=true ;;
+    esac
+    defines=("-define:WARBAND_TRANSPORT_FIXTURE=$fixture" "-define:WARBAND_TRANSPORT_PRODUCTION=$production"
+             "-define:WARBAND_EXTERNAL_CONNECTOR=$connector" "-define:WARBAND_TEST_ROOTS=$test_roots")
+    if [[ $production == true ]]; then normal_defines=("${defines[@]}"); fi
     exe="$out/transport-$profile"
-    odin build cmd/provider-transport -target:linux_amd64 -define:WARBAND_TRANSPORT_FIXTURE=true \
-        "-define:WARBAND_EXTERNAL_CONNECTOR=$connector" "-define:WARBAND_TEST_ROOTS=$test_roots" -vet -warnings-as-errors "-extra-linker-flags:-L$linkdir" "-out:$exe"
+    odin build cmd/provider-transport -target:linux_amd64 "${defines[@]}" -vet -warnings-as-errors "-extra-linker-flags:-L$linkdir" "-out:$exe"
     {
         uname -srmo
         sha256sum cmd/provider-transport/network_policy.c cmd/provider-transport/*.odin scripts/build_provider_transport.sh tests/integration/linux/test_provider_transport.py
         "$exe" --identity
-        "$exe" --test-callbacks
+        if [[ $fixture == true ]]; then
+            "$exe" --test-callbacks
+        elif "$exe" --test-callbacks; then
+            echo "non-fixture binary accepted --test-callbacks" >&2
+            exit 1
+        fi
         ldd "$exe"
         library=$(ldd "$exe" | awk '$1 == "libcurl.so.4" { print $3 }')
         test -f "$library"
@@ -45,4 +70,37 @@ if [[ ${1:-} == --qualify ]]; then
         if [[ $profile == production-roots ]]; then opts=(--production-roots --public-vectors "$2"); fi
         sudo python3 tests/integration/linux/test_provider_transport.py --trusted-launcher "$dest/driver" "${opts[@]}" | tee "$out/$profile-results.jsonl"
     done
+fi
+
+if [[ ${1:-} == --qualify-normal ]]; then
+    evidence=$(mktemp -d "$out/normal-142.XXXXXXXX")
+    echo "Evidence directory: $evidence"
+    odin test cmd/provider-transport -target:linux_amd64 "${normal_defines[@]}" -vet -warnings-as-errors \
+        "-define:ODIN_TEST_JSON_REPORT=$evidence/front.json" "-extra-linker-flags:-L$linkdir" "-out:$linkdir/front-test"
+
+    for invalid in fixture connector roots; do
+        f=false; c=true; r=false
+        case "$invalid" in fixture) f=true ;; connector) c=false ;; roots) r=true ;; esac
+        if odin check cmd/provider-transport -target:linux_amd64 -define:WARBAND_TRANSPORT_PRODUCTION=true \
+            "-define:WARBAND_TRANSPORT_FIXTURE=$f" "-define:WARBAND_EXTERNAL_CONNECTOR=$c" "-define:WARBAND_TEST_ROOTS=$r" \
+            > "$evidence/invalid-$invalid.log" 2>&1; then
+            echo "invalid normal profile compiled: $invalid" >&2
+            exit 1
+        fi
+        grep -Fq '#assert(!Production' "$evidence/invalid-$invalid.log"
+    done
+    install_dir=$(sudo mktemp -d /run/warband-normal.XXXXXXXX)
+    trap 'rm -rf "$linkdir"; sudo rm -f "$install_dir/fixture" "$install_dir/normal"; sudo rmdir "$install_dir"' EXIT
+    sudo install -m555 "$out/transport-connector" "$install_dir/fixture"
+    sudo install -m555 "$out/transport-normal" "$install_dir/normal"
+    cp "$out"/{connector,normal}-identity.txt "$evidence/"
+    mkdir "$evidence/traces"
+    sudo strace -ff -o "$evidence/traces/trace" -e trace=execve,execveat,fork,vfork,clone,clone3,setresuid,connect,openat \
+        unshare --net /usr/bin/python3 -u tests/integration/linux/test_provider_transport.py --isolated --assembled \
+        --trusted-launcher "$install_dir/fixture" --normal-profile "$install_dir/normal" | tee "$evidence/cases.jsonl"
+    python3 tests/integration/linux/test_provider_transport.py --grade-normal "$evidence" | tee "$evidence/result.json"
+    test "$(source_tree)" = "$tree"
+    echo "$tree" > "$evidence/source-tree.txt"
+    (cd "$evidence" && find . -type f ! -name SHA256SUMS -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS)
+    sha256sum "$evidence/SHA256SUMS"
 fi

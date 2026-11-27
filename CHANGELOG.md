@@ -4,6 +4,12 @@ All notable changes to Warband are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.8 - 2026-11-27
+
+### Added
+
+- Added a non-fixture one-shot transport profile that requires the confined connector and system TLS roots. Its issuer reply carries the bounded disposition and validated selection. Offline qualification checks the success wire, rejection of the synthetic certificate before HTTP, and the matching fixture handshake.
+
 ## 0.2.7 - 2026-11-26
 
 ### Added

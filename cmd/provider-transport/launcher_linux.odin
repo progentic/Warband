@@ -8,7 +8,7 @@ import "core:fmt"
 import l "core:sys/linux"
 import m "../../src/model"
 
-// The fixture's trusted bootstrap starts as root with three inherited handles.
+// The trusted bootstrap starts as root with three inherited handles.
 // The issuer grants one spawn via an anonymous pipe containing exactly one tuple.
 // Reading that PIPE_BUF-sized tuple spends it before fork, including on errors.
 roles :: enum {Transport, Frontend, Connector}
@@ -87,9 +87,12 @@ run_front :: proc(input_fd,output:l.Fd,frame:Frame,deadline:i64) -> bool {
 		variant=m.validate_chat_completion(packet[i+1:n],input_for(frame))
 		switch v in variant {
 		case m.Validated_Candidate:
-			// Return only the validated selection and a fixture-only content digest.
-			digest:=m.catalog_digest(string(packet[i+1:n]))
-			n=i+1+copy(packet[i+1:],digest[:])
+			end:=i+1
+			when Fixture {
+				digest:=m.catalog_digest(string(packet[end:n]))
+				end+=copy(packet[end:],digest[:])
+			}
+			n=end
 			rid:=v.request_id
 			n+=copy(packet[n:],rid[:])
 			endian.put_u32(packet[n:n+4],.Little,u32(v.example))
@@ -100,6 +103,42 @@ run_front :: proc(input_fd,output:l.Fd,frame:Frame,deadline:i64) -> bool {
 		}
 	} else { n=i }
 	return send(output,packet[:n])
+}
+
+// Check the entire front-end packet before forwarding it across the issuer
+// boundary. A normal success is Ok+NUL and exactly the three selection fields.
+normal_reply :: proc(packet:[]byte, frame:Frame) -> bool {
+	if len(packet)<=16 { return false }
+	status,_:=endian.get_u32(packet[0:4],.Little)
+	sent,_:=endian.get_u32(packet[4:8],.Little)
+	headers,_:=endian.get_u32(packet[8:12],.Little)
+	received,_:=endian.get_u32(packet[12:16],.Little)
+	if (status!=0 && (status<100 || status>599)) || sent>m.RequestBodyLimit ||
+	   headers>LimitHeaders || received>m.ResponseBodyLimit { return false }
+
+	result:=packet[16:]
+	if len(result)==43 && string(result[:3])=="Ok\x00" {
+		input:=input_for(frame)
+		example,ok:=m.catalog_entry(input.revision,input.example)
+		id,_:=endian.get_u32(result[35:39],.Little)
+		length,_:=endian.get_u32(result[39:43],.Little)
+		return ok && status>=200 && status<300 && sent>0 && received>0 &&
+		       string(result[3:35])==string(input.id[:]) && id==u32(input.example) && length==u32(len(example.payload))
+	}
+	name:=string(result)
+	switch name {
+	case "ProfileUnavailable","InvalidProjection","CredentialUnavailable","InvalidHandoff","Cancelled","Deadline",
+	     "DestinationDenied","ResolutionUnavailable","ConnectFailure","SocketDenied","TransportFailure",
+	     "RequestLimit","RewindDenied","HeaderLimit","Framing","BodyLimit","TlsFailure","RateLimited","HttpFailure":
+		return true
+	}
+	for reason in m.Candidate_Rejection {
+		if name==fmt.tprintf("Candidate.%v",reason) { return true }
+	}
+	for reason in m.ProfileStatus {
+		if reason!=.Ok && name==fmt.tprintf("Envelope.%v",reason) { return true }
+	}
+	return false
 }
 
 kill_and_reap :: proc(slot:^l.Pid) {
@@ -225,6 +264,12 @@ launch :: proc() -> int {
 		if ready>0 && .IN in f[0].revents {
 			count,fd:=receive(result[0],packet[:])
 			if fd>=0 || count<17 { return 1 }
+			when Production {
+				if !normal_reply(packet[:count],frame) {
+					_=send(control,transmute([]byte)string("InvalidHandoff"))
+					return 0
+				}
+			}
 			if string(packet[16:19])=="Ok\x00" && now_ms()>=deadline { break }
 			kill_and_reap(&worker); kill_and_reap(&front)
 			return 0 if send(control,packet[:count]) else 1
