@@ -24,7 +24,7 @@ Result :: struct {error: Error, readiness: e.RecoveryDecision, tasks: [dynamic]P
 @(private)
 Event :: union {a.TaskCreated,a.ProposalRecorded,a.AuthorizationRecorded,a.DispatchClaimed,a.ObservationRecorded,
                 a.EvaluationRecorded,a.TransitionAccepted,a.RejectionRecorded,a.CapabilityRevoked,a.AttemptDisposition,
-                a.RequestIssued,a.RequestExpired,MarkerProposalSummary,MarkerApprovalSummary,a.MarkerPermit,a.MarkerClaim,a.MarkerObservation,a.MarkerEvaluation,a.MarkerAccepted}
+                a.RequestIssued,a.RequestExpired,a.ProviderFailureObserved,MarkerProposalSummary,MarkerApprovalSummary,a.MarkerPermit,a.MarkerClaim,a.MarkerObservation,a.MarkerEvaluation,a.MarkerAccepted}
 @(private)
 Record :: struct {event: Event, digest: [32]u8}
 // Qualified Phase 2 sizes on both 64-bit targets. Never store a marker payload per row.
@@ -40,6 +40,10 @@ decode :: proc(b: []u8,ref: e.EventRef, $markers: bool, requests: bool) -> (Even
 		}
 		if requests && kind==19 {
 			v,err := a.decode_request_expired(b,ref.store,ref.epoch)
+			return v,err==.None && v.reference==ref
+		}
+		if requests && kind==20 {
+			v,err := a.decode_provider_failure(b,ref.store,ref.epoch)
 			return v,err==.None && v.reference==ref
 		}
 		if kind >= 11 { return decode_marker(b,ref,kind) }

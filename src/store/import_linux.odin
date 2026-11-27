@@ -242,6 +242,10 @@ event_row :: proc(db: Database, ref: e.EventRef, history: ^NoopHistory = nil, ma
 		if !requests || history!=nil { return {},false }
 		v,err := a.decode_request_expired(b,ref.store,ref.epoch)
 		if err!=.None || v.reference!=ref { return {},false }
+	case 20:
+		if !requests || history!=nil { return {},false }
+		v,err:=a.decode_provider_failure(b,ref.store,ref.epoch)
+		if err!=.None || v.reference!=ref { return {},false }
 	case: return {},false
 	}
 	// Hash the persisted body itself after the kind decoder has validated its representation.
@@ -465,7 +469,8 @@ commit_event :: proc(w: VerifiedWriter, cp: e.Checkpoint, prior: u64, receipt: M
 		   !transaction_change(db,receipt!=nil,"watermark","INSERT INTO import_watermarks(store_id,last_imported_ordinal) VALUES(?,?) ON CONFLICT(store_id) DO UPDATE SET last_imported_ordinal=excluded.last_imported_ordinal",cp.store[:],ord[:]) { return false }
 	}
 	if model!=nil && bytes[6]==11 && !consumption_row(w,model.issued,bytes,true) { return false }
-	if request!=nil && !request_fact(db,bytes,true) { return false }
+	// Only issuance and expiry are indexed in the existing request_facts schema.
+	if request!=nil && bytes[6]!=20 && !request_fact(db,bytes,true) { return false }
 	if acceptance != nil && !insert_accepted(db,acceptance.binding) { return false }
 	when #config(WARBAND_TEST_STOP_IN_WAL_COMMIT, false) {
 		if proof_transaction(bytes,receipt,acceptance) {

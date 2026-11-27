@@ -12,7 +12,7 @@ import l "core:sys/linux"
 // The session holds a separate directory flock for its lifetime. A new caller
 // cannot declare session loss while the issuer or an inherited lease is alive.
 RequestSession :: struct {lease: l.Fd, id, boot: [16]u8}
-RequestOperation :: enum {Provision, Issue, Cancel, ExpireDue, Recover, Admit, AdmitSelection}
+RequestOperation :: enum {Provision, Issue, Cancel, ExpireDue, Recover, Admit, AdmitSelection, ObserveFailure}
 RequestStatus :: enum {Ready, Issued, Expired, Recorded, Unknown, Unavailable, Busy, Reconciliation, Limit, Admitted, Consumed, CandidateRejected}
 
 open_request_session :: proc() -> (RequestSession,bool) {
@@ -71,7 +71,7 @@ pending_requests :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Chec
 		if verify_pending_pair(w,s,root,snap,p) && store.confirm_stored(w,s,p,nil,s.deadline,marker=true,requests=true) { return .Recorded }
 		return .Reconciliation
 	}
-	if tail.bytes[6]!=18 && tail.bytes[6]!=19 { return .Reconciliation }
+	if tail.bytes[6]!=18 && tail.bytes[6]!=19 && tail.bytes[6]!=20 { return .Reconciliation }
 	segments:=[?]r.Segment{{rows=snap.rows}}
 	cp:=e.Checkpoint{s.store,s.epoch,p.sequence,p.head}
 	if !client.within_budget(s,35*u64(len(snap.rows))) { return .Limit }
@@ -99,9 +99,23 @@ expire_request :: proc(w: store.VerifiedWriter,s: ^client.Session,snap: IntakeSn
 }
 
 @(private)
+observe_failure :: proc(w:store.VerifiedWriter,s:^client.Session,snap:IntakeSnapshot,h:^r.RequestHistory,
+                        entry:^r.RequestWitness,details:^a.FailureDetails) -> RequestStatus {
+	stamp:=client.wb_recorded_us()
+	if stamp<0 || snap.cp.sequence==max(e.Sequence) { return .Unavailable }
+	v:=a.ProviderFailureObserved{reference={s.store,s.epoch,snap.cp.sequence+1},recorded_time=u64(stamp),
+	                             previous_head=snap.cp.head,issuance=entry.issued.reference,id=entry.issued.id,failure=details^}
+	wire,err:=a.encode_provider_failure(v,s.store,s.epoch)
+	// The existing table covers only kinds 18 and 19, on both sides of this append.
+	ctx:=store.RequestAppend{h,h}
+	if err!=.None || !store.append_request_fact(w,s,snap.cp,snap.mark,wire[:],&ctx) { return .Reconciliation }
+	return .Recorded
+}
+
+@(private)
 request_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkpoint,owner: RequestSession,
                        op: RequestOperation,catalog_id: m.Catalog_Id,id: [16]u8,candidate: []u8,
-                       selection: m.Validated_Candidate, issuance: ^a.RequestIssued, retained: ^PreparedProposal) -> (RequestStatus,[16]u8) {
+                       selection: m.Validated_Candidate, issuance: ^a.RequestIssued, retained: ^PreparedProposal, failure: ^a.FailureDetails) -> (RequestStatus,[16]u8) {
 	h:r.RequestHistory
 	snap,status:=intake_snapshot(w,s,root,&h)
 	if status==.PendingConfirmation && op==.Recover { return pending_requests(w,s,root,snap),{} }
@@ -151,6 +165,16 @@ request_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkp
 	}
 	entry:=r.find_request(&h,id)
 	if entry==nil { return .Unknown,{} }
+	if op==.ObserveFailure {
+		if failure==nil || entry.issued.boot!=owner.boot || entry.issued.session!=owner.id { return .Reconciliation,{} }
+		if existing,seen:=entry.failure.(a.FailureDetails); seen {
+			if existing!=failure^ { return .Reconciliation,{} }
+			return .Recorded,id
+		}
+		if spent==id || entry.expiry!=nil { return .Reconciliation,{} }
+		// A witnessed failure may arrive at the deadline; observation never expires the ID.
+		return observe_failure(w,s,snap,&h,entry,failure),id
+	}
 	if spent==id { return .Consumed,id }
 	if entry.expiry!=nil { return .Expired,id }
 	if entry.issued.boot!=owner.boot || entry.issued.session!=owner.id { return .Reconciliation,{} }
@@ -189,7 +213,7 @@ request_locked :: proc(w: store.VerifiedWriter,s: ^client.Session,root: e.Checkp
 }
 
 request_round :: proc(owner:RequestSession, op:RequestOperation, catalog_id:m.Catalog_Id=0,id:[16]u8={},candidate:[]u8=nil,
-                      selection:m.Validated_Candidate={}, issuance:^a.RequestIssued=nil, review:^PreparedProposal=nil) -> (RequestStatus,[16]u8) {
+                      selection:m.Validated_Candidate={}, issuance:^a.RequestIssued=nil, review:^PreparedProposal=nil, failure:^a.FailureDetails=nil) -> (RequestStatus,[16]u8) {
 	root,cust,trusted:=intake_configuration()
 	start:=client.wb_elapsed_ms()
 	if !trusted || start<0 || !store.limit_sqlite() { return .Unavailable,{} }
@@ -204,7 +228,7 @@ request_round :: proc(owner:RequestSession, op:RequestOperation, catalog_id:m.Ca
 	confirmed: a.RequestIssued
 	retained:=PreparedProposal{directory_fd=-1}
 	defer if retained.directory_fd>=0 { l.close(retained.directory_fd) }
-	if store.limit_writer_cache(w) { status,output=request_locked(w,&s,root,owner,op,catalog_id,id,candidate,selection,&confirmed,&retained) }
+	if store.limit_writer_cache(w) { status,output=request_locked(w,&s,root,owner,op,catalog_id,id,candidate,selection,&confirmed,&retained,failure) }
 	if !store.close_writer(&w) { return .Unavailable,{} }
 	if status==.Issued && issuance!=nil { issuance^=confirmed }
 	// Transfer the original open descriptor only after writer closure succeeds.

@@ -4,6 +4,12 @@ All notable changes to Warband are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.10 - 2026-11-27
+
+### Added
+
+- The issuer records an observed, typed provider failure in custody before acknowledging it. The event binds the transport profile, issuance and count availability. Replay preserves the observation alongside any later expiry and leaves admission and approval semantics intact.
+
 ## 0.2.9 - 2026-11-27
 
 ### Changed
