@@ -8,6 +8,10 @@ import l "core:sys/linux"
 import curl "vendor:curl"
 import m "../../src/model"
 
+// A default build stays inert. The normal transport always uses the confined
+// connector and the system trust store. Only fixture builds may vary them.
+Production :: #config(WARBAND_TRANSPORT_PRODUCTION,false)
+#assert(!Production || (!Fixture && ExternalPolicy && !TestRoots))
 Frame :: [52]byte
 env_fd :: proc(name:string) -> l.Fd {
 	s:=os.get_env(name,context.temp_allocator)
@@ -102,7 +106,7 @@ transfer :: proc(t:^Transfer,frame:Frame,input:m.ProjectionInput,secret:l.Fd) ->
 		kind:i32
 		_,ke:=l.getsockopt(fd,1,.TYPE,&kind)
 		// The trusted connector sends the independently selected IPv4 address and port with the descriptor.
-		if !Fixture || ke!=.NONE || kind!=1 || l.getpeername(fd,&peer)!=.NONE || peer.sa_family!=.INET ||
+		if ke!=.NONE || kind!=1 || l.getpeername(fd,&peer)!=.NONE || peer.sa_family!=.INET ||
 		   peer.ipv4.sin_port!=443 || packet[5]!=1 || packet[6]!=187 || string(peer.ipv4.sin_addr[:])!=string(packet[1:5]) { return "SocketDenied" }
 		pin:=fmt.ctprintf("api.openai.com:443:%d.%d.%d.%d",packet[1],packet[2],packet[3],packet[4])
 		outcome:=perform(t,cast(cstring)&auth[0],pin)
@@ -120,10 +124,11 @@ run :: proc() -> int {
 		if v==nil || v.age<.ELEVENTH { return 1 }
 		for i:=0; v.feature_names[i]!=nil; i+=1 { fmt.print(v.feature_names[i]," ") }
 		fmt.println()
+		fmt.println("fixture",Fixture,"production",Production,"external_connector",ExternalPolicy,"test_roots",TestRoots)
 		fmt.println("libcurl",v.version,"TLS",v.ssl_version,"features",v.features,"CAfile",CAFile,"CApath",CADir)
 		return 0
 	}
-	if !Fixture || len(os.args)!=1 || l.getuid()!=0 { return 1 }
+	if (!Fixture && !Production) || len(os.args)!=1 || l.getuid()!=0 { return 1 }
 	return launch()
 }
 main :: proc() { os.exit(run()) }

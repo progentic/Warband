@@ -7,7 +7,8 @@ in WB_ISSUER_FD and WB_CREDENTIAL_FD. Its working directory has fixture-ca.pem.
 The issuer sends one fixed tuple (see FRAME); C cancels. After R (Ready), S
 delivers one connected FD via SCM_RIGHTS. The launcher returns one ASCII disposition packet, with NUL and the complete
 response body appended for Ok in the original ABI. The trusted launcher returns
-bounded counters, validated selection and the fixture response digest. Its grant
+bounded transfer counters and a typed disposition. Success includes the validated
+selection and, in fixture builds only, a response digest. Its grant
 pipe contains one tuple and the connector sends the selected IPv4 address/port
 with S. Exit status describes the driver, while disposition describes the call.
 Only --self-test uses the built-in Python peer. It grades the apparatus itself.
@@ -139,7 +140,11 @@ class Endpoint(http.server.BaseHTTPRequestHandler):
             if hasattr(self.server,'handshake_wait'): self.server.handshake_wait.set()
             self.server.release.wait(8)
             raise ConnectionResetError()
-        self.request = self.server.tls.wrap_socket(self.request, server_side=True)
+        try:
+            self.request = self.server.tls.wrap_socket(self.request, server_side=True)
+        except ssl.SSLError as exc:
+            self.server.unknown_ca_alert = exc.reason == 'TLSV1_ALERT_UNKNOWN_CA'
+            raise
         super().setup()
 
     def log_message(self, *_):
@@ -380,6 +385,10 @@ def drive(root, command, case, proxy, endpoint, issuance=None):
             keylog.touch(); keylog.chmod(0o666)
             env.update(https_proxy=url, HTTPS_PROXY=url, ALL_PROXY=url, SSLKEYLOGFILE=str(keylog))
         parent.sendall(packet)
+        if case == 'issuer-socket':
+            # A valid-looking connector handoff from the issuer is forbidden by the private broker.
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as foreign:
+                socket.send_fds(parent, [b'S'+socket.inet_aton(TARGET[0])+struct.pack('!H',443)], [foreign.fileno()])
         if case == 'pre-cancel':
             parent.sendall(b'C')
         if case == 'duplicate':
@@ -474,6 +483,7 @@ def drive(root, command, case, proxy, endpoint, issuance=None):
                     parent.sendall(b'C')
             if endpoint.bootstrap and msg not in (b'InvalidHandoff',b'CredentialUnavailable',b'Deadline',b'Spent',b'Cancelled'):
                 if len(msg)<17: raise ValueError('short transfer record')
+                endpoint.metrics['issuer_reply_bytes'] = len(msg)
                 status,sent,headers,received=struct.unpack('<IIII',msg[:16])
                 if status>599 or sent>16384 or headers>16384 or received>65536: raise ValueError('invalid transfer counts')
                 endpoint.metrics.update(http_status=status, uploaded=sent, headers=headers, body=received)
@@ -595,10 +605,10 @@ def exercise(root, command, tls, case, mutant=False, bootstrap=False, dns=None, 
         except (OSError, ValueError, subprocess.SubprocessError) as exc:
             result = type(exc).__name__  # retain the observer's counts even if the driver disappears
     proxy_attempts = proxy.connections - 1
-    blocked = case in PREFLIGHT or case in ('pre-cancel','unauthorized-peer') or case.endswith('-input')
+    blocked = case in PREFLIGHT or case in ('pre-cancel','unauthorized-peer','issuer-socket') or case.endswith('-input')
     want = int(not blocked and case not in TLS_CASES and case!='old-tls')
     connects=int(not blocked)
-    expected={**CASES,**EXTENDED,**ASSEMBLED,**WORKFLOW_REPLIES}[case]
+    expected={**CASES,**EXTENDED,**ASSEMBLED,**WORKFLOW_REPLIES,'issuer-socket':'InvalidHandoff'}[case]
     passed = (result == expected and endpoint.attempts == (0 if dns else connects) and endpoint.connections == connects and endpoint.requests == want
               and endpoint.valid and proxy_attempts == 0)
     if case.isdigit():
@@ -614,6 +624,7 @@ def exercise(root, command, tls, case, mutant=False, bootstrap=False, dns=None, 
         if want: passed &= names==[HOST]
         # Log only the independently matched, fixed SNI. Unknown names stay private.
         endpoint.metrics['sni_verified']=names==[HOST]
+        endpoint.metrics['unknown_ca_alert']=getattr(endpoint,'unknown_ca_alert',False)
         endpoint.metrics.update(dns=list(dns.queries),request_id=endpoint.rid.decode(),
                                 expected_request_sha256=endpoint.expected_digest,example=endpoint.example)
         if case in ('empty-example', 'promote-action') or (case == 'success' and issuance is not None):
@@ -666,6 +677,82 @@ def fixture_tls(root):
     return tls,cert,key
 
 
+def trusted_binary(path):
+    binary = path.resolve(strict=True)
+    for parent in (binary, *binary.parents):
+        st = parent.stat()
+        if st.st_uid or st.st_mode & 0o022:
+            raise ValueError('trusted launcher requires a root-owned, protected installation')
+    return binary
+
+
+def qualify_normal(root, fixture, normal, tls, dns, cert):
+    # The two installed executables see the same endpoint and synthetic leaf.
+    # System roots remain in effect for every normal-profile transfer.
+    for profile, source, cases in (
+        ('fixture', fixture, ['success']),
+        ('normal', normal, ['pre-cancel', 'unsealed', 'issuer-socket', 'untrusted']),
+    ):
+        source = trusted_binary(source)
+        dest = root/'driver'
+        shutil.copyfile(source, dest)
+        dest.chmod(0o555)
+        digest = hashlib.sha256(dest.read_bytes()).hexdigest()
+        if digest != hashlib.sha256(source.read_bytes()).hexdigest():
+            raise ValueError('driver copy differs')
+        callback = subprocess.run([dest, '--test-callbacks'], cwd=root, capture_output=True, timeout=5)
+        if callback.returncode != int(profile=='normal') or (profile=='normal' and (callback.stdout or callback.stderr)):
+            raise ValueError('callback selector disagrees with the compiled profile')
+        for case in cases:
+            row = exercise(root, [str(dest)], tls, case, bootstrap=True, dns=dns)
+            print(json.dumps(dict(profile=profile, callback_probe_rc=callback.returncode, binary_sha256=digest,
+                                  fixture_ca_sha256=hashlib.sha256(cert.read_bytes()).hexdigest(), **row)), flush=True)
+            if not row['passed']:
+                raise ValueError('normal-profile qualification failed: '+case)
+
+
+def grade_normal(evidence):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]/'scripts'))
+    from qualify_provider_stack import grade_processes, require
+    rows = [json.loads(s) for s in (evidence/'cases.jsonl').read_text().splitlines()]
+    cases = {row['case']:row for row in rows}
+    require(len(rows)==len(cases)==5 and set(cases)=={'success','untrusted','unsealed','pre-cancel','issuer-socket'}, 'case inventory')
+    require(all(row['passed'] is True for row in rows), 'failed endpoint control')
+    require(len({row['fixture_ca_sha256'] for row in rows})==1, 'fixture certificate changed')
+    for name, profile, binary, flags, roots in (
+        ('success','fixture','connector','fixture true production false external_connector true test_roots true',
+         'CAfile fixture-ca.pem CApath fixture-empty-roots'),
+        ('untrusted','normal','normal','fixture false production true external_connector true test_roots false',
+         'CAfile /etc/ssl/certs/ca-certificates.crt CApath /etc/ssl/certs'),
+    ):
+        row = cases[name]
+        identity = (evidence/(binary+'-identity.txt')).read_text().splitlines()
+        require(row['callback_probe_rc']==int(profile=='normal'), 'fixture-only selector')
+        require(row['profile']==profile and flags in identity and any(s.endswith(roots) for s in identity), 'build profile')
+        matching = [s.split()[0] for s in identity if s.endswith('/transport-'+binary)]
+        require(matching==[row['binary_sha256']], 'binary identity')
+        require(row['dns']==[1,28,1,28] and row['connections']==1 and row['sni_verified'], 'peer or TLS ClientHello')
+    positive, denied = cases['success'], cases['untrusted']
+    require(positive['disposition']=='Ok' and positive['requests']==1 and positive['issuer_reply_bytes']==91,
+            'fixture handshake or qualified reply layout')
+    require(denied['disposition']=='TlsFailure' and denied['unknown_ca_alert'] and denied['issuer_reply_bytes']==26,
+            'production certificate rejection')
+    require(all(denied[k]==0 for k in ('requests','http_status','uploaded','headers','body')), 'HTTP before successful TLS')
+    for name, reason in [('unsealed','CredentialUnavailable'),('pre-cancel','Cancelled'),('issuer-socket','InvalidHandoff')]:
+        r = cases[name]
+        require(r['profile']=='normal' and r['binary_sha256']==denied['binary_sha256'] and r['disposition']==reason and
+                not r['dns'] and r['connections']==r['requests']==0, 'preflight or cancellation attempted egress')
+    report = json.loads((evidence/'front.json').read_text())
+    tests = [t for group in report['packages'].values() for t in group]
+    require(report['total']==report['success']==1 and [(t['name'],t['success']) for t in tests]==[('normal_selection_wire',True)],
+            'normal success wire test')
+    for invalid in ('fixture','connector','roots'):
+        require('#assert(!Production' in (evidence/f'invalid-{invalid}.log').read_text(), 'profile constraint')
+    grade = grade_processes(evidence/'traces', cases)
+    print(json.dumps(dict(**grade, normal_binary=denied['binary_sha256'], tls_alert='unknown_ca',
+                          normal_http_requests=0, fixture_http_requests=1)), flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -674,10 +761,13 @@ def main():
     mode.add_argument('--self-test', action='store_true')
     parser.add_argument('--public-vectors',type=Path,help='Go crypto/x509/verify_test.go with googleLeaf and gtsIntermediate')
     parser.add_argument('--assembled',action='store_true',help='let the real 3c connector resolve and dial the synthetic endpoint')
+    parser.add_argument('--normal-profile',type=Path,help='compare a protected non-fixture driver with the fixture connector')
     parser.add_argument('--production-roots',action='store_true',help='test fixture refusal with production trust settings')
     parser.add_argument('--isolated', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.assembled and not args.trusted_launcher: parser.error('assembled run requires the trusted launcher')
+    if args.normal_profile and (not args.assembled or args.production_roots or args.public_vectors):
+        parser.error('normal comparison requires the assembled fixture and normal connectors')
     script = Path(__file__).resolve()
     if not args.isolated:
         return subprocess.call(['unshare','--net',sys.executable,script,'--isolated',*sys.argv[1:]])
@@ -698,13 +788,8 @@ def main():
         if args.public_vectors:
             verify_public_chain(root,cert,args.public_vectors)
         dest = root/'driver'
-        if args.trusted_launcher:
-            binary = args.trusted_launcher.resolve(strict=True)
-            for path in (binary,*binary.parents):
-                st=path.stat()
-                if st.st_uid or st.st_mode & 0o022:
-                    parser.error('trusted launcher requires a root-owned, protected installation')
-        shutil.copyfile(args.trusted_launcher or args.driver or script,dest)
+        binary = trusted_binary(args.trusted_launcher) if args.trusted_launcher else args.driver or script
+        shutil.copyfile(binary,dest)
         dest.chmod(0o555)
         command = [str(dest)] if args.driver or args.trusted_launcher else [sys.executable,str(dest),'--peer']
         dns=None
@@ -721,6 +806,9 @@ def main():
             dns=services.enter_context(observing(Observer(STUB,DNS)))
             dns.hold=False
             dns.prior_reply=''
+            if args.normal_profile:
+                qualify_normal(root, binary, args.normal_profile, tls, dns, cert)
+                return 0
             if guard:=os.environ.get('WB_GUARD_STORE'):
                 for name in ('journal','data','endpoints'):
                     (root/name).symlink_to(Path(guard)/name,target_is_directory=True)
@@ -757,7 +845,9 @@ def main():
 
 
 if __name__ == '__main__':
-    if sys.argv[1:] == ['--issuer-relay']:
+    if sys.argv[1:2] == ['--grade-normal'] and len(sys.argv)==3:
+        grade_normal(Path(sys.argv[2]))
+    elif sys.argv[1:] == ['--issuer-relay']:
         relay()
     elif sys.argv[1:2] == ['--peer']:
         self_test_peer(sys.argv[2:] == ['--double'])
